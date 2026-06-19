@@ -1069,17 +1069,23 @@ function renderDetail(pid){
     </div>`;
 
   // 檔案庫
-  const filesHtml=`<div class="section-hd">檔案庫</div>
+  const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span></div>
     <div class="card">
       ${FILE_CATS.map(cat=>{
-        const url=p.files[cat]||'';
-        return`<div class="file-row">
-          <div class="file-icon"><i class="ti ti-file-text"></i></div>
-          <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">${url?'已連結':'尚未連結'}</div></div>
-          <div style="display:flex;gap:5px;">
-            <button class="btn btn-sm btn-ghost" onclick="uploadFile('${pid}','${cat}')"><i class="ti ti-upload"></i></button>
-            <button class="btn btn-sm btn-primary" onclick="openFile('${pid}','${cat}')" ${url?'':'disabled style="opacity:0.35"'}><i class="ti ti-external-link"></i></button>
+        const files=(p.files&&p.files[cat])||[];
+        return`<div class="file-row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <div class="file-icon"><i class="ti ti-folder"></i></div>
+            <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">${files.length?files.length+' 個檔案':'尚無檔案'}</div></div>
+            <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
           </div>
+          ${files.length?`<div style="padding-left:50px;display:flex;flex-direction:column;gap:4px;">
+            ${files.map((f,fi)=>`
+              <div style="display:flex;align-items:center;gap:6px;">
+                <a href="${f.url}" target="_blank" style="flex:1;font-size:12px;color:var(--blue-text);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="ti ti-file"></i> ${f.name}</a>
+                <button class="btn btn-icon btn-sm btn-danger" onclick="removeDriveFile('${pid}','${cat}',${fi})"><i class="ti ti-x" style="font-size:11px"></i></button>
+              </div>`).join('')}
+          </div>`:''}
         </div>`;}).join('')}
     </div>`;
 
@@ -1213,18 +1219,108 @@ function deleteNote(pid,idx){
   p.notes.splice(idx,1);save();renderDetail(pid);
 }
 
-// ── 檔案庫 ──
-function uploadFile(pid,cat){
-  const url=prompt(`請貼上「${cat}」的 Google 雲端連結：`);
-  if(!url||!url.trim())return;
-  const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  if(!p.files)p.files={};
-  p.files[cat]=url.trim();save();renderDetail(pid);
+// ── 檔案庫（Google Drive）──
+const GOOGLE_API_KEY='AIzaSyDRS3Wnse8MmutBfgv-GlVCrATyhTq446M';
+const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+let driveAccessToken=null;
+let tokenClient=null;
+
+function ensureDriveAuth(callback){
+  if(driveAccessToken){callback();return;}
+  if(!window.google||!google.accounts||!google.accounts.oauth2){
+    alert('Google 服務尚未載入完成，請稍後再試');return;
+  }
+  tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:GOOGLE_CLIENT_ID,
+    scope:DRIVE_SCOPE,
+    callback:(resp)=>{
+      if(resp.error){alert('授權失敗：'+resp.error);return;}
+      driveAccessToken=resp.access_token;
+      callback();
+    }
+  });
+  tokenClient.requestAccessToken({prompt:''});
 }
-function openFile(pid,cat){
+
+async function driveApiFetch(url,options={}){
+  const headers=Object.assign({},options.headers,{'Authorization':'Bearer '+driveAccessToken});
+  return fetch(url,Object.assign({},options,{headers}));
+}
+
+async function findOrCreateFolder(name,parentId){
+  let q=`mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g,"\\'")}' and trashed=false`;
+  if(parentId)q+=` and '${parentId}' in parents`; else q+=` and 'root' in parents`;
+  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&key=${GOOGLE_API_KEY}`;
+  const res=await driveApiFetch(searchUrl);
+  const data=await res.json();
+  if(data.files&&data.files.length)return data.files[0].id;
+  const metadata={name,mimeType:'application/vnd.google-apps.folder'};
+  if(parentId)metadata.parents=[parentId];
+  const createRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files?key=${GOOGLE_API_KEY}`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(metadata)
+  });
+  const created=await createRes.json();
+  return created.id;
+}
+
+async function ensureProjectFolderPath(p,cat){
+  const rootId=await findOrCreateFolder('工程管理系統');
+  const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
+  const projId=await findOrCreateFolder(projName,rootId);
+  const catId=await findOrCreateFolder(cat,projId);
+  return catId;
+}
+
+function pickDriveFile(pid,cat){
+  ensureDriveAuth(()=>{
+    const input=document.createElement('input');
+    input.type='file';
+    input.multiple=true;
+    input.onchange=async()=>{
+      const fileList=Array.from(input.files);
+      if(!fileList.length)return;
+      const p=db.projects.find(x=>x.id===pid);if(!p)return;
+      for(const file of fileList){
+        await uploadOneFile(p,cat,file);
+      }
+      save();renderDetail(pid);
+    };
+    input.click();
+  });
+}
+
+async function uploadOneFile(p,cat,file){
+  try{
+    const folderId=await ensureProjectFolderPath(p,cat);
+    const metadata={name:file.name,parents:[folderId]};
+    const form=new FormData();
+    form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+    form.append('file',file);
+    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink&key=${GOOGLE_API_KEY}`,{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+driveAccessToken},
+      body:form
+    });
+    const result=await res.json();
+    if(result.id){
+      if(!p.files)p.files={};
+      if(!p.files[cat])p.files[cat]=[];
+      p.files[cat].push({name:result.name,url:result.webViewLink||`https://drive.google.com/file/d/${result.id}/view`,driveId:result.id});
+    } else {
+      alert('上傳失敗：'+(result.error?.message||'未知錯誤'));
+    }
+  }catch(e){
+    alert('上傳發生錯誤：'+e.message);
+  }
+}
+
+function removeDriveFile(pid,cat,idx){
+  if(!confirm('確定從清單中移除？（Google Drive 中的檔案不會被刪除）'))return;
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  const url=p.files&&p.files[cat];
-  if(url)window.open(url,'_blank');else alert('尚未連結，請先上傳連結');
+  if(p.files&&p.files[cat])p.files[cat].splice(idx,1);
+  save();renderDetail(pid);
 }
 
 // ── 收支 ──
