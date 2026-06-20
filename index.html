@@ -368,11 +368,18 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
     <div class="form-group"><label class="form-label">業主 / 客戶</label><input class="form-input" id="p-client" placeholder="例：王先生"></div>
     <div class="form-group"><label class="form-label">分類 *</label>
-      <select class="form-input" id="p-type">
+      <select class="form-input" id="p-type" onchange="onTypeChange()">
         <option value="">請選擇分類</option>
         <option value="洽談中">洽談中</option>
         <option value="施作中">施作中</option>
       </select>
+    </div>
+    <div class="form-group" id="p-measure-group" style="display:none;">
+      <label class="form-label">丈量時間</label>
+      <div class="grid2">
+        <input class="form-input" id="p-measure-date" type="date">
+        <input class="form-input" id="p-measure-time" type="time" step="600" lang="zh-TW" value="09:00">
+      </div>
     </div>
     <div class="form-group"><label class="form-label">專案負責人</label><select class="form-input" id="p-leader"><option value="">請選擇負責人</option></select></div>
     <div class="form-group"><label class="form-label">備註</label><textarea class="form-input" id="p-note" placeholder="補充說明..."></textarea></div>
@@ -417,19 +424,6 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-task-other')">取消</button>
       <button class="btn btn-primary" onclick="saveTaskOther()">確認</button>
-    </div>
-  </div>
-</div>
-
-<div class="sheet-overlay" id="sheet-measure">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">預約丈量時間<button class="sheet-close" onclick="closeSheet('sheet-measure')"><i class="ti ti-x"></i></button></div>
-    <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="measure-date" type="date"></div>
-    <div class="form-group"><label class="form-label">時間</label><input class="form-input" id="measure-time" type="time" step="300" lang="zh-TW" value="09:00"></div>
-    <div class="sheet-footer">
-      <button class="btn" onclick="closeSheet('sheet-measure')">取消</button>
-      <button class="btn btn-primary" onclick="saveMeasureDate()">確認</button>
     </div>
   </div>
 </div>
@@ -624,7 +618,22 @@ let currentStaffPeriod='current'; // current / prev / custom
 let currentStaffCustomMonth='';
 
 function save(){localStorage.setItem('dmgr_v6',JSON.stringify(db));}
-function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};}
+function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};autoCompleteMeasureSteps();}
+function autoCompleteMeasureSteps(){
+  const now=new Date();
+  let changed=false;
+  (db.projects||[]).forEach(p=>{
+    if(p.type==='洽談中'&&p.measureDate&&(p.negStep||0)<1){
+      if(new Date(p.measureDate)<=now){
+        if(!p.negStepTimes)p.negStepTimes={};
+        p.negStep=1;
+        p.negStepTimes[0]=p.measureDate;
+        changed=true;
+      }
+    }
+  });
+  if(changed)save();
+}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function today(){return new Date().toISOString().slice(0,10);}
 function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});}
@@ -762,9 +771,11 @@ function handleAdd(){
   editingProjectId=null;
   document.getElementById('sheet-project-title').textContent='新增專案';
   document.getElementById('sheet-project-save').textContent='儲存專案';
-  ['p-name','p-client','p-note','p-city'].forEach(id=>document.getElementById(id).value='');
+  ['p-name','p-client','p-note','p-city','p-measure-date'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-measure-time').value='09:00';
   document.getElementById('p-area').innerHTML='<option value="">請先選擇縣市</option>';
   document.getElementById('p-type').value='';
+  document.getElementById('p-measure-group').style.display='none';
   fillStaffSel('p-leader');
   openSheet('sheet-project');
 }
@@ -777,6 +788,10 @@ function onCityChange(){
     return;
   }
   areaSel.innerHTML='<option value="">請選擇區</option>'+districts.map(d=>`<option value="${d}">${d}</option>`).join('');
+}
+function onTypeChange(){
+  const type=document.getElementById('p-type').value;
+  document.getElementById('p-measure-group').style.display=type==='洽談中'?'block':'none';
 }
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
@@ -805,7 +820,7 @@ function dotHtml(p,clickable=false){
     <div class="dot-step"${clickable?` onclick="setNegStep('${p.id}',${i+1})" style="cursor:pointer"`:''}>
       <div class="dot-circle ${i<step?'done':''}"></div>
       <div class="dot-label ${i<step?'done':''}">${s}</div>
-      <div class="dot-time">${times[i]?fmtMD(times[i]):''}</div>
+      <div class="dot-time">${i===0&&p.measureDate?fmtMD(p.measureDate)+' '+p.measureDate.slice(11,16):(times[i]?fmtMD(times[i]):'')}</div>
       ${clickable&&i===TALK_IDX?`<div onclick="event.stopPropagation();updateTalkTime('${p.id}')" style="font-size:9px;color:var(--blue-text);cursor:pointer;text-align:center;margin-top:1px;">更新時間</div>`:''}
     </div>${i<NEG_STEPS.length-1?`<div class="dot-line ${i<step?'done':''}"></div>`:''}`).join('');
 }
@@ -955,17 +970,24 @@ function saveProject(){
   if(!city)return alert('請選擇縣市');
   if(!name)return alert('請輸入區與建案名稱');
   if(!type)return alert('請選擇分類');
+  const mDate=document.getElementById('p-measure-date').value;
+  const mTime=document.getElementById('p-measure-time').value;
+  const measureDate=(type==='洽談中'&&mDate)?mDate+'T'+(mTime||'09:00')+':00':null;
   if(editingProjectId){
     const p=db.projects.find(x=>x.id===editingProjectId);if(!p)return;
     p.name=name;p.area=area;p.bname=bname;p.city=city;
     p.client=document.getElementById('p-client').value;
     p.type=type;p.note=document.getElementById('p-note').value;
     p.leader=document.getElementById('p-leader').value;
+    p.measureDate=measureDate;
     save();closeSheet('sheet-project');
     if(currentPage==='detail')renderDetail(editingProjectId);else renderProjects();
+    if(measureDate)syncMeasureToCalendar(p);
   } else {
-    db.projects.push({id:uid(),name,area,bname,city,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()});
+    const np={id:uid(),name,area,bname,city,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,measureDate,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()};
+    db.projects.push(np);
     save();closeSheet('sheet-project');renderProjects();
+    if(measureDate)syncMeasureToCalendar(np);
   }
   editingProjectId=null;
 }
@@ -981,6 +1003,14 @@ function openEditProject(pid){
   document.getElementById('p-client').value=p.client||'';
   document.getElementById('p-type').value=p.type==='無回應'||p.type==='已完工'?p.type:p.type;
   document.getElementById('p-note').value=p.note||'';
+  document.getElementById('p-measure-group').style.display=p.type==='洽談中'?'block':'none';
+  if(p.measureDate){
+    document.getElementById('p-measure-date').value=p.measureDate.slice(0,10);
+    document.getElementById('p-measure-time').value=p.measureDate.slice(11,16);
+  } else {
+    document.getElementById('p-measure-date').value='';
+    document.getElementById('p-measure-time').value='09:00';
+  }
   fillStaffSel('p-leader');
   document.getElementById('p-leader').value=p.leader||'';
   openSheet('sheet-project');
@@ -1121,17 +1151,6 @@ function renderDetail(pid){
     progressHtml=`
       <div class="section-hd">客戶來源</div>
       <div class="card"><div class="card-inner"><div style="display:flex;flex-wrap:wrap;">${srcHtml}</div></div></div>
-      <div class="section-hd">丈量預約</div>
-      <div class="card"><div class="card-inner">
-        <div class="card-row" style="padding:0;border:none;cursor:pointer" onclick="editMeasureDate('${pid}')">
-          <div class="card-row-icon"><i class="ti ti-ruler-2"></i></div>
-          <div class="card-row-body">
-            <div class="card-row-title">${p.measureDate?fmtMD(p.measureDate)+' '+p.measureDate.slice(11,16):'尚未安排丈量時間'}</div>
-            <div class="card-row-sub">${p.measureDate?'點擊修改時間':'點擊設定丈量日期與時間'}</div>
-          </div>
-          <i class="ti ti-chevron-right text-muted"></i>
-        </div>
-      </div></div>
       <div class="section-hd">洽談進度</div>
       <div class="card"><div class="card-inner">
         <div class="dot-progress">${dotHtml(p,true)}</div>
@@ -1259,31 +1278,6 @@ function updateTalkTime(pid){
   if(!p.negStepTimes)p.negStepTimes={};
   p.negStepTimes[2]=new Date().toISOString();
   save();renderDetail(pid);
-}
-
-let measureEditPid=null;
-function editMeasureDate(pid){
-  measureEditPid=pid;
-  const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  if(p.measureDate){
-    const d=new Date(p.measureDate);
-    document.getElementById('measure-date').value=d.toISOString().slice(0,10);
-    const hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
-    document.getElementById('measure-time').value=(hh==='00'&&mm==='00')?'':hh+':'+mm;
-  } else {
-    document.getElementById('measure-date').value='';
-    document.getElementById('measure-time').value='';
-  }
-  openSheet('sheet-measure');
-}
-function saveMeasureDate(){
-  const p=db.projects.find(x=>x.id===measureEditPid);if(!p)return;
-  const date=document.getElementById('measure-date').value;
-  const time=document.getElementById('measure-time').value;
-  if(!date){alert('請選擇日期');return;}
-  p.measureDate=date+'T'+(time||'09:00')+':00';
-  save();closeSheet('sheet-measure');renderDetail(measureEditPid);
-  syncMeasureToCalendar(p);
 }
 
 function setNegStep(pid,step){
