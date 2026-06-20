@@ -581,6 +581,7 @@ function showApp(){
   document.getElementById('user-menu-name').textContent=currentUser.name;
   document.getElementById('user-menu-email').textContent=currentUser.email;
   load();renderDashboard();
+  checkAutoBackup();
 }
 
 function toggleUserMenu(){
@@ -1474,6 +1475,7 @@ function ensureDriveAuth(callback){
       if(resp.error){alert('授權失敗：'+resp.error);return;}
       driveAccessToken=resp.access_token;
       callback();
+      checkAutoBackup();
     }
   });
   tokenClient.requestAccessToken({prompt:''});
@@ -1531,6 +1533,34 @@ function syncMeasureToCalendar(p){
       else if(data.error){console.error('日曆同步失敗',data.error);}
     }catch(err){console.error('日曆同步發生錯誤',err);}
   });
+}
+
+// ── 自動備份至個人 Google Drive ──
+const BACKUP_CHECK_KEY='dmgr_last_backup_date';
+async function uploadBackupFile(){
+  const dateStr=today();
+  const folderId=await findOrCreateFolder('安盾工程管理系統_自動備份');
+  const fileName=`備份_${dateStr}.json`;
+  const content=JSON.stringify(db,null,2);
+  const metadata={name:fileName,parents:[folderId]};
+  const boundary='-------dmgrbackup'+Date.now();
+  const body=
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`+
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n`+
+    `--${boundary}--`;
+  await driveApiFetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&key=${GOOGLE_API_KEY}`,{
+    method:'POST',
+    headers:{'Content-Type':`multipart/related; boundary=${boundary}`},
+    body
+  });
+  localStorage.setItem(BACKUP_CHECK_KEY,dateStr);
+}
+function checkAutoBackup(){
+  const lastBackup=localStorage.getItem(BACKUP_CHECK_KEY);
+  const todayStr=today();
+  if(lastBackup===todayStr)return;
+  if(!driveAccessToken)return;
+  uploadBackupFile().catch(err=>console.error('自動備份失敗',err));
 }
 
 async function ensureProjectFolderPath(p,cat){
