@@ -25,6 +25,7 @@
   --blue:#2563eb;--blue-bg:#eff6ff;--blue-text:#1d4ed8;
   --red:#dc2626;--red-bg:#fef2f2;--red-text:#b91c1c;
   --purple:#7c3aed;--purple-bg:#f5f3ff;
+  --divider-strong:#000000;
   --r:10px;--rl:14px;
   --nav-h:64px;--safe-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -37,6 +38,7 @@ html[data-theme="dark"]{
   --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.12);--blue-text:#93c5fd;
   --red:#f87171;--red-bg:rgba(248,113,113,0.12);--red-text:#fca5a5;
   --purple:#a78bfa;--purple-bg:rgba(167,139,250,0.12);
+  --divider-strong:#ffffff;
 }
 html,body{height:100%;overflow:hidden;}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--text);font-size:15px;line-height:1.6;}
@@ -175,6 +177,14 @@ textarea.form-input{resize:none;min-height:72px;}
 .sheet-title{font-size:16px;font-weight:500;margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
 .sheet-close{background:none;border:none;font-size:22px;color:var(--text3);cursor:pointer;}
 .sheet-footer{display:grid;grid-template-columns:1fr 2fr;gap:0.6rem;margin-top:1.25rem;}
+.wheel-picker-wrap{position:relative;display:flex;align-items:center;justify-content:center;height:200px;gap:4px;}
+.wheel-col{height:200px;width:70px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;text-align:center;}
+.wheel-col::-webkit-scrollbar{display:none;}
+.wheel-col-pad{height:80px;}
+.wheel-item{height:40px;line-height:40px;font-size:20px;color:var(--text3);scroll-snap-align:center;}
+.wheel-item.center{color:var(--text);font-weight:500;}
+.wheel-colon{font-size:22px;font-weight:500;color:var(--text);}
+.wheel-highlight{position:absolute;left:0;right:0;top:80px;height:40px;border-top:0.5px solid var(--border2);border-bottom:0.5px solid var(--border2);pointer-events:none;background:var(--bg2);opacity:0.5;z-index:-1;}
 .btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:11px 14px;border-radius:var(--r);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);}
 .btn-primary{background:var(--text);color:var(--bg);border-color:var(--text);}
 .btn-danger{background:var(--red-bg);color:var(--red-text);border-color:transparent;}
@@ -257,10 +267,10 @@ textarea.form-input{resize:none;min-height:72px;}
       <hr style="border:none;border-top:2px solid var(--border);margin:0.5rem 0 0.25rem;">
       <div class="section-hd">施作中</div>
       <div id="proj-construction"></div>
-      <hr style="border:none;border-top:4px solid var(--text3);margin:0.75rem 0 0.5rem;">
+      <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">已完工</div>
       <div id="proj-completed"></div>
-      <hr style="border:none;border-top:4px solid var(--text3);margin:0.75rem 0 0.5rem;">
+      <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">無回應</div>
       <div id="proj-no-response"></div>
     </div>
@@ -297,7 +307,7 @@ textarea.form-input{resize:none;min-height:72px;}
         </div>
         <div class="cal-grid" id="cal-grid"></div>
       </div></div>
-      <div class="section-hd" id="cal-selected-label">本月事件</div>
+      <div class="section-hd" id="cal-selected-label">近半年事件</div>
       <div class="card" id="cal-events-list"></div>
     </div>
   </div>
@@ -382,16 +392,35 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group" id="p-measure-group" style="display:none;">
       <label class="form-label">丈量時間</label>
       <input class="form-input" id="p-measure-date" type="date" style="margin-bottom:0.5rem;">
-      <div class="grid2">
-        <select class="form-input" id="p-measure-hour"></select>
-        <select class="form-input" id="p-measure-minute"></select>
+      <div class="form-input" id="p-measure-time-display" onclick="openTimeWheel()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+        <span id="p-measure-time-text">09:00</span>
+        <i class="ti ti-clock text-muted"></i>
       </div>
+      <input type="hidden" id="p-measure-hour" value="09">
+      <input type="hidden" id="p-measure-minute" value="00">
     </div>
     <div class="form-group"><label class="form-label">專案負責人</label><select class="form-input" id="p-leader"><option value="">請選擇負責人</option></select></div>
     <div class="form-group"><label class="form-label">備註</label><textarea class="form-input" id="p-note" placeholder="補充說明..."></textarea></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-project')">取消</button>
       <button class="btn btn-primary" id="sheet-project-save" onclick="saveProject()">儲存專案</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-time-wheel">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">選擇丈量時間<button class="sheet-close" onclick="closeSheet('sheet-time-wheel')"><i class="ti ti-x"></i></button></div>
+    <div class="wheel-picker-wrap">
+      <div class="wheel-col" id="wheel-hour"></div>
+      <div class="wheel-colon">:</div>
+      <div class="wheel-col" id="wheel-minute"></div>
+      <div class="wheel-highlight"></div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-time-wheel')">取消</button>
+      <button class="btn btn-primary" onclick="confirmTimeWheel()">確認</button>
     </div>
   </div>
 </div>
@@ -799,30 +828,44 @@ function onTypeChange(){
   const type=document.getElementById('p-type').value;
   document.getElementById('p-measure-group').style.display=type==='洽談中'?'block':'none';
 }
-function initMeasureTimeSelects(){
-  const hourSel=document.getElementById('p-measure-hour');
-  const minSel=document.getElementById('p-measure-minute');
-  if(hourSel.options.length===0){
-    for(let h=0;h<24;h++){
-      const hh=String(h).padStart(2,'0');
-      hourSel.innerHTML+=`<option value="${hh}">${hh} 點</option>`;
-    }
-  }
-  if(minSel.options.length===0){
-    for(let m=0;m<60;m+=10){
-      const mm=String(m).padStart(2,'0');
-      minSel.innerHTML+=`<option value="${mm}">${mm} 分</option>`;
-    }
-  }
-}
 function setMeasureTime(hh,mm){
-  initMeasureTimeSelects();
-  document.getElementById('p-measure-hour').value=hh;
   const roundedMin=String(Math.round(Number(mm)/10)*10%60).padStart(2,'0');
+  document.getElementById('p-measure-hour').value=hh;
   document.getElementById('p-measure-minute').value=roundedMin;
+  document.getElementById('p-measure-time-text').textContent=hh+':'+roundedMin;
 }
 function getMeasureTime(){
   return document.getElementById('p-measure-hour').value+':'+document.getElementById('p-measure-minute').value;
+}
+function buildWheelCol(colEl,items,selectedValue){
+  colEl.innerHTML='<div class="wheel-col-pad"></div>'+items.map(v=>`<div class="wheel-item" data-val="${v}">${v}</div>`).join('')+'<div class="wheel-col-pad"></div>';
+  const idx=items.indexOf(selectedValue);
+  setTimeout(()=>{colEl.scrollTop=Math.max(0,idx)*40;updateWheelHighlight(colEl);},0);
+  colEl.onscroll=()=>updateWheelHighlight(colEl);
+}
+function updateWheelHighlight(colEl){
+  const idx=Math.round(colEl.scrollTop/40);
+  colEl.querySelectorAll('.wheel-item').forEach((el,i)=>el.classList.toggle('center',i===idx));
+}
+function openTimeWheel(){
+  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+  const mins=Array.from({length:6},(_,i)=>String(i*10).padStart(2,'0'));
+  const curH=document.getElementById('p-measure-hour').value||'09';
+  const curM=document.getElementById('p-measure-minute').value||'00';
+  buildWheelCol(document.getElementById('wheel-hour'),hours,curH);
+  buildWheelCol(document.getElementById('wheel-minute'),mins,curM);
+  openSheet('sheet-time-wheel');
+}
+function getWheelCenterValue(colEl){
+  const idx=Math.round(colEl.scrollTop/40);
+  const items=colEl.querySelectorAll('.wheel-item');
+  return items[idx]?items[idx].getAttribute('data-val'):items[0].getAttribute('data-val');
+}
+function confirmTimeWheel(){
+  const hh=getWheelCenterValue(document.getElementById('wheel-hour'));
+  const mm=getWheelCenterValue(document.getElementById('wheel-minute'));
+  setMeasureTime(hh,mm);
+  closeSheet('sheet-time-wheel');
 }
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
@@ -1840,8 +1883,15 @@ function renderCalendar(){
 function selectDay(ds){calSelected=ds;document.getElementById('cal-selected-label').textContent=fDate(ds)+' 的事件';renderCalendar();}
 function renderCalEvents(){
   let evs=allEvents();
-  if(calSelected)evs=evs.filter(e=>e.date===calSelected);
-  else evs=evs.filter(e=>e.date&&e.date.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`));
+  if(calSelected){
+    evs=evs.filter(e=>e.date===calSelected);
+  } else {
+    const startDate=today();
+    const endDateObj=new Date();
+    endDateObj.setMonth(endDateObj.getMonth()+6);
+    const endDate=endDateObj.toISOString().slice(0,10);
+    evs=evs.filter(e=>e.date&&e.date>=startDate&&e.date<=endDate);
+  }
   evs=[...evs].sort((a,b)=>a.date?.localeCompare(b.date||''));
   const typeIcon={'丈量':'ti-ruler-2','打卡':'ti-clock-check'};
   document.getElementById('cal-events-list').innerHTML=evs.length?evs.map(e=>`
@@ -1858,8 +1908,8 @@ function renderCalEvents(){
       </div>
     </div>`).join(''):'<div class="empty"><i class="ti ti-calendar-off"></i><p>此期間無事件</p></div>';
 }
-function prevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelected=null;document.getElementById('cal-selected-label').textContent='本月事件';renderCalendar();}
-function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('cal-selected-label').textContent='本月事件';renderCalendar();}
+function prevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
+function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
 function saveEvent(){
   const title=document.getElementById('e-title').value.trim();
   const date=document.getElementById('e-date').value;
