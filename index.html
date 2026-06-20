@@ -17,9 +17,9 @@
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 :root{
-  --bg:#fdfcf9;--bg2:#faf8f3;--bg3:#f2eee2;
+  --bg:#ffffff;--bg2:#fdfcfa;--bg3:#f6f3eb;
   --text:#33301f;--text2:#7a715a;--text3:#aca28a;
-  --border:#ece5d3;--border2:#e2d9bf;
+  --border:#f0ead9;--border2:#e6dec5;
   --gold:#a6762f;--gold-bg:#f8f0dd;--gold-text:#8a5d22;
   --green:#5a7d3a;--green-bg:#f3f7ed;
   --amber:#a6762f;--amber-bg:#f8f0dd;
@@ -43,6 +43,10 @@ html[data-theme="dark"]{
   --divider-strong:#e8e4d8;
 }
 html,body{height:100%;overflow:hidden;}
+html[data-fontsize="small"] body{zoom:0.9;}
+html[data-fontsize="normal"] body{zoom:1;}
+html[data-fontsize="large"] body{zoom:1.12;}
+html[data-fontsize="xlarge"] body{zoom:1.25;}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);font-size:16px;line-height:1.65;}
 .topbar{background:var(--bg2);border-bottom:0.5px solid var(--border);padding:0 1rem;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;}
 .topbar-title{font-size:17px;font-weight:500;display:flex;align-items:center;gap:6px;}
@@ -152,6 +156,9 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .theme-switch.on{background:var(--blue);}
 .theme-switch-knob{width:18px;height:18px;border-radius:50%;background:var(--bg);position:absolute;top:3px;left:3px;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);}
 .theme-switch.on .theme-switch-knob{left:19px;}
+.fontsize-group{display:flex;gap:6px;}
+.fontsize-btn{flex:1;text-align:center;padding:8px 0;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border2);}
+.fontsize-btn.active{background:var(--gold);color:#fff;border-color:var(--gold);}
 /* 效率區塊 */
 .eff-row{display:flex;align-items:center;padding:0.75rem 1rem;border-bottom:0.5px solid var(--border);gap:0.75rem;}
 .eff-row:last-child{border-bottom:none;}
@@ -233,6 +240,15 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="user-menu-item" style="color:var(--text);display:flex;align-items:center;justify-content:space-between;" onclick="toggleTheme(event)">
     <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-moon" id="theme-icon"></i> <span id="theme-label">深色模式</span></span>
     <div class="theme-switch" id="theme-switch"><div class="theme-switch-knob"></div></div>
+  </div>
+  <div class="user-menu-item" style="color:var(--text);cursor:default;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:0.6rem;"><i class="ti ti-text-size"></i> 字體大小</div>
+    <div class="fontsize-group" id="fontsize-group">
+      <div class="fontsize-btn" data-size="small" onclick="setFontSize('small')">小</div>
+      <div class="fontsize-btn" data-size="normal" onclick="setFontSize('normal')">中</div>
+      <div class="fontsize-btn" data-size="large" onclick="setFontSize('large')">大</div>
+      <div class="fontsize-btn" data-size="xlarge" onclick="setFontSize('xlarge')">特大</div>
+    </div>
   </div>
   <div class="user-menu-item" onclick="logout()"><i class="ti ti-logout"></i> 登出</div>
 </div>
@@ -1966,6 +1982,23 @@ function updateThemeUI(theme){
   }
 }
 initTheme();
+
+function initFontSize(){
+  const saved=localStorage.getItem('dmgr_fontsize')||'normal';
+  document.documentElement.setAttribute('data-fontsize',saved);
+  updateFontSizeUI(saved);
+}
+function setFontSize(size){
+  document.documentElement.setAttribute('data-fontsize',size);
+  localStorage.setItem('dmgr_fontsize',size);
+  updateFontSizeUI(size);
+}
+function updateFontSizeUI(size){
+  document.querySelectorAll('.fontsize-btn').forEach(btn=>{
+    btn.classList.toggle('active',btn.getAttribute('data-size')===size);
+  });
+}
+initFontSize();
 
 checkLogin();
 </script>
