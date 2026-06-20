@@ -313,6 +313,34 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="sheet-project-title">新增專案</span><button class="sheet-close" onclick="closeSheet('sheet-project')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">縣市 *</label>
+      <select class="form-input" id="p-city">
+        <option value="">請選擇縣市</option>
+        <option value="桃園市">桃園市</option>
+        <option value="台北市">台北市</option>
+        <option value="新北市">新北市</option>
+        <option value="新竹市">新竹市</option>
+        <option value="新竹縣">新竹縣</option>
+        <option value="基隆市">基隆市</option>
+        <option value="宜蘭縣">宜蘭縣</option>
+        <option value="苗栗縣">苗栗縣</option>
+        <option value="台中市">台中市</option>
+        <option value="彰化縣">彰化縣</option>
+        <option value="南投縣">南投縣</option>
+        <option value="雲林縣">雲林縣</option>
+        <option value="嘉義市">嘉義市</option>
+        <option value="嘉義縣">嘉義縣</option>
+        <option value="台南市">台南市</option>
+        <option value="高雄市">高雄市</option>
+        <option value="屏東縣">屏東縣</option>
+        <option value="台東縣">台東縣</option>
+        <option value="花蓮縣">花蓮縣</option>
+        <option value="澎湖縣">澎湖縣</option>
+        <option value="金門縣">金門縣</option>
+        <option value="連江縣">連江縣</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
     <div class="grid2">
       <div class="form-group"><label class="form-label">區 *</label><input class="form-input" id="p-area" placeholder="例：信義區"></div>
       <div class="form-group"><label class="form-label">建案名稱 *</label><input class="form-input" id="p-name" placeholder="例：辦公室設計"></div>
@@ -674,7 +702,7 @@ function handleAdd(){
   editingProjectId=null;
   document.getElementById('sheet-project-title').textContent='新增專案';
   document.getElementById('sheet-project-save').textContent='儲存專案';
-  ['p-name','p-client','p-note','p-area'].forEach(id=>document.getElementById(id).value='');
+  ['p-name','p-client','p-note','p-area','p-city'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('p-type').value='';
   fillStaffSel('p-leader');
   openSheet('sheet-project');
@@ -848,22 +876,24 @@ function renderProjects(){
 
 // ── SAVE PROJECT ──
 function saveProject(){
+  const city=document.getElementById('p-city').value;
   const area=document.getElementById('p-area').value.trim();
   const bname=document.getElementById('p-name').value.trim();
   const name=area&&bname?`${area} - ${bname}`:area||bname;
   const type=document.getElementById('p-type').value;
+  if(!city)return alert('請選擇縣市');
   if(!name)return alert('請輸入區與建案名稱');
   if(!type)return alert('請選擇分類');
   if(editingProjectId){
     const p=db.projects.find(x=>x.id===editingProjectId);if(!p)return;
-    p.name=name;p.area=area;p.bname=bname;
+    p.name=name;p.area=area;p.bname=bname;p.city=city;
     p.client=document.getElementById('p-client').value;
     p.type=type;p.note=document.getElementById('p-note').value;
     p.leader=document.getElementById('p-leader').value;
     save();closeSheet('sheet-project');
     if(currentPage==='detail')renderDetail(editingProjectId);else renderProjects();
   } else {
-    db.projects.push({id:uid(),name,area,bname,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()});
+    db.projects.push({id:uid(),name,area,bname,city,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()});
     save();closeSheet('sheet-project');renderProjects();
   }
   editingProjectId=null;
@@ -873,6 +903,7 @@ function openEditProject(pid){
   editingProjectId=pid;
   document.getElementById('sheet-project-title').textContent='編輯專案';
   document.getElementById('sheet-project-save').textContent='儲存修改';
+  document.getElementById('p-city').value=p.city||'';
   document.getElementById('p-area').value=p.area||'';
   document.getElementById('p-name').value=p.bname||p.name||'';
   document.getElementById('p-client').value=p.client||'';
@@ -961,6 +992,14 @@ function deleteProject(id){
 function renderDetail(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!p.info)p.info={};if(!p.notes)p.notes=[];if(!p.files)p.files={};if(!p.conSteps)p.conSteps={};
+  if(!p.city&&!p._cityPrompted){
+    p._cityPrompted=true;
+    setTimeout(()=>{
+      if(confirm(`「${p.name}」尚未設定縣市，會影響 Google Drive 資料夾分類。\n是否現在補填？`)){
+        openEditProject(pid);
+      }
+    },200);
+  }
 
   const pFin=db.finance.filter(f=>f.projectId===pid);
   const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
@@ -1073,10 +1112,12 @@ function renderDetail(pid){
     <div class="card">
       ${FILE_CATS.map(cat=>{
         const files=(p.files&&p.files[cat])||[];
+        const folderId=p.driveFolders&&p.driveFolders[cat];
         return`<div class="file-row" style="flex-direction:column;align-items:stretch;gap:8px;">
           <div style="display:flex;align-items:center;gap:0.75rem;">
             <div class="file-icon"><i class="ti ti-folder"></i></div>
             <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">${files.length?files.length+' 個檔案':'尚無檔案'}</div></div>
+            <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
             <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
           </div>
           ${files.length?`<div style="padding-left:50px;display:flex;flex-direction:column;gap:4px;">
@@ -1222,6 +1263,7 @@ function deleteNote(pid,idx){
 // ── 檔案庫（Google Drive）──
 const GOOGLE_API_KEY='AIzaSyDRS3Wnse8MmutBfgv-GlVCrATyhTq446M';
 const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+const SHARED_ROOT_FOLDER_ID='1Qh9Z1uISphuymrgiBMNraTh0DnBFzFsX'; // 共用「工程管理系統」資料夾
 let driveAccessToken=null;
 let tokenClient=null;
 
@@ -1266,11 +1308,30 @@ async function findOrCreateFolder(name,parentId){
 }
 
 async function ensureProjectFolderPath(p,cat){
-  const rootId=await findOrCreateFolder('工程管理系統');
+  if(!p.driveFolders)p.driveFolders={};
+  if(p.driveFolders[cat])return p.driveFolders[cat];
+  const rootId=SHARED_ROOT_FOLDER_ID;
+  const cityId=await findOrCreateFolder(p.city||'未分類',rootId);
   const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
-  const projId=await findOrCreateFolder(projName,rootId);
+  const projId=await findOrCreateFolder(projName,cityId);
   const catId=await findOrCreateFolder(cat,projId);
+  p.driveFolders[cat]=catId;
+  save();
   return catId;
+}
+
+function openDriveFolder(pid,cat){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  const folderId=p.driveFolders&&p.driveFolders[cat];
+  if(folderId){
+    window.open(`https://drive.google.com/drive/folders/${folderId}`,'_blank');
+  } else {
+    ensureDriveAuth(async()=>{
+      const id=await ensureProjectFolderPath(p,cat);
+      renderDetail(pid);
+      window.open(`https://drive.google.com/drive/folders/${id}`,'_blank');
+    });
+  }
 }
 
 function pickDriveFile(pid,cat){
