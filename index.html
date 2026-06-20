@@ -17,32 +17,34 @@
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 :root{
-  --bg:#ffffff;--bg2:#f7f7f5;--bg3:#eeede9;
-  --text:#1a1a18;--text2:#6b6b68;--text3:#a0a09c;
-  --border:rgba(0,0,0,0.09);--border2:rgba(0,0,0,0.16);
-  --green:#16a34a;--green-bg:#f0fdf4;
-  --amber:#d97706;--amber-bg:#fffbeb;
-  --blue:#2563eb;--blue-bg:#eff6ff;--blue-text:#1d4ed8;
-  --red:#dc2626;--red-bg:#fef2f2;--red-text:#b91c1c;
-  --purple:#7c3aed;--purple-bg:#f5f3ff;
-  --divider-strong:#000000;
+  --bg:#faf7ef;--bg2:#ece6d8;--bg3:#e3dbc6;
+  --text:#2a261c;--text2:#6b5f47;--text3:#a0937a;
+  --border:#e3d7b8;--border2:#d9cdab;
+  --gold:#a6762f;--gold-bg:#f5ebd6;--gold-text:#8a5d22;
+  --green:#5a7d3a;--green-bg:#eef3e6;
+  --amber:#a6762f;--amber-bg:#f5ebd6;
+  --blue:#4a6b8a;--blue-bg:#eaf0f5;--blue-text:#3a5670;
+  --red:#a8453a;--red-bg:#f7eae8;--red-text:#8a372e;
+  --purple:#6b5a8a;--purple-bg:#efeaf5;
+  --divider-strong:#2a261c;
   --r:10px;--rl:14px;
   --nav-h:64px;--safe-bottom:env(safe-area-inset-bottom,0px);
 }
 html[data-theme="dark"]{
-  --bg:#1c1c1e;--bg2:#0e0e10;--bg3:#2c2c2e;
-  --text:#f2f2f0;--text2:#a3a39e;--text3:#6e6e72;
-  --border:rgba(255,255,255,0.09);--border2:rgba(255,255,255,0.16);
-  --green:#34d399;--green-bg:rgba(52,211,153,0.12);
-  --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.12);
-  --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.12);--blue-text:#93c5fd;
-  --red:#f87171;--red-bg:rgba(248,113,113,0.12);--red-text:#fca5a5;
-  --purple:#a78bfa;--purple-bg:rgba(167,139,250,0.12);
-  --divider-strong:#ffffff;
+  --bg:#1a1a1d;--bg2:#141416;--bg3:#222226;
+  --text:#e8e4d8;--text2:#b3ab98;--text3:#9c9588;
+  --border:#3a3833;--border2:#4a473f;
+  --gold:#c9a876;--gold-bg:rgba(201,168,118,0.14);--gold-text:#d9bc8c;
+  --green:#8fb56e;--green-bg:rgba(143,181,110,0.14);
+  --amber:#c9a876;--amber-bg:rgba(201,168,118,0.14);
+  --blue:#8fa8c2;--blue-bg:rgba(143,168,194,0.14);--blue-text:#a8bdd4;
+  --red:#c97a6e;--red-bg:rgba(201,122,110,0.14);--red-text:#d99a90;
+  --purple:#a394bf;--purple-bg:rgba(163,148,191,0.14);
+  --divider-strong:#e8e4d8;
 }
 html,body{height:100%;overflow:hidden;}
-body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--text);font-size:15px;line-height:1.6;}
-.topbar{background:var(--bg);border-bottom:0.5px solid var(--border);padding:0 1rem;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.6;}
+.topbar{background:var(--bg2);border-bottom:0.5px solid var(--border);padding:0 1rem;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40;}
 .topbar-title{font-size:17px;font-weight:500;display:flex;align-items:center;gap:6px;}
 .topbar-right{display:flex;gap:8px;}
 .topbar-btn{width:36px;height:36px;border-radius:var(--r);border:none;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);font-size:20px;}
@@ -50,25 +52,25 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--tex
 .topbar-btn.ghost{background:var(--bg2);}
 .scroll-area{height:calc(100vh - 52px - var(--nav-h) - var(--safe-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .content{padding:1rem;}
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-top:0.5px solid var(--border);display:flex;height:calc(var(--nav-h) + var(--safe-bottom));padding-bottom:var(--safe-bottom);z-index:50;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:0.5px solid var(--border);display:flex;height:calc(var(--nav-h) + var(--safe-bottom));padding-bottom:var(--safe-bottom);z-index:50;}
 .nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--text3);padding-top:6px;}
-.nav-tab.active{color:var(--blue);}
+.nav-tab.active{color:var(--gold);}
 .nav-tab i{font-size:20px;}
 .nav-tab span{font-size:10px;font-weight:500;}
 .page{display:none;}.page.active{display:block;}
-.card{background:var(--bg);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;}
+.card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
 .card-inner{padding:1rem;}
 .card-row{display:flex;align-items:center;padding:0.875rem 1rem;border-bottom:0.5px solid var(--border);gap:0.75rem;}
 .card-row:last-child{border-bottom:none;}
-.card-row-icon{width:38px;height:38px;border-radius:var(--r);background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);flex-shrink:0;}
+.card-row-icon{width:38px;height:38px;border-radius:var(--r);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);flex-shrink:0;}
 .card-row-body{flex:1;min-width:0;}
 .card-row-title{font-size:14px;font-weight:500;}
 .card-row-sub{font-size:12px;color:var(--text3);margin-top:1px;}
 .card-row-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.75rem;}
-.stat-card{background:var(--bg);border-radius:var(--rl);padding:0.875rem 1rem;}
+.stat-card{background:var(--bg2);border-radius:var(--rl);padding:0.875rem 1rem;border:1px solid var(--border);}
 .stat-label{font-size:11px;color:var(--text3);margin-bottom:0.2rem;}
-.stat-value{font-size:22px;font-weight:500;line-height:1.2;}
+.stat-value{font-size:22px;font-weight:500;line-height:1.2;color:var(--gold);}
 .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500;white-space:nowrap;}
 .badge-green{background:var(--green-bg);color:var(--green);}
 .badge-amber{background:var(--amber-bg);color:var(--amber);}
@@ -128,7 +130,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--tex
 .file-row:last-child{border-bottom:none;}
 .file-icon{width:36px;height:36px;border-radius:var(--r);background:var(--blue-bg);display:flex;align-items:center;justify-content:center;color:var(--blue-text);font-size:18px;flex-shrink:0;}
 /* 人事 */
-.staff-card{background:var(--bg);border-radius:var(--rl);padding:1rem;margin-bottom:0.75rem;cursor:pointer;}
+.staff-card{background:var(--bg2);border-radius:var(--rl);padding:1rem;margin-bottom:0.75rem;cursor:pointer;}
 .staff-avatar{width:42px;height:42px;border-radius:50%;background:var(--blue-bg);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--blue-text);flex-shrink:0;}
 /* 登入畫面 */
 .login-screen{position:fixed;inset:0;background:var(--bg2);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center;}
@@ -139,7 +141,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--tex
 .gsi-btn-wrap{display:flex;justify-content:center;}
 .user-chip{display:flex;align-items:center;gap:8px;cursor:pointer;}
 .user-chip img{width:28px;height:28px;border-radius:50%;}
-.user-menu{display:none;position:absolute;top:48px;right:1rem;background:var(--bg);border-radius:var(--rl);box-shadow:0 4px 20px rgba(0,0,0,0.15);border:0.5px solid var(--border);min-width:200px;z-index:300;overflow:hidden;}
+.user-menu{display:none;position:absolute;top:48px;right:1rem;background:var(--bg2);border-radius:var(--rl);box-shadow:0 4px 20px rgba(0,0,0,0.15);border:0.5px solid var(--border);min-width:200px;z-index:300;overflow:hidden;}
 .user-menu.open{display:block;}
 .user-menu-header{padding:1rem;border-bottom:0.5px solid var(--border);}
 .user-menu-name{font-size:14px;font-weight:500;}
@@ -163,7 +165,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--tex
 .form-group{margin-bottom:0.875rem;}
 .form-label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:0.3rem;}
 .form-input{width:100%;padding:11px 12px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:15px;font-family:inherit;background:var(--bg);color:var(--text);outline:none;-webkit-appearance:none;}
-.form-input:focus{border-color:var(--blue);}
+.form-input:focus{border-color:var(--gold);}
 textarea.form-input{resize:none;min-height:72px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}
 .segmented{display:flex;background:var(--bg3);border-radius:var(--r);padding:3px;gap:3px;margin-bottom:0.5rem;}
@@ -171,7 +173,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .seg-btn.active{background:var(--bg);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1);}
 .sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:flex-end;}
 .sheet-overlay.open{display:flex;}
-.sheet{background:var(--bg);border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:0 1rem calc(1rem + var(--safe-bottom));animation:slideUp 0.25s ease;}
+.sheet{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:0 1rem calc(1rem + var(--safe-bottom));animation:slideUp 0.25s ease;}
 @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
 .sheet-handle{width:36px;height:4px;background:var(--bg3);border-radius:99px;margin:12px auto 16px;}
 .sheet-title{font-size:16px;font-weight:500;margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
@@ -299,7 +301,7 @@ textarea.form-input{resize:none;min-height:72px;}
   <!-- 行事曆 -->
   <div id="page-calendar" class="page">
     <div class="content">
-      <div class="card"><div class="card-inner">
+      <div class="card" id="cal-card-wrap" onclick="handleCalCardClick(event)"><div class="card-inner">
         <div class="flex-between" style="margin-bottom:0.75rem;">
           <button class="btn btn-sm btn-icon" onclick="prevMonth()"><i class="ti ti-chevron-left"></i></button>
           <span class="fw500" id="cal-month-label"></span>
@@ -307,7 +309,9 @@ textarea.form-input{resize:none;min-height:72px;}
         </div>
         <div class="cal-grid" id="cal-grid"></div>
       </div></div>
-      <div class="section-hd" id="cal-selected-label">近半年事件</div>
+      <div class="section-hd">
+        <span id="cal-selected-label">近半年事件</span>
+      </div>
       <div class="card" id="cal-events-list"></div>
     </div>
   </div>
@@ -492,25 +496,6 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
-<div class="sheet-overlay" id="sheet-event">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">新增事件<button class="sheet-close" onclick="closeSheet('sheet-event')"><i class="ti ti-x"></i></button></div>
-    <div class="form-group"><label class="form-label">事件名稱 *</label><input class="form-input" id="e-title" placeholder="例：現場會勘"></div>
-    <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="e-date" type="date"></div>
-    <div class="form-group"><label class="form-label">所屬專案</label><select class="form-input" id="e-project"></select></div>
-    <div class="form-group"><label class="form-label">類型</label>
-      <select class="form-input" id="e-type">
-        <option>會勘</option><option>會議</option><option>驗收</option><option>交屋</option><option>付款</option><option>其他</option>
-      </select>
-    </div>
-    <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="e-note" placeholder="補充說明"></div>
-    <div class="sheet-footer">
-      <button class="btn" onclick="closeSheet('sheet-event')">取消</button>
-      <button class="btn btn-primary" onclick="saveEvent()">儲存事件</button>
-    </div>
-  </div>
-</div>
 
 <div class="sheet-overlay" id="sheet-note">
   <div class="sheet">
@@ -790,7 +775,7 @@ function showPage(id,opts={}){
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openSheet('sheet-finance')"><i class="ti ti-plus"></i></button>`;
   } else if(id==='calendar'){
     titleEl.textContent=titles[id];
-    tr.innerHTML=`<button class="topbar-btn ghost" onclick="syncAllToCalendar()"><i class="ti ti-refresh"></i></button><button class="topbar-btn primary" onclick="openSheet('sheet-event')"><i class="ti ti-plus"></i></button>`;
+    tr.innerHTML=`<button class="topbar-btn ghost" onclick="syncAllToCalendar()"><i class="ti ti-refresh"></i></button>`;
   } else {
     titleEl.textContent=titles[id]||id;tr.innerHTML='';
   }
@@ -1911,6 +1896,11 @@ function renderCalendar(){
   document.getElementById('cal-grid').innerHTML=h;renderCalEvents();
 }
 function selectDay(ds){calSelected=ds;document.getElementById('cal-selected-label').textContent=fDate(ds)+' 的事件';renderCalendar();}
+function clearCalSelect(){calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
+function handleCalCardClick(e){
+  if(e.target.closest('.cal-day')||e.target.closest('button'))return;
+  clearCalSelect();
+}
 function renderCalEvents(){
   let evs=allEvents();
   if(calSelected){
@@ -1940,15 +1930,6 @@ function renderCalEvents(){
 }
 function prevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
 function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
-function saveEvent(){
-  const title=document.getElementById('e-title').value.trim();
-  const date=document.getElementById('e-date').value;
-  if(!title||!date)return alert('請填入事件名稱與日期');
-  db.events.push({id:uid(),title,date,projectId:document.getElementById('e-project').value,type:document.getElementById('e-type').value,note:document.getElementById('e-note').value});
-  save();closeSheet('sheet-event');
-  ['e-title','e-date','e-note'].forEach(id=>document.getElementById(id).value='');
-  renderCalendar();
-}
 function deleteEvent(id){
   if(!confirm('確定刪除？'))return;
   db.events=db.events.filter(e=>e.id!==id);save();renderCalendar();
