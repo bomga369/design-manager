@@ -179,12 +179,14 @@ textarea.form-input{resize:none;min-height:72px;}
 .btn-ghost{background:var(--bg2);border-color:transparent;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
 .cal-hd{text-align:center;font-size:11px;color:var(--text3);padding:0.4rem 0;font-weight:500;}
-.cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:var(--r);cursor:pointer;}
-.cal-num{font-size:13px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+.cal-day{min-height:64px;display:flex;flex-direction:column;align-items:stretch;border-radius:var(--r);cursor:pointer;padding:3px 2px;gap:1px;}
+.cal-num{font-size:12px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin:0 auto;flex-shrink:0;}
 .cal-day.today .cal-num{background:var(--blue);color:#fff;font-weight:500;}
-.cal-day.selected .cal-num{background:var(--bg3);}
+.cal-day.selected{background:var(--bg3);}
 .cal-day.other-month{opacity:0.3;}
-.cal-dot{width:4px;height:4px;border-radius:50%;background:var(--blue);margin-top:1px;}
+.cal-ev-chip{font-size:9px;line-height:1.3;padding:1px 3px;border-radius:4px;background:var(--purple-bg);color:var(--purple);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+.cal-ev-chip.manual{background:var(--blue-bg);color:var(--blue-text);}
+.cal-ev-more{font-size:9px;color:var(--text3);text-align:center;}
 .empty{text-align:center;padding:2.5rem 1rem;color:var(--text3);}
 .empty i{font-size:40px;display:block;margin-bottom:0.75rem;opacity:0.4;}
 .empty p{font-size:14px;}
@@ -250,10 +252,10 @@ textarea.form-input{resize:none;min-height:72px;}
       <hr style="border:none;border-top:2px solid var(--border);margin:0.5rem 0 0.25rem;">
       <div class="section-hd">施作中</div>
       <div id="proj-construction"></div>
-      <hr style="border:none;border-top:2px solid var(--border);margin:0.5rem 0 0.25rem;">
+      <hr style="border:none;border-top:4px solid var(--text3);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">已完工</div>
       <div id="proj-completed"></div>
-      <hr style="border:none;border-top:2px solid var(--border);margin:0.5rem 0 0.25rem;">
+      <hr style="border:none;border-top:4px solid var(--text3);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">無回應</div>
       <div id="proj-no-response"></div>
     </div>
@@ -333,7 +335,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="sheet-project-title">新增專案</span><button class="sheet-close" onclick="closeSheet('sheet-project')"><i class="ti ti-x"></i></button></div>
     <div class="form-group"><label class="form-label">縣市 *</label>
-      <select class="form-input" id="p-city">
+      <select class="form-input" id="p-city" onchange="onCityChange()">
         <option value="">請選擇縣市</option>
         <option value="桃園市">桃園市</option>
         <option value="台北市">台北市</option>
@@ -361,7 +363,7 @@ textarea.form-input{resize:none;min-height:72px;}
       </select>
     </div>
     <div class="grid2">
-      <div class="form-group"><label class="form-label">區 *</label><input class="form-input" id="p-area" placeholder="例：信義區"></div>
+      <div class="form-group"><label class="form-label">區 *</label><select class="form-input" id="p-area"><option value="">請先選擇縣市</option></select></div>
       <div class="form-group"><label class="form-label">建案名稱 *</label><input class="form-input" id="p-name" placeholder="例：辦公室設計"></div>
     </div>
     <div class="form-group"><label class="form-label">業主 / 客戶</label><input class="form-input" id="p-client" placeholder="例：王先生"></div>
@@ -424,7 +426,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title">預約丈量時間<button class="sheet-close" onclick="closeSheet('sheet-measure')"><i class="ti ti-x"></i></button></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="measure-date" type="date"></div>
-    <div class="form-group"><label class="form-label">時間（選填）</label><input class="form-input" id="measure-time" type="time"></div>
+    <div class="form-group"><label class="form-label">時間</label><input class="form-input" id="measure-time" type="time" step="300" lang="zh-TW" value="09:00"></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-measure')">取消</button>
       <button class="btn btn-primary" onclick="saveMeasureDate()">確認</button>
@@ -584,6 +586,32 @@ const CON_STEPS=['木作-保護','木作-下角料','木作-封板','木作-櫃�
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
 const FILE_CATS=['報價單','合約','保護工程','木作','油漆','燈具','保護拆除','其他'];
 
+const CITY_DISTRICTS={
+'桃園市':['桃園區','中壢區','平鎮區','八德區','楊梅區','蘆竹區','大溪區','龍潭區','龜山區','大園區','觀音區','新屋區','復興區'],
+'台北市':['中正區','大同區','中山區','松山區','大安區','萬華區','信義區','士林區','北投區','內湖區','南港區','文山區'],
+'新北市':['板橋區','三重區','中和區','永和區','新莊區','新店區','土城區','蘆洲區','樹林區','汐止區','鶯歌區','三峽區','淡水區','瑞芳區','五股區','泰山區','林口區','深坑區','石碇區','坪林區','三芝區','石門區','八里區','平溪區','雙溪區','貢寮區','金山區','萬里區','烏來區'],
+'新竹市':['東區','北區','香山區'],
+'新竹縣':['竹北市','竹東鎮','新埔鎮','關西鎮','峨眉鄉','寶山鄉','北埔鄉','芎林鄉','橫山鄉','尖石鄉','五峰鄉','湖口鄉','新豐鄉'],
+'基隆市':['仁愛區','信義區','中正區','中山區','安樂區','暖暖區','七堵區'],
+'宜蘭縣':['宜蘭市','羅東鎮','蘇澳鎮','頭城鎮','礁溪鄉','壯圍鄉','員山鄉','五結鄉','冬山鄉','三星鄉','大同鄉','南澳鄉'],
+'苗栗縣':['苗栗市','頭份市','竹南鎮','後龍鎮','通霄鎮','苑裡鎮','卓蘭鎮','大湖鄉','公館鄉','銅鑼鄉','南庄鄉','頭屋鄉','三義鄉','西湖鄉','造橋鄉','三灣鄉','獅潭鄉','泰安鄉'],
+'台中市':['中區','東區','南區','西區','北區','北屯區','西屯區','南屯區','太平區','大里區','霧峰區','烏日區','豐原區','后里區','石岡區','東勢區','和平區','新社區','潭子區','大雅區','神岡區','大肚區','沙鹿區','龍井區','梧棲區','清水區','大甲區','外埔區','大安區'],
+'彰化縣':['彰化市','鹿港鎮','和美鎮','線西鄉','伸港鄉','福興鄉','秀水鄉','花壇鄉','芬園鄉','員林市','溪湖鎮','田中鎮','大村鄉','埔鹽鄉','埔心鄉','永靖鄉','社頭鄉','二水鄉','北斗鎮','二林鎮','田尾鄉','埤頭鄉','芳苑鄉','大城鄉','竹塘鄉','溪州鄉'],
+'南投縣':['南投市','埔里鎮','草屯鎮','竹山鎮','集集鎮','名間鄉','鹿谷鄉','中寮鄉','魚池鄉','國姓鄉','水里鄉','信義鄉','仁愛鄉'],
+'雲林縣':['斗六市','斗南鎮','虎尾鎮','西螺鎮','土庫鎮','北港鎮','古坑鄉','大埤鄉','莿桐鄉','林內鄉','二崙鄉','崙背鄉','麥寮鄉','東勢鄉','褒忠鄉','台西鄉','元長鄉','四湖鄉','口湖鄉','水林鄉'],
+'嘉義市':['東區','西區'],
+'嘉義縣':['太保市','朴子市','布袋鎮','大林鎮','民雄鄉','溪口鄉','新港鄉','六腳鄉','東石鄉','義竹鄉','鹿草鄉','水上鄉','中埔鄉','竹崎鄉','梅山鄉','番路鄉','大埔鄉','阿里山鄉'],
+'台南市':['中西區','東區','南區','北區','安平區','安南區','永康區','歸仁區','新化區','左鎮區','玉井區','楠西區','南化區','仁德區','關廟區','龍崎區','官田區','麻豆區','佳里區','西港區','七股區','將軍區','學甲區','北門區','新營區','後壁區','白河區','東山區','六甲區','下營區','柳營區','鹽水區','善化區','大內區','山上區','新市區','安定區'],
+'高雄市':['新興區','前金區','苓雅區','鹽埕區','鼓山區','旗津區','前鎮區','三民區','楠梓區','小港區','左營區','仁武區','大社區','岡山區','路竹區','阿蓮區','田寮區','燕巢區','橋頭區','梓官區','彌陀區','永安區','湖內區','鳳山區','大寮區','林園區','鳥松區','大樹區','旗山區','美濃區','六龜區','內門區','杉林區','甲仙區','桃源區','那瑪夏區','茂林區','茄萣區'],
+'屏東縣':['屏東市','潮州鎮','東港鎮','恆春鎮','萬丹鄉','長治鄉','麟洛鄉','九如鄉','里港鄉','鹽埔鄉','高樹鄉','萬巒鄉','內埔鄉','竹田鄉','新埤鄉','枋寮鄉','新園鄉','崁頂鄉','林邊鄉','南州鄉','佳冬鄉','琉球鄉','車城鄉','滿州鄉','枋山鄉','三地門鄉','霧台鄉','瑪家鄉','泰武鄉','來義鄉','春日鄉','獅子鄉','牡丹鄉'],
+'台東縣':['台東市','成功鎮','關山鎮','卑南鄉','大武鄉','太麻里鄉','東河鄉','長濱鄉','鹿野鄉','池上鄉','綠島鄉','延平鄉','海端鄉','達仁鄉','金峰鄉','蘭嶼鄉'],
+'花蓮縣':['花蓮市','鳳林鎮','玉里鎮','新城鄉','吉安鄉','壽豐鄉','秀林鄉','光復鄉','豐濱鄉','瑞穗鄉','萬榮鄉','富里鄉','卓溪鄉'],
+'澎湖縣':['馬公市','湖西鄉','白沙鄉','西嶼鄉','望安鄉','七美鄉'],
+'金門縣':['金城鎮','金湖鎮','金沙鎮','金寧鄉','烈嶼鄉','烏坵鄉'],
+'連江縣':['南竿鄉','北竿鄉','莒光鄉','東引鄉'],
+'其他':['其他']
+};
+
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{}};
 let currentPage='dashboard';
 let currentProjectId=null;
@@ -734,10 +762,21 @@ function handleAdd(){
   editingProjectId=null;
   document.getElementById('sheet-project-title').textContent='新增專案';
   document.getElementById('sheet-project-save').textContent='儲存專案';
-  ['p-name','p-client','p-note','p-area','p-city'].forEach(id=>document.getElementById(id).value='');
+  ['p-name','p-client','p-note','p-city'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-area').innerHTML='<option value="">請先選擇縣市</option>';
   document.getElementById('p-type').value='';
   fillStaffSel('p-leader');
   openSheet('sheet-project');
+}
+function onCityChange(){
+  const city=document.getElementById('p-city').value;
+  const areaSel=document.getElementById('p-area');
+  const districts=CITY_DISTRICTS[city];
+  if(!city||!districts){
+    areaSel.innerHTML='<option value="">請先選擇縣市</option>';
+    return;
+  }
+  areaSel.innerHTML='<option value="">請選擇區</option>'+districts.map(d=>`<option value="${d}">${d}</option>`).join('');
 }
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
@@ -768,7 +807,6 @@ function dotHtml(p,clickable=false){
       <div class="dot-label ${i<step?'done':''}">${s}</div>
       <div class="dot-time">${times[i]?fmtMD(times[i]):''}</div>
       ${clickable&&i===TALK_IDX?`<div onclick="event.stopPropagation();updateTalkTime('${p.id}')" style="font-size:9px;color:var(--blue-text);cursor:pointer;text-align:center;margin-top:1px;">更新時間</div>`:''}
-      ${clickable&&i===0?`<div onclick="event.stopPropagation();editMeasureDate('${p.id}')" style="font-size:9px;color:var(--blue-text);cursor:pointer;text-align:center;margin-top:1px;">${p.measureDate?'丈量：'+fmtMD(p.measureDate):'+ 預約丈量'}</div>`:''}
     </div>${i<NEG_STEPS.length-1?`<div class="dot-line ${i<step?'done':''}"></div>`:''}`).join('');
 }
 
@@ -937,6 +975,7 @@ function openEditProject(pid){
   document.getElementById('sheet-project-title').textContent='編輯專案';
   document.getElementById('sheet-project-save').textContent='儲存修改';
   document.getElementById('p-city').value=p.city||'';
+  onCityChange();
   document.getElementById('p-area').value=p.area||'';
   document.getElementById('p-name').value=p.bname||p.name||'';
   document.getElementById('p-client').value=p.client||'';
@@ -1082,6 +1121,17 @@ function renderDetail(pid){
     progressHtml=`
       <div class="section-hd">客戶來源</div>
       <div class="card"><div class="card-inner"><div style="display:flex;flex-wrap:wrap;">${srcHtml}</div></div></div>
+      <div class="section-hd">丈量預約</div>
+      <div class="card"><div class="card-inner">
+        <div class="card-row" style="padding:0;border:none;cursor:pointer" onclick="editMeasureDate('${pid}')">
+          <div class="card-row-icon"><i class="ti ti-ruler-2"></i></div>
+          <div class="card-row-body">
+            <div class="card-row-title">${p.measureDate?fmtMD(p.measureDate)+' '+p.measureDate.slice(11,16):'尚未安排丈量時間'}</div>
+            <div class="card-row-sub">${p.measureDate?'點擊修改時間':'點擊設定丈量日期與時間'}</div>
+          </div>
+          <i class="ti ti-chevron-right text-muted"></i>
+        </div>
+      </div></div>
       <div class="section-hd">洽談進度</div>
       <div class="card"><div class="card-inner">
         <div class="dot-progress">${dotHtml(p,true)}</div>
@@ -1150,8 +1200,8 @@ function renderDetail(pid){
           <div style="display:flex;align-items:center;gap:0.75rem;">
             <div class="file-icon"><i class="ti ti-folder"></i></div>
             <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">${files.length?files.length+' 個檔案':'尚無檔案'}</div></div>
-            <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
             <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
+            <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
           </div>
           ${files.length?`<div style="padding-left:50px;display:flex;flex-direction:column;gap:4px;">
             ${files.map((f,fi)=>`
@@ -1171,8 +1221,8 @@ function renderDetail(pid){
     ${p.note?`<div class="text-sm text-muted mt1">${p.note}</div>`:''}
     ${infoHtml}
     ${finHtml}
-    ${progressHtml}
     ${notesHtml}
+    ${progressHtml}
     ${filesHtml}
     <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteProject('${pid}')"><i class="ti ti-trash"></i> 刪除此專案</button>`;
 }
@@ -1241,7 +1291,11 @@ function setNegStep(pid,step){
   if(!p.negStepTimes)p.negStepTimes={};
   const prev=p.negStep||0;
   p.negStep=p.negStep===step?step-1:step;
-  if(p.negStep>prev)for(let i=prev;i<p.negStep;i++)p.negStepTimes[i]=new Date().toISOString();
+  if(p.negStep>prev){
+    for(let i=prev;i<p.negStep;i++)p.negStepTimes[i]=new Date().toISOString();
+  } else if(p.negStep<prev){
+    for(let i=p.negStep;i<prev;i++)delete p.negStepTimes[i];
+  }
   if(p.negStep===NEG_STEPS.length){
     if(confirm('簽約完成！是否將此專案轉為「施作中」？')){
       p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
@@ -1379,9 +1433,10 @@ function syncMeasureToCalendar(p){
       const start=p.measureDate; // e.g. 2026-06-25T09:00:00
       const startDate=new Date(start);
       const endDate=new Date(startDate.getTime()+60*60*1000); // 預設1小時
+      const leaderText=p.leader?'負責人：'+p.leader:'尚未指定負責人';
       const body={
         summary:'丈量-'+p.name,
-        description:'系統自動同步：'+p.name+' 丈量預約',
+        description:'系統自動同步：'+p.name+' 丈量預約\n'+leaderText,
         start:{dateTime:startDate.toISOString(),timeZone:'Asia/Taipei'},
         end:{dateTime:endDate.toISOString(),timeZone:'Asia/Taipei'}
       };
@@ -1658,9 +1713,11 @@ let calYear=new Date().getFullYear(),calMonth=new Date().getMonth(),calSelected=
 function syncPunchToCalendar(dateKey,name,projectId,gcalIdStore){
   ensureDriveAuth(async()=>{
     try{
+      const proj=db.projects.find(x=>x.id===projectId);
+      const leaderText=proj&&proj.leader?'負責人：'+proj.leader:'尚未指定負責人';
       const body={
         summary:name+' - '+pName(projectId),
-        description:'系統自動同步：每日打卡記錄',
+        description:'系統自動同步：每日打卡記錄\n'+leaderText,
         start:{date:dateKey},
         end:{date:dateKey}
       };
@@ -1732,9 +1789,12 @@ function renderCalendar(){
   for(let i=first-1;i>=0;i--)h+=`<div class="cal-day other-month"><span class="cal-num">${prev-i}</span></div>`;
   for(let d=1;d<=dim;d++){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const hasEv=evAll.some(e=>e.date===ds);
+    const dayEvs=evAll.filter(e=>e.date===ds);
+    const shown=dayEvs.slice(0,2);
+    const moreCount=dayEvs.length-shown.length;
+    const chipsHtml=shown.map(e=>`<div class="cal-ev-chip${e.auto?'':' manual'}">${e.title}</div>`).join('')+(moreCount>0?`<div class="cal-ev-more">+${moreCount}</div>`:'');
     h+=`<div class="cal-day${ds===ts?' today':''}${ds===calSelected&&ds!==ts?' selected':''}" onclick="selectDay('${ds}')">
-      <span class="cal-num">${d}</span>${hasEv?'<div class="cal-dot"></div>':''}
+      <span class="cal-num">${d}</span>${chipsHtml}
     </div>`;
   }
   for(let d=1;d<=42-(first+dim);d++)h+=`<div class="cal-day other-month"><span class="cal-num">${d}</span></div>`;
