@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>工程管理</title>
@@ -22,6 +23,16 @@
   --purple:#7c3aed;--purple-bg:#f5f3ff;
   --r:10px;--rl:14px;
   --nav-h:64px;--safe-bottom:env(safe-area-inset-bottom,0px);
+}
+html[data-theme="dark"]{
+  --bg:#1c1c1e;--bg2:#0e0e10;--bg3:#2c2c2e;
+  --text:#f2f2f0;--text2:#a3a39e;--text3:#6e6e72;
+  --border:rgba(255,255,255,0.09);--border2:rgba(255,255,255,0.16);
+  --green:#34d399;--green-bg:rgba(52,211,153,0.12);
+  --amber:#fbbf24;--amber-bg:rgba(251,191,36,0.12);
+  --blue:#60a5fa;--blue-bg:rgba(96,165,250,0.12);--blue-text:#93c5fd;
+  --red:#f87171;--red-bg:rgba(248,113,113,0.12);--red-text:#fca5a5;
+  --purple:#a78bfa;--purple-bg:rgba(167,139,250,0.12);
 }
 html,body{height:100%;overflow:hidden;}
 body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--text);font-size:15px;line-height:1.6;}
@@ -128,6 +139,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg2);color:var(--tex
 .user-menu-email{font-size:12px;color:var(--text3);margin-top:2px;}
 .user-menu-item{padding:0.75rem 1rem;font-size:13px;cursor:pointer;color:var(--red-text);}
 .user-menu-item:hover{background:var(--bg2);}
+.theme-switch{width:40px;height:24px;border-radius:99px;background:var(--bg3);position:relative;flex-shrink:0;transition:background 0.2s;}
+.theme-switch.on{background:var(--blue);}
+.theme-switch-knob{width:18px;height:18px;border-radius:50%;background:var(--bg);position:absolute;top:3px;left:3px;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);}
+.theme-switch.on .theme-switch-knob{left:19px;}
 /* 效率區塊 */
 .eff-row{display:flex;align-items:center;padding:0.75rem 1rem;border-bottom:0.5px solid var(--border);gap:0.75rem;}
 .eff-row:last-child{border-bottom:none;}
@@ -195,6 +210,10 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="user-menu-header">
     <div class="user-menu-name" id="user-menu-name"></div>
     <div class="user-menu-email" id="user-menu-email"></div>
+  </div>
+  <div class="user-menu-item" style="color:var(--text);display:flex;align-items:center;justify-content:space-between;" onclick="toggleTheme(event)">
+    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-moon" id="theme-icon"></i> <span id="theme-label">深色模式</span></span>
+    <div class="theme-switch" id="theme-switch"><div class="theme-switch-knob"></div></div>
   </div>
   <div class="user-menu-item" onclick="logout()"><i class="ti ti-logout"></i> 登出</div>
 </div>
@@ -400,6 +419,19 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="sheet-overlay" id="sheet-measure">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">預約丈量時間<button class="sheet-close" onclick="closeSheet('sheet-measure')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="measure-date" type="date"></div>
+    <div class="form-group"><label class="form-label">時間（選填）</label><input class="form-input" id="measure-time" type="time"></div>
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-measure')">取消</button>
+      <button class="btn btn-primary" onclick="saveMeasureDate()">確認</button>
+    </div>
+  </div>
+</div>
+
 <div class="sheet-overlay" id="sheet-finance">
   <div class="sheet">
     <div class="sheet-handle"></div>
@@ -552,7 +584,7 @@ const CON_STEPS=['木作-保護','木作-下角料','木作-封板','木作-櫃�
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
 const FILE_CATS=['報價單','合約','保護工程','木作','油漆','燈具','保護拆除','其他'];
 
-let db={projects:[],finance:[],events:[],staff:[],punches:[]};
+let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{}};
 let currentPage='dashboard';
 let currentProjectId=null;
 let currentStaffId=null;
@@ -564,7 +596,7 @@ let currentStaffPeriod='current'; // current / prev / custom
 let currentStaffCustomMonth='';
 
 function save(){localStorage.setItem('dmgr_v6',JSON.stringify(db));}
-function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);}
+function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function today(){return new Date().toISOString().slice(0,10);}
 function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});}
@@ -685,7 +717,7 @@ function showPage(id,opts={}){
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openSheet('sheet-finance')"><i class="ti ti-plus"></i></button>`;
   } else if(id==='calendar'){
     titleEl.textContent=titles[id];
-    tr.innerHTML=`<button class="topbar-btn primary" onclick="openSheet('sheet-event')"><i class="ti ti-plus"></i></button>`;
+    tr.innerHTML=`<button class="topbar-btn ghost" onclick="syncAllToCalendar()"><i class="ti ti-refresh"></i></button><button class="topbar-btn primary" onclick="openSheet('sheet-event')"><i class="ti ti-plus"></i></button>`;
   } else {
     titleEl.textContent=titles[id]||id;tr.innerHTML='';
   }
@@ -736,6 +768,7 @@ function dotHtml(p,clickable=false){
       <div class="dot-label ${i<step?'done':''}">${s}</div>
       <div class="dot-time">${times[i]?fmtMD(times[i]):''}</div>
       ${clickable&&i===TALK_IDX?`<div onclick="event.stopPropagation();updateTalkTime('${p.id}')" style="font-size:9px;color:var(--blue-text);cursor:pointer;text-align:center;margin-top:1px;">更新時間</div>`:''}
+      ${clickable&&i===0?`<div onclick="event.stopPropagation();editMeasureDate('${p.id}')" style="font-size:9px;color:var(--blue-text);cursor:pointer;text-align:center;margin-top:1px;">${p.measureDate?'丈量：'+fmtMD(p.measureDate):'+ 預約丈量'}</div>`:''}
     </div>${i<NEG_STEPS.length-1?`<div class="dot-line ${i<step?'done':''}"></div>`:''}`).join('');
 }
 
@@ -1178,6 +1211,31 @@ function updateTalkTime(pid){
   save();renderDetail(pid);
 }
 
+let measureEditPid=null;
+function editMeasureDate(pid){
+  measureEditPid=pid;
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  if(p.measureDate){
+    const d=new Date(p.measureDate);
+    document.getElementById('measure-date').value=d.toISOString().slice(0,10);
+    const hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
+    document.getElementById('measure-time').value=(hh==='00'&&mm==='00')?'':hh+':'+mm;
+  } else {
+    document.getElementById('measure-date').value='';
+    document.getElementById('measure-time').value='';
+  }
+  openSheet('sheet-measure');
+}
+function saveMeasureDate(){
+  const p=db.projects.find(x=>x.id===measureEditPid);if(!p)return;
+  const date=document.getElementById('measure-date').value;
+  const time=document.getElementById('measure-time').value;
+  if(!date){alert('請選擇日期');return;}
+  p.measureDate=date+'T'+(time||'09:00')+':00';
+  save();closeSheet('sheet-measure');renderDetail(measureEditPid);
+  syncMeasureToCalendar(p);
+}
+
 function setNegStep(pid,step){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!p.negStepTimes)p.negStepTimes={};
@@ -1260,10 +1318,13 @@ function deleteNote(pid,idx){
   p.notes.splice(idx,1);save();renderDetail(pid);
 }
 
-// ── 檔案庫（Google Drive）──
+// ── 檔案庫（Google Drive）── 與 Google 日曆 ──
 const GOOGLE_API_KEY='AIzaSyDRS3Wnse8MmutBfgv-GlVCrATyhTq446M';
 const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
+const GOOGLE_SCOPES=DRIVE_SCOPE+' '+CALENDAR_SCOPE;
 const SHARED_ROOT_FOLDER_ID='1Qh9Z1uISphuymrgiBMNraTh0DnBFzFsX'; // 共用「工程管理系統」資料夾
+const SHARED_CALENDAR_ID='6f1dbb6876ceb869a98c8f8bc77661191cc7bf7f80b5b3dbaa6bfcc093532bbd@group.calendar.google.com'; // 團隊共用日曆
 let driveAccessToken=null;
 let tokenClient=null;
 
@@ -1274,7 +1335,7 @@ function ensureDriveAuth(callback){
   }
   tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:GOOGLE_CLIENT_ID,
-    scope:DRIVE_SCOPE,
+    scope:GOOGLE_SCOPES,
     callback:(resp)=>{
       if(resp.error){alert('授權失敗：'+resp.error);return;}
       driveAccessToken=resp.access_token;
@@ -1305,6 +1366,36 @@ async function findOrCreateFolder(name,parentId){
   });
   const created=await createRes.json();
   return created.id;
+}
+
+// ── Google 日曆同步（系統 → 共用日曆，單向）──
+async function calendarApiFetch(url,options={}){
+  const headers=Object.assign({},options.headers,{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'application/json'});
+  return fetch(url,Object.assign({},options,{headers}));
+}
+function syncMeasureToCalendar(p){
+  ensureDriveAuth(async()=>{
+    try{
+      const start=p.measureDate; // e.g. 2026-06-25T09:00:00
+      const startDate=new Date(start);
+      const endDate=new Date(startDate.getTime()+60*60*1000); // 預設1小時
+      const body={
+        summary:'丈量-'+p.name,
+        description:'系統自動同步：'+p.name+' 丈量預約',
+        start:{dateTime:startDate.toISOString(),timeZone:'Asia/Taipei'},
+        end:{dateTime:endDate.toISOString(),timeZone:'Asia/Taipei'}
+      };
+      let res;
+      if(p.measureGcalId){
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${p.measureGcalId}`,{method:'PUT',body:JSON.stringify(body)});
+      } else {
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
+      }
+      const data=await res.json();
+      if(data.id){p.measureGcalId=data.id;save();}
+      else if(data.error){console.error('日曆同步失敗',data.error);}
+    }catch(err){console.error('日曆同步發生錯誤',err);}
+  });
 }
 
 async function ensureProjectFolderPath(p,cat){
@@ -1563,17 +1654,85 @@ function deleteStaff(id){
 
 // ── 行事曆 ──
 let calYear=new Date().getFullYear(),calMonth=new Date().getMonth(),calSelected=null;
+
+function syncPunchToCalendar(dateKey,name,projectId,gcalIdStore){
+  ensureDriveAuth(async()=>{
+    try{
+      const body={
+        summary:name+' - '+pName(projectId),
+        description:'系統自動同步：每日打卡記錄',
+        start:{date:dateKey},
+        end:{date:dateKey}
+      };
+      const existingId=gcalIdStore[dateKey+'|'+name+'|'+projectId];
+      let res;
+      if(existingId){
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${existingId}`,{method:'PUT',body:JSON.stringify(body)});
+      } else {
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
+      }
+      const data=await res.json();
+      if(data.id){gcalIdStore[dateKey+'|'+name+'|'+projectId]=data.id;save();}
+    }catch(err){console.error('打卡同步發生錯誤',err);}
+  });
+}
+function syncAllToCalendar(){
+  ensureDriveAuth(()=>{
+    let count=0;
+    // 丈量預約
+    db.projects.forEach(p=>{
+      if(p.type==='洽談中'&&p.measureDate){syncMeasureToCalendar(p);count++;}
+    });
+    // 打卡記錄
+    if(!db.punchGcalIds)db.punchGcalIds={};
+    const seen={};
+    db.punches.forEach(pu=>{
+      if(!pu.projectId)return;
+      const key=pu.date+'|'+pu.name+'|'+pu.projectId;
+      if(seen[key])return;
+      seen[key]=true;
+      syncPunchToCalendar(pu.date,pu.name,pu.projectId,db.punchGcalIds);
+      count++;
+    });
+    save();
+    alert(`已同步 ${count} 筆資料到共用日曆，請稍候片刻在 Google 日曆查看`);
+  });
+}
+
+function getAutoEvents(){
+  const auto=[];
+  // 1) 洽談中專案的丈量預約日期
+  db.projects.forEach(p=>{
+    if(p.type==='洽談中'&&p.measureDate){
+      const d=p.measureDate.slice(0,10);
+      auto.push({id:'auto-measure-'+p.id,title:'丈量-'+p.name,date:d,projectId:p.id,type:'丈量',auto:true,time:p.measureDate.slice(11,16)});
+    }
+  });
+  // 2) 每日打卡記錄（同一人同一天同一專案合併成一筆）
+  const seen={};
+  db.punches.forEach(pu=>{
+    if(!pu.projectId)return;
+    const key=pu.date+'|'+pu.name+'|'+pu.projectId;
+    if(seen[key])return;
+    seen[key]=true;
+    auto.push({id:'auto-punch-'+key,title:pu.name+' - '+pName(pu.projectId),date:pu.date,projectId:pu.projectId,type:'打卡',auto:true});
+  });
+  return auto;
+}
+function allEvents(){return [...db.events,...getAutoEvents()];}
+
 function renderCalendar(){
   document.getElementById('cal-month-label').textContent=`${calYear} 年 ${calMonth+1} 月`;
   const first=new Date(calYear,calMonth,1).getDay();
   const dim=new Date(calYear,calMonth+1,0).getDate();
   const ts=today();
+  const evAll=allEvents();
   let h=['日','一','二','三','四','五','六'].map(d=>`<div class="cal-hd">${d}</div>`).join('');
   const prev=new Date(calYear,calMonth,0).getDate();
   for(let i=first-1;i>=0;i--)h+=`<div class="cal-day other-month"><span class="cal-num">${prev-i}</span></div>`;
   for(let d=1;d<=dim;d++){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const hasEv=db.events.some(e=>e.date===ds);
+    const hasEv=evAll.some(e=>e.date===ds);
     h+=`<div class="cal-day${ds===ts?' today':''}${ds===calSelected&&ds!==ts?' selected':''}" onclick="selectDay('${ds}')">
       <span class="cal-num">${d}</span>${hasEv?'<div class="cal-dot"></div>':''}
     </div>`;
@@ -1583,21 +1742,22 @@ function renderCalendar(){
 }
 function selectDay(ds){calSelected=ds;document.getElementById('cal-selected-label').textContent=fDate(ds)+' 的事件';renderCalendar();}
 function renderCalEvents(){
-  let evs=db.events;
+  let evs=allEvents();
   if(calSelected)evs=evs.filter(e=>e.date===calSelected);
   else evs=evs.filter(e=>e.date&&e.date.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`));
   evs=[...evs].sort((a,b)=>a.date?.localeCompare(b.date||''));
+  const typeIcon={'丈量':'ti-ruler-2','打卡':'ti-clock-check'};
   document.getElementById('cal-events-list').innerHTML=evs.length?evs.map(e=>`
     <div class="card-row" style="cursor:default">
-      <div class="card-row-icon"><i class="ti ti-calendar-event"></i></div>
+      <div class="card-row-icon"><i class="ti ${e.auto?(typeIcon[e.type]||'ti-bolt'):'ti-calendar-event'}"></i></div>
       <div class="card-row-body">
         <div class="card-row-title">${e.title}</div>
-        <div class="card-row-sub">${fDate(e.date)} · ${pName(e.projectId)}</div>
+        <div class="card-row-sub">${fDate(e.date)}${e.time?' · '+e.time:''}${e.auto?'':' · '+pName(e.projectId)}</div>
         ${e.note?`<div class="text-xs text-muted mt1">${e.note}</div>`:''}
       </div>
       <div class="card-row-right">
-        <span class="badge badge-blue">${e.type||''}</span>
-        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteEvent('${e.id}')"><i class="ti ti-trash"></i></button>
+        <span class="badge ${e.auto?'badge-purple':'badge-blue'}">${e.type||''}</span>
+        ${e.auto?'':`<button class="btn btn-danger btn-sm btn-icon" onclick="deleteEvent('${e.id}')"><i class="ti ti-trash"></i></button>`}
       </div>
     </div>`).join(''):'<div class="empty"><i class="ti ti-calendar-off"></i><p>此期間無事件</p></div>';
 }
@@ -1616,6 +1776,38 @@ function deleteEvent(id){
   if(!confirm('確定刪除？'))return;
   db.events=db.events.filter(e=>e.id!==id);save();renderCalendar();
 }
+
+// ── 深色模式 ──
+function initTheme(){
+  const saved=localStorage.getItem('dmgr_theme');
+  const theme=saved||'dark'; // 預設深色
+  document.documentElement.setAttribute('data-theme',theme);
+  updateThemeUI(theme);
+}
+function toggleTheme(e){
+  if(e)e.stopPropagation();
+  const cur=document.documentElement.getAttribute('data-theme');
+  const next=cur==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next);
+  localStorage.setItem('dmgr_theme',next);
+  updateThemeUI(next);
+}
+function updateThemeUI(theme){
+  const sw=document.getElementById('theme-switch');
+  const icon=document.getElementById('theme-icon');
+  const label=document.getElementById('theme-label');
+  if(!sw)return;
+  if(theme==='dark'){
+    sw.classList.add('on');
+    if(icon){icon.className='ti ti-moon';}
+    if(label)label.textContent='深色模式';
+  } else {
+    sw.classList.remove('on');
+    if(icon){icon.className='ti ti-sun';}
+    if(label)label.textContent='淺色模式';
+  }
+}
+initTheme();
 
 checkLogin();
 </script>
