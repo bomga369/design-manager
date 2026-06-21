@@ -378,6 +378,36 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="sheet-overlay" id="sheet-punch-edit">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="punch-edit-title">補登打卡紀錄</span><button class="sheet-close" onclick="closeSheet('sheet-punch-edit')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group">
+      <label class="form-label">類型</label>
+      <div class="segmented">
+        <div class="seg-btn active" id="pe-type-in" onclick="selectSeg(this,'pe-type','in')">上班</div>
+        <div class="seg-btn" id="pe-type-out" onclick="selectSeg(this,'pe-type','out')">下班</div>
+      </div>
+      <input type="hidden" id="pe-type" value="in">
+    </div>
+    <div class="form-group"><label class="form-label">員工姓名 *</label><input class="form-input" id="pe-name" placeholder="請輸入姓名" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="form-group"><label class="form-label">所屬專案</label><select class="form-input" id="pe-project"></select></div>
+    <div class="form-group">
+      <label class="form-label">日期 / 時間 *</label>
+      <div class="grid2">
+        <input class="form-input" id="pe-date" type="date">
+        <input class="form-input" id="pe-time" type="time">
+      </div>
+    </div>
+    <input type="hidden" id="pe-id" value="">
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-punch-edit')">取消</button>
+      <button class="btn btn-primary" onclick="savePunchEdit()">儲存</button>
+    </div>
+    <button class="btn btn-danger" id="pe-delete-btn" style="width:100%;margin-top:0.6rem;display:none" onclick="deletePunchEdit()"><i class="ti ti-trash"></i> 刪除這筆紀錄</button>
+  </div>
+</div>
+
 <div class="sheet-overlay" id="sheet-project">
   <div class="sheet">
     <div class="sheet-handle"></div>
@@ -1869,10 +1899,10 @@ function renderStaffDetail(sid){
       </div>
     </div>
 
-    <div class="section-hd">打卡紀錄</div>
+    <div class="section-hd">打卡紀錄<button class="btn btn-sm btn-ghost" onclick="openPunchEdit()"><i class="ti ti-plus"></i> 補登</button></div>
     <div class="card">
       ${periodPunches.length?[...periodPunches].sort((a,b)=>b.time.localeCompare(a.time)).slice(0,30).map(p=>`
-        <div class="card-row" style="cursor:default">
+        <div class="card-row" onclick="openPunchEdit('${p.id}')" style="cursor:pointer">
           <div class="card-row-icon" style="background:${p.type==='in'?'var(--green-bg)':'var(--red-bg)'};color:${p.type==='in'?'var(--green)':'var(--red-text)'}">
             <i class="ti ti-${p.type==='in'?'login':'logout'}"></i>
           </div>
@@ -1880,9 +1910,102 @@ function renderStaffDetail(sid){
             <div class="card-row-title">${p.type==='in'?'上班打卡':'下班打卡'}</div>
             <div class="card-row-sub">${p.timeStr} · ${pName(p.projectId)}</div>
           </div>
+          <i class="ti ti-chevron-right text-muted"></i>
         </div>`).join(''):'<div class="empty" style="padding:1.5rem"><i class="ti ti-clock-off"></i><p>此期間無打卡紀錄</p></div>'}
     </div>
     <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteStaff('${sid}')"><i class="ti ti-trash"></i> 刪除此員工</button>`;
+}
+let editingPunchId=null;
+function openPunchEdit(punchId){
+  editingPunchId=punchId||null;
+  fillSel('pe-project');
+  document.getElementById('pe-project').value='';
+  if(punchId){
+    const rec=db.punches.find(x=>x.id===punchId);
+    if(!rec)return;
+    document.getElementById('punch-edit-title').textContent='編輯打卡紀錄';
+    document.getElementById('pe-id').value=rec.id;
+    document.getElementById('pe-name').value=rec.name;
+    document.getElementById('pe-project').value=rec.projectId||'';
+    document.getElementById('pe-date').value=rec.date;
+    document.getElementById('pe-time').value=new Date(rec.time).toTimeString().slice(0,5);
+    const typeBtn=document.getElementById(rec.type==='out'?'pe-type-out':'pe-type-in');
+    selectSeg(typeBtn,'pe-type',rec.type);
+    document.getElementById('pe-delete-btn').style.display='block';
+  } else {
+    const staff=currentStaffId?db.staff.find(x=>x.id===currentStaffId):null;
+    document.getElementById('punch-edit-title').textContent='補登打卡紀錄';
+    document.getElementById('pe-id').value='';
+    document.getElementById('pe-name').value=staff?staff.name:'';
+    document.getElementById('pe-date').value=today();
+    document.getElementById('pe-time').value=new Date().toTimeString().slice(0,5);
+    selectSeg(document.getElementById('pe-type-in'),'pe-type','in');
+    document.getElementById('pe-delete-btn').style.display='none';
+  }
+  openSheet('sheet-punch-edit');
+}
+function resyncOrCleanCalendar(date,name,projectId,deletedId){
+  if(!projectId)return;
+  const remaining=db.punches.filter(x=>x.date===date&&x.name===name&&x.projectId===projectId&&x.id!==deletedId);
+  if(!db.punchGcalIds)db.punchGcalIds={};
+  if(remaining.length){
+    syncPunchToCalendar(date,name,projectId,db.punchGcalIds);
+  } else {
+    const key=date+'|'+name+'|'+projectId;
+    const gcalId=db.punchGcalIds[key];
+    if(gcalId){
+      ensureDriveAuth(async()=>{
+        try{
+          await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${gcalId}`,{method:'DELETE'});
+        }catch(err){console.error('刪除日曆事件失敗',err);}
+        delete db.punchGcalIds[key];
+        save();
+      });
+    }
+  }
+}
+function savePunchEdit(){
+  const name=document.getElementById('pe-name').value.trim();
+  const dateVal=document.getElementById('pe-date').value;
+  const timeVal=document.getElementById('pe-time').value;
+  if(!name||!dateVal||!timeVal)return alert('請填入姓名、日期與時間');
+  const type=document.getElementById('pe-type').value;
+  const projectId=document.getElementById('pe-project').value;
+  const isoTime=new Date(`${dateVal}T${timeVal}:00`).toISOString();
+  const timeStr=new Date(isoTime).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+  const id=document.getElementById('pe-id').value;
+  if(id){
+    const rec=db.punches.find(x=>x.id===id);
+    if(rec){
+      // 如果日期/姓名/專案有變動，先針對舊的組合做一次同步清理，避免日曆留下孤兒事件
+      const changedKey=rec.date!==dateVal||rec.name!==name||rec.projectId!==projectId;
+      const oldDate=rec.date,oldName=rec.name,oldProjectId=rec.projectId;
+      rec.type=type;rec.name=name;rec.projectId=projectId;rec.date=dateVal;rec.time=isoTime;rec.timeStr=timeStr;
+      save();
+      if(changedKey)resyncOrCleanCalendar(oldDate,oldName,oldProjectId,null);
+      if(projectId)syncPunchToCalendar(dateVal,name,projectId,db.punchGcalIds||(db.punchGcalIds={}));
+    }
+  } else {
+    db.punches.push({id:uid(),type,name,projectId,time:isoTime,timeStr,date:dateVal});
+    save();
+    if(projectId)syncPunchToCalendar(dateVal,name,projectId,db.punchGcalIds||(db.punchGcalIds={}));
+  }
+  closeSheet('sheet-punch-edit');
+  renderDashboard();
+  if(currentPage==='staff-detail'&&currentStaffId)renderStaffDetail(currentStaffId);
+}
+function deletePunchEdit(){
+  const id=document.getElementById('pe-id').value;
+  if(!id)return;
+  const rec=db.punches.find(x=>x.id===id);
+  if(!rec)return;
+  if(!confirm('確定要刪除這筆打卡紀錄嗎？'))return;
+  db.punches=db.punches.filter(x=>x.id!==id);
+  save();
+  resyncOrCleanCalendar(rec.date,rec.name,rec.projectId,id);
+  closeSheet('sheet-punch-edit');
+  renderDashboard();
+  if(currentPage==='staff-detail'&&currentStaffId)renderStaffDetail(currentStaffId);
 }
 function switchPeriod(period,month=''){
   currentStaffPeriod=period;currentStaffCustomMonth=month;
