@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260621C">
+<meta name="app-version" content="20260621D">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -613,6 +613,12 @@ textarea.form-input{resize:none;min-height:72px;}
 
 <div id="fb-debug" style="position:fixed;bottom:0;left:0;right:0;max-height:35vh;overflow-y:auto;background:rgba(0,0,0,0.88);color:#7fffa0;font-size:11px;line-height:1.6;padding:8px 10px;padding-bottom:calc(8px + var(--safe-bottom));z-index:9999;font-family:monospace;white-space:pre-wrap;"></div>
 
+<div class="migrate-banner" id="reauth-banner" style="display:none">
+  <div class="migrate-banner-title">需要重新驗證一次</div>
+  <div class="migrate-banner-sub">系統更新後，需要你重新驗證一次 Google 帳號，才能啟用「不管哪台裝置都同步」的雲端功能。點一下下面的按鈕就好，不會登出目前畫面、資料也不會受影響。</div>
+  <div id="gsi-btn-reauth" class="gsi-btn-wrap"></div>
+</div>
+
 <div class="update-banner" id="update-banner" style="display:none">
   <div class="update-banner-text">系統有新版本可用</div>
   <button class="btn btn-primary btn-sm" onclick="location.reload()">重新整理</button>
@@ -653,6 +659,8 @@ function handleGoogleLogin(response){
   currentUser={name:payload.name,email:payload.email,picture:payload.picture};
   localStorage.setItem('dmgr_user',JSON.stringify(currentUser));
   window.fbDebugLog('Google 登入成功，帳號：'+payload.email);
+  const reauthBanner=document.getElementById('reauth-banner');
+  if(reauthBanner)reauthBanner.style.display='none';
   if(window.fbSignInWithGoogleIdToken){
     window.fbDebugLog('開始呼叫 Firebase 登入...');
     window.fbSignInWithGoogleIdToken(response.credential).catch(err=>{
@@ -664,15 +672,34 @@ function handleGoogleLogin(response){
   }
   showApp();
 }
+window.onFirebaseSignedOut=function(){
+  if(currentUser){
+    window.fbDebugLog('已在系統內登入，但 Firebase 雲端尚未驗證身份，顯示重新驗證按鈕');
+    const banner=document.getElementById('reauth-banner');
+    if(banner)banner.style.display='block';
+    renderReauthButton();
+  }
+};
 
+let googleSignInInitialized=false;
+function ensureGoogleSignInInit(){
+  if(googleSignInInitialized)return true;
+  if(!window.google||!google.accounts)return false;
+  google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:handleGoogleLogin});
+  googleSignInInitialized=true;
+  return true;
+}
 function initGoogleLogin(){
-  if(!window.google||!google.accounts){setTimeout(initGoogleLogin,300);return;}
-  google.accounts.id.initialize({
-    client_id:GOOGLE_CLIENT_ID,
-    callback:handleGoogleLogin
-  });
+  if(!ensureGoogleSignInInit()){setTimeout(initGoogleLogin,300);return;}
   google.accounts.id.renderButton(
     document.getElementById('gsi-btn'),
+    {theme:'outline',size:'large',shape:'pill',text:'signin_with',width:260}
+  );
+}
+function renderReauthButton(){
+  if(!ensureGoogleSignInInit()){setTimeout(renderReauthButton,300);return;}
+  google.accounts.id.renderButton(
+    document.getElementById('gsi-btn-reauth'),
     {theme:'outline',size:'large',shape:'pill',text:'signin_with',width:260}
   );
 }
@@ -2506,6 +2533,7 @@ if (fbAuth) {
       if (punchesUnsub) { punchesUnsub(); punchesUnsub = null; }
       if (gcalUnsub) { gcalUnsub(); gcalUnsub = null; }
       if (projectsUnsub) { projectsUnsub(); projectsUnsub = null; }
+      if (window.onFirebaseSignedOut) window.onFirebaseSignedOut();
     }
   });
 } else {
