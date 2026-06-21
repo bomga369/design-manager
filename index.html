@@ -29,7 +29,7 @@
   --purple:#6b5a8a;--purple-bg:#f3effa;
   --divider-strong:#33301f;
   --r:10px;--rl:14px;
-  --nav-h:64px;--safe-bottom:env(safe-area-inset-bottom,0px);
+  --nav-h:70px;--safe-bottom:env(safe-area-inset-bottom,0px);
 }
 html[data-theme="dark"]{
   --bg:#1a1a1d;--bg2:#141416;--bg3:#222226;
@@ -62,10 +62,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .nav-tab.active{color:var(--gold);}
 .nav-tab i{font-size:1.375rem;}
 .nav-tab span{font-size:0.7188rem;font-weight:500;}
-.nav-tab-main i{font-size:2.25rem;color:#dfb028;}
-.nav-tab-main span{font-size:0.7812rem;font-weight:600;color:#dfb028;}
-.nav-tab-main.active i{color:#dfb028;}
-.nav-tab-main.active span{color:#dfb028;}
+.nav-tab-main i{font-size:1.75rem;color:#dfb028;opacity:0.55;transition:opacity 0.15s;}
+.nav-tab-main span{font-size:0.7812rem;font-weight:600;color:#dfb028;opacity:0.55;transition:opacity 0.15s;}
+.nav-tab-main.active i{opacity:1;}
+.nav-tab-main.active span{opacity:1;}
 .page{display:none;}.page.active{display:block;}
 .card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
 .card-inner{padding:1rem;}
