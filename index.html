@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 :root{
@@ -190,6 +191,18 @@ textarea.form-input{resize:none;min-height:72px;}
 .sheet-title{font-size:1rem;font-weight:500;margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
 .sheet-close{background:none;border:none;font-size:1.375rem;color:var(--text3);cursor:pointer;}
 .sheet-footer{display:grid;grid-template-columns:1fr 2fr;gap:0.6rem;margin-top:1.25rem;}
+.date-field-wrap{position:relative;}
+.date-field-wrap:not(.has-value) input#p-measure-date{color:transparent;}
+.date-field-placeholder{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:1rem;pointer-events:none;}
+.date-field-wrap.has-value .date-field-placeholder{display:none;}
+.wheel-picker-wrap{position:relative;display:flex;align-items:center;justify-content:center;height:200px;gap:4px;}
+.wheel-col{height:200px;width:70px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;text-align:center;}
+.wheel-col::-webkit-scrollbar{display:none;}
+.wheel-col-pad{height:80px;}
+.wheel-item{height:40px;line-height:40px;font-size:1.25rem;color:var(--text3);scroll-snap-align:center;}
+.wheel-item.center{color:var(--text);font-weight:500;}
+.wheel-colon{font-size:1.375rem;font-weight:500;color:var(--text);}
+.wheel-highlight{position:absolute;left:0;right:0;top:80px;height:40px;border-top:0.5px solid var(--border2);border-bottom:0.5px solid var(--border2);pointer-events:none;background:var(--bg2);opacity:0.5;z-index:-1;}
 .area-pick-item{padding:0.9rem 0.25rem;font-size:0.9688rem;border-bottom:0.5px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;}
 .area-pick-item:last-child{border-bottom:none;}
 .area-pick-item.active{color:var(--gold);font-weight:600;}
@@ -204,6 +217,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .cal-hd{text-align:center;font-size:0.7812rem;color:var(--text3);padding:0.4rem 0;font-weight:500;}
 .cal-day{aspect-ratio:3/4;display:flex;flex-direction:column;align-items:stretch;border-radius:var(--r);cursor:pointer;padding:3px 2px;gap:1px;overflow:hidden;}
 .cal-num{font-size:0.8438rem;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin:0 auto;flex-shrink:0;}
+.cal-num-red{color:var(--red);font-weight:600;}
 .cal-day.today .cal-num{background:var(--blue);color:#fff;font-weight:500;}
 .cal-day.selected{background:var(--bg3);}
 .cal-day.other-month{opacity:0.45;}
@@ -315,8 +329,8 @@ textarea.form-input{resize:none;min-height:72px;}
 
   <!-- 行事曆 -->
   <div id="page-calendar" class="page">
-    <div class="content">
-      <div class="card" id="cal-card-wrap" onclick="handleCalCardClick(event)"><div class="card-inner">
+    <div class="content" onclick="handleCalCardClick(event)">
+      <div class="card" id="cal-card-wrap"><div class="card-inner">
         <div class="flex-between" style="margin-bottom:0.75rem;">
           <button class="btn btn-sm btn-icon" onclick="prevMonth()"><i class="ti ti-chevron-left"></i></button>
           <span class="fw500" id="cal-month-label"></span>
@@ -325,7 +339,7 @@ textarea.form-input{resize:none;min-height:72px;}
         <div class="cal-grid" id="cal-grid"></div>
       </div></div>
       <div class="section-hd">
-        <span id="cal-selected-label">近半年事件</span>
+        <span id="cal-selected-label">近半年事務</span>
       </div>
       <div class="card" id="cal-events-list"></div>
     </div>
@@ -416,10 +430,15 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
     <div class="form-group" id="p-measure-group" style="display:none;">
       <label class="form-label">丈量時間</label>
-      <div class="grid2">
-        <input class="form-input" id="p-measure-date" type="date">
-        <input class="form-input" id="p-measure-time" type="time" value="09:00">
+      <div class="date-field-wrap" id="p-measure-date-wrap" style="margin-bottom:0.5rem;">
+        <input class="form-input" id="p-measure-date" type="date" onchange="onMeasureDateChange()">
+        <span class="date-field-placeholder" id="p-measure-date-ph">(日期)</span>
       </div>
+      <div class="form-input" id="p-measure-time-display" onclick="openTimeWheel()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+        <span id="p-measure-time-text">09:00</span>
+        <i class="ti ti-clock text-muted"></i>
+      </div>
+      <input type="hidden" id="p-measure-time" value="09:00">
     </div>
     <div class="form-group"><label class="form-label">專案負責人</label><select class="form-input" id="p-leader"><option value="">請選擇負責人</option></select></div>
     <div class="form-group"><label class="form-label">備註</label><textarea class="form-input" id="p-note" placeholder="補充說明..."></textarea></div>
@@ -430,6 +449,22 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="sheet-overlay" id="sheet-time-wheel">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">選擇丈量時間<button class="sheet-close" onclick="closeSheet('sheet-time-wheel')"><i class="ti ti-x"></i></button></div>
+    <div class="wheel-picker-wrap">
+      <div class="wheel-col" id="wheel-hour"></div>
+      <div class="wheel-colon">:</div>
+      <div class="wheel-col" id="wheel-minute"></div>
+      <div class="wheel-highlight"></div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-time-wheel')">取消</button>
+      <button class="btn btn-primary" onclick="confirmTimeWheel()">確認</button>
+    </div>
+  </div>
+</div>
 
 <div class="sheet-overlay" id="sheet-area-picker">
   <div class="sheet">
@@ -611,6 +646,33 @@ const CON_STEPS=['木作-保護','木作-下角料','木作-封板','木作-櫃�
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
 const FILE_CATS=['報價單','合約','保護工程','木作','油漆','燈具','保護拆除','其他'];
 
+// 中華民國國定假日（依行政院人事行政總處公告，農曆相關日期每年異動，需逐年更新）
+const TW_HOLIDAYS={
+  '2026-01-01':'元旦',
+  '2026-02-15':'小年夜',
+  '2026-02-16':'除夕',
+  '2026-02-17':'春節',
+  '2026-02-18':'春節',
+  '2026-02-19':'春節',
+  '2026-02-20':'春節補假',
+  '2026-02-27':'和平紀念日補假',
+  '2026-02-28':'和平紀念日',
+  '2026-04-03':'兒童節補假',
+  '2026-04-04':'兒童節',
+  '2026-04-05':'清明節',
+  '2026-04-06':'清明節補假',
+  '2026-05-01':'勞動節',
+  '2026-06-19':'端午節',
+  '2026-09-25':'中秋節',
+  '2026-09-28':'教師節',
+  '2026-10-09':'國慶日補假',
+  '2026-10-10':'國慶日',
+  '2026-10-25':'光復節',
+  '2026-10-26':'光復節補假',
+  '2026-12-25':'行憲紀念日',
+  '2027-01-01':'元旦'
+};
+
 const CITY_DISTRICTS={
 '桃園市':['桃園區','中壢區','平鎮區','八德區','楊梅區','蘆竹區','大溪區','龍潭區','龜山區','大園區','觀音區','新屋區','復興區'],
 '台北市':['中正區','大同區','中山區','松山區','大安區','萬華區','信義區','士林區','北投區','內湖區','南港區','文山區'],
@@ -785,7 +847,7 @@ function showPage(id,opts={}){
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openSheet('sheet-finance')"><i class="ti ti-plus"></i></button>`;
   } else if(id==='calendar'){
     titleEl.textContent=titles[id];
-    tr.innerHTML=`<button class="topbar-btn ghost" onclick="syncAllToCalendar()"><i class="ti ti-refresh"></i></button>`;
+    tr.innerHTML='';
   } else {
     titleEl.textContent=titles[id]||id;tr.innerHTML='';
   }
@@ -804,6 +866,7 @@ function handleAdd(){
   document.getElementById('sheet-project-save').textContent='儲存專案';
   ['p-name','p-client','p-note','p-city','p-measure-date'].forEach(id=>document.getElementById(id).value='');
   setMeasureTime('09:00');
+  updateDatePlaceholder();
   document.getElementById('p-area').value='';
   document.getElementById('p-area-text').textContent='請先選擇縣市';
   document.getElementById('p-area-text').style.color='var(--text3)';
@@ -847,10 +910,55 @@ function onTypeChange(){
   document.getElementById('p-measure-group').style.display=type==='洽談中'?'block':'none';
 }
 function setMeasureTime(hhmm){
-  document.getElementById('p-measure-time').value=hhmm||'09:00';
+  const v=hhmm||'09:00';
+  document.getElementById('p-measure-time').value=v;
+  document.getElementById('p-measure-time-text').textContent=v;
 }
 function getMeasureTime(){
   return document.getElementById('p-measure-time').value||'09:00';
+}
+function updateDatePlaceholder(){
+  const val=document.getElementById('p-measure-date').value;
+  document.getElementById('p-measure-date-wrap').classList.toggle('has-value',!!val);
+}
+function onMeasureDateChange(){
+  updateDatePlaceholder();
+  const dateVal=document.getElementById('p-measure-date').value;
+  if(!dateVal)return;
+  setTimeout(()=>{openTimeWheel();},150);
+}
+function nearestTenMin(mm){
+  const r=Math.round(Number(mm)/10)*10%60;
+  return String(r).padStart(2,'0');
+}
+function buildWheelCol(colEl,items,selectedValue){
+  colEl.innerHTML='<div class="wheel-col-pad"></div>'+items.map(v=>`<div class="wheel-item" data-val="${v}">${v}</div>`).join('')+'<div class="wheel-col-pad"></div>';
+  const idx=items.indexOf(selectedValue);
+  setTimeout(()=>{colEl.scrollTop=Math.max(0,idx)*40;updateWheelHighlight(colEl);},0);
+  colEl.onscroll=()=>updateWheelHighlight(colEl);
+}
+function updateWheelHighlight(colEl){
+  const idx=Math.round(colEl.scrollTop/40);
+  colEl.querySelectorAll('.wheel-item').forEach((el,i)=>el.classList.toggle('center',i===idx));
+}
+function openTimeWheel(){
+  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+  const mins=Array.from({length:6},(_,i)=>String(i*10).padStart(2,'0')); // 10分鐘為一個單位:00/10/20/30/40/50
+  const [curH,curM]=getMeasureTime().split(':');
+  buildWheelCol(document.getElementById('wheel-hour'),hours,curH||'09');
+  buildWheelCol(document.getElementById('wheel-minute'),mins,nearestTenMin(curM||'0'));
+  openSheet('sheet-time-wheel');
+}
+function getWheelCenterValue(colEl){
+  const idx=Math.round(colEl.scrollTop/40);
+  const items=colEl.querySelectorAll('.wheel-item');
+  return items[idx]?items[idx].getAttribute('data-val'):items[0].getAttribute('data-val');
+}
+function confirmTimeWheel(){
+  const hh=getWheelCenterValue(document.getElementById('wheel-hour'));
+  const mm=getWheelCenterValue(document.getElementById('wheel-minute'));
+  setMeasureTime(hh+':'+mm);
+  closeSheet('sheet-time-wheel');
 }
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
@@ -909,8 +1017,13 @@ function confirmPunch(){
   const name=document.getElementById('punch-name').value.trim();
   const projectId=document.getElementById('punch-project').value;
   if(!name)return alert('請輸入員工姓名');
-  db.punches.push({id:uid(),type:pendingPunchType,name,projectId,time:new Date().toISOString(),timeStr:nowFull(),date:today()});
+  const punchRecord={id:uid(),type:pendingPunchType,name,projectId,time:new Date().toISOString(),timeStr:nowFull(),date:today()};
+  db.punches.push(punchRecord);
   save();closeSheet('sheet-punch');renderDashboard();
+  if(projectId){
+    if(!db.punchGcalIds)db.punchGcalIds={};
+    syncPunchToCalendar(punchRecord.date,name,projectId,db.punchGcalIds);
+  }
 }
 function renderPunchStatus(){
   const td=db.punches.filter(p=>p.date===today());
@@ -1019,7 +1132,7 @@ function renderProjects(){
         ${lastLabel?`<div class="text-xs mt2" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
       </div>
       <div style="padding:0.6rem 1rem;border-top:0.5px solid var(--border)">
-        <button class="btn btn-sm" style="width:100%" onclick="event.stopPropagation();exportProjectReport('${p.id}')"><i class="ti ti-file-export"></i> 匯出專案總表</button>
+        <button class="btn btn-sm" style="width:100%" onclick="event.stopPropagation();exportProjectReport('${p.id}',this)"><i class="ti ti-file-export"></i> 匯出專案總表(PDF)</button>
       </div>
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-check-off"></i><p>尚無已完工專案</p></div></div>`;
   document.getElementById('proj-no-response').innerHTML=nors.length?nors.map(p=>`
@@ -1083,18 +1196,19 @@ function openEditProject(pid){
     document.getElementById('p-measure-date').value='';
     setMeasureTime('09:00');
   }
+  updateDatePlaceholder();
   fillStaffSel('p-leader');
   document.getElementById('p-leader').value=p.leader||'';
   openSheet('sheet-project');
 }
-function exportProjectReport(pid){
+function exportProjectReport(pid,btnEl){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  if(!window.html2pdf){alert('PDF 產生工具尚未載入完成，請確認網路連線後再試一次');return;}
   const pFin=db.finance.filter(f=>f.projectId===pid);
   const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
   const profit=income-exp;
   const steps=p.conSteps||{};
-  const doneSteps=CON_STEPS.filter(s=>steps[s]&&steps[s].state==='完成');
   const projPunches=db.punches.filter(punch=>punch.projectId===pid);
   const staffMap={};
   projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
@@ -1102,21 +1216,7 @@ function exportProjectReport(pid){
     const st=calcWorkStats(ps);
     return`<tr><td>${name}</td><td>${st.days} 天</td><td>${st.otHours} h</td></tr>`;}).join('');
   const finRows=pFin.map(f=>`<tr><td>${fDate(f.date)}</td><td>${f.ftype}</td><td>${f.expCat||'—'}</td><td>${f.name}</td><td style="text-align:right">${f.ftype==='收入'?'+':'−'}$${fMoney(f.amount)}</td></tr>`).join('');
-  const html=`<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8">
-<title>${p.name} 專案總表</title>
-<style>body{font-family:'Noto Sans TC',sans-serif;padding:2rem;color:#1a1a18;max-width:800px;margin:0 auto;}
-h1{font-size:22px;font-weight:500;margin-bottom:0.25rem;}
-.sub{font-size:14px;color:#6b6b68;margin-bottom:2rem;}
-h2{font-size:15px;font-weight:500;margin:1.5rem 0 0.5rem;padding-bottom:0.25rem;border-bottom:1px solid #eee;}
-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1rem;}
-th{text-align:left;padding:0.5rem;background:#f7f7f5;border-bottom:1px solid #ddd;font-weight:500;}
-td{padding:0.5rem;border-bottom:1px solid #eee;}
-.money{text-align:right;}.green{color:#16a34a;}.red{color:#dc2626;}
-.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1rem;}
-.sum-card{background:#f7f7f5;border-radius:8px;padding:1rem;}
-.sum-label{font-size:11px;color:#a0a09c;}
-.sum-val{font-size:20px;font-weight:500;margin-top:4px;}
-</style></head><body>
+  const reportHtml=`<div class="pdf-export-root">
 <h1>${p.name}</h1>
 <div class="sub">業主：${p.client||'—'} ｜ 負責人：${p.leader?sName(p.leader):'—'} ｜ 建立日期：${fDate(p.createdAt)}</div>
 
@@ -1146,13 +1246,43 @@ ${CON_STEPS.map(s=>{const sd=steps[s]||{state:'未開始'};const label=s==='其�
 
 ${p.notes&&p.notes.length?`<h2>注意內容</h2><ol>${p.notes.map(n=>`<li style="margin-bottom:0.5rem">${n.text}</li>`).join('')}</ol>`:''}
 
-<div style="margin-top:3rem;font-size:12px;color:#a0a09c;border-top:1px solid #eee;padding-top:1rem">匯出時間：${new Date().toLocaleString('zh-TW')}</div>
-</body></html>`;
-  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`${p.name}_專案總表.html`;
-  a.click();
+<div class="footnote">匯出時間：${new Date().toLocaleString('zh-TW')}</div>
+</div>`;
+  const style=document.createElement('style');
+  style.id='pdf-export-style';
+  style.textContent=`.pdf-export-root{font-family:'Noto Sans TC',sans-serif;padding:24px;color:#1a1a18;width:760px;background:#fff;}
+.pdf-export-root h1{font-size:22px;font-weight:500;margin-bottom:4px;}
+.pdf-export-root .sub{font-size:14px;color:#6b6b68;margin-bottom:24px;}
+.pdf-export-root h2{font-size:15px;font-weight:500;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #eee;}
+.pdf-export-root table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;}
+.pdf-export-root th{text-align:left;padding:8px;background:#f7f7f5;border-bottom:1px solid #ddd;font-weight:500;}
+.pdf-export-root td{padding:8px;border-bottom:1px solid #eee;}
+.pdf-export-root .money{text-align:right;}.pdf-export-root .green{color:#16a34a;}.pdf-export-root .red{color:#dc2626;}
+.pdf-export-root .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+.pdf-export-root .sum-card{background:#f7f7f5;border-radius:8px;padding:14px;}
+.pdf-export-root .sum-label{font-size:11px;color:#a0a09c;}
+.pdf-export-root .sum-val{font-size:20px;font-weight:500;margin-top:4px;}
+.pdf-export-root .footnote{margin-top:32px;font-size:12px;color:#a0a09c;border-top:1px solid #eee;padding-top:12px;}`;
+  document.head.appendChild(style);
+  const container=document.createElement('div');
+  container.style.cssText='position:fixed;left:-9999px;top:0;';
+  container.innerHTML=reportHtml;
+  document.body.appendChild(container);
+  const btnLabel=btnEl?btnEl.innerHTML:'';
+  const cleanup=()=>{document.body.removeChild(container);document.head.removeChild(style);if(btnEl)btnEl.innerHTML=btnLabel;};
+  if(btnEl)btnEl.innerHTML='<i class="ti ti-loader-2"></i> 產生中...';
+  html2pdf().set({
+    margin:[10,10,10,10],
+    filename:`${p.name}_專案總表.pdf`,
+    image:{type:'jpeg',quality:0.98},
+    html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+    pagebreak:{mode:['avoid-all','css','legacy']}
+  }).from(container.querySelector('.pdf-export-root')).save().then(cleanup).catch(err=>{
+    console.error('PDF匯出失敗',err);
+    alert('PDF 匯出失敗，請稍後再試一次');
+    cleanup();
+  });
 }
 
 function deleteProject(id){
@@ -1304,16 +1434,17 @@ function renderDetail(pid){
         </div>`;}).join('')}
     </div>`;
 
+  const middleHtml=isNeg
+    ? `${infoHtml}${progressHtml}${notesHtml}`
+    : `${infoHtml}${finHtml}${notesHtml}${progressHtml}`;
+
   document.getElementById('detail-content').innerHTML=`
     <div class="flex-between" style="margin-bottom:0.5rem">
       <div><div style="font-size:18px;font-weight:500">${p.area?p.area+' - ':''}${p.bname||p.name}</div><div class="text-xs text-muted mt1">${p.client||'—'}</div></div>
       ${sBadge(p.type)}
     </div>
     ${p.note?`<div class="text-sm text-muted mt1">${p.note}</div>`:''}
-    ${infoHtml}
-    ${finHtml}
-    ${notesHtml}
-    ${progressHtml}
+    ${middleHtml}
     ${filesHtml}
     <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteProject('${pid}')"><i class="ti ti-trash"></i> 刪除此專案</button>`;
 }
@@ -1805,16 +1936,33 @@ function deleteStaff(id){
 // ── 行事曆 ──
 let calYear=new Date().getFullYear(),calMonth=new Date().getMonth(),calSelected=null;
 
+function getDayPunchSummary(dateKey,name,projectId){
+  const dayPunches=db.punches.filter(p=>p.date===dateKey&&p.name===name&&p.projectId===projectId).sort((a,b)=>a.time.localeCompare(b.time));
+  if(!dayPunches.length)return{startTime:null,endTime:null,label:''};
+  const ins=dayPunches.filter(p=>p.type==='in');
+  const outs=dayPunches.filter(p=>p.type==='out');
+  const fmtT=iso=>new Date(iso).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',hour12:false});
+  const startRec=ins[0]||dayPunches[0];
+  const endRec=outs.length?outs[outs.length-1]:null;
+  const label=`上班 ${fmtT(startRec.time)}｜下班 ${endRec?fmtT(endRec.time):'尚未下班'}`;
+  return{startTime:startRec.time,endTime:endRec?endRec.time:null,label};
+}
 function syncPunchToCalendar(dateKey,name,projectId,gcalIdStore){
   ensureDriveAuth(async()=>{
     try{
       const proj=db.projects.find(x=>x.id===projectId);
       const leaderText=proj&&proj.leader?'負責人：'+sName(proj.leader):'尚未指定負責人';
+      const{startTime,endTime,label}=getDayPunchSummary(dateKey,name,projectId);
+      if(!startTime)return;
+      let endIso=endTime||startTime;
+      if(new Date(endIso).getTime()<=new Date(startTime).getTime()){
+        endIso=new Date(new Date(startTime).getTime()+30*60000).toISOString(); // 尚未下班時，先給30分鐘長度方便在日曆上顯示
+      }
       const body={
         summary:'施作-'+pName(projectId)+'-'+name,
-        description:'系統自動同步：每日打卡記錄\n'+leaderText,
-        start:{date:dateKey},
-        end:{date:dateKey}
+        description:'系統自動同步：每日打卡記錄\n'+label+'\n'+leaderText,
+        start:{dateTime:new Date(startTime).toISOString(),timeZone:'Asia/Taipei'},
+        end:{dateTime:new Date(endIso).toISOString(),timeZone:'Asia/Taipei'}
       };
       const existingId=gcalIdStore[dateKey+'|'+name+'|'+projectId];
       let res;
@@ -1825,29 +1973,8 @@ function syncPunchToCalendar(dateKey,name,projectId,gcalIdStore){
       }
       const data=await res.json();
       if(data.id){gcalIdStore[dateKey+'|'+name+'|'+projectId]=data.id;save();}
+      else if(data.error){console.error('打卡同步失敗',data.error);}
     }catch(err){console.error('打卡同步發生錯誤',err);}
-  });
-}
-function syncAllToCalendar(){
-  ensureDriveAuth(()=>{
-    let count=0;
-    // 丈量預約
-    db.projects.forEach(p=>{
-      if(p.type==='洽談中'&&p.measureDate){syncMeasureToCalendar(p);count++;}
-    });
-    // 打卡記錄
-    if(!db.punchGcalIds)db.punchGcalIds={};
-    const seen={};
-    db.punches.forEach(pu=>{
-      if(!pu.projectId)return;
-      const key=pu.date+'|'+pu.name+'|'+pu.projectId;
-      if(seen[key])return;
-      seen[key]=true;
-      syncPunchToCalendar(pu.date,pu.name,pu.projectId,db.punchGcalIds);
-      count++;
-    });
-    save();
-    alert(`已同步 ${count} 筆資料到共用日曆，請稍候片刻在 Google 日曆查看`);
   });
 }
 
@@ -1873,14 +2000,17 @@ function getAutoEvents(){
 }
 function allEvents(){return [...db.events,...getAutoEvents()];}
 
-function calDayCellHtml(ds,dayNum,evAll,ts,otherMonth){
+function calDayCellHtml(ds,dayNum,evAll,ts,otherMonth,dow){
   const dayEvs=evAll.filter(e=>e.date===ds);
   const shown=dayEvs.slice(0,2);
   const moreCount=dayEvs.length-shown.length;
   const chipsHtml=shown.map(e=>`<div class="cal-ev-chip${e.auto?'':' manual'}">${e.title}</div>`).join('')+(moreCount>0?`<div class="cal-ev-more">+${moreCount}</div>`:'');
   const cls=`cal-day${otherMonth?' other-month':''}${ds===ts?' today':''}${ds===calSelected&&ds!==ts?' selected':''}`;
+  const holidayName=TW_HOLIDAYS[ds];
+  const isRed=dow===5||dow===6||!!holidayName; // dow: 0=一...5=六,6=日
+  const numCls=`cal-num${isRed?' cal-num-red':''}`;
   return`<div class="${cls}" onclick="selectDay('${ds}')">
-      <span class="cal-num">${dayNum}</span>${chipsHtml}
+      <span class="${numCls}"${holidayName?` title="${holidayName}"`:''}>${dayNum}</span>${chipsHtml}
     </div>`;
 }
 function renderCalendar(){
@@ -1894,25 +2024,26 @@ function renderCalendar(){
   const prev=new Date(calYear,calMonth,0).getDate();
   const prevM=calMonth===0?11:calMonth-1, prevY=calMonth===0?calYear-1:calYear;
   const nextM=calMonth===11?0:calMonth+1, nextY=calMonth===11?calYear+1:calYear;
+  let col=0;
   for(let i=first-1;i>=0;i--){
     const dayNum=prev-i;
     const ds=`${prevY}-${String(prevM+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
-    h+=calDayCellHtml(ds,dayNum,evAll,ts,true);
+    h+=calDayCellHtml(ds,dayNum,evAll,ts,true,col%7);col++;
   }
   for(let d=1;d<=dim;d++){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    h+=calDayCellHtml(ds,d,evAll,ts,false);
+    h+=calDayCellHtml(ds,d,evAll,ts,false,col%7);col++;
   }
   for(let d=1;d<=42-(first+dim);d++){
     const ds=`${nextY}-${String(nextM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    h+=calDayCellHtml(ds,d,evAll,ts,true);
+    h+=calDayCellHtml(ds,d,evAll,ts,true,col%7);col++;
   }
   document.getElementById('cal-grid').innerHTML=h;renderCalEvents();
 }
 function selectDay(ds){calSelected=ds;document.getElementById('cal-selected-label').textContent=fDate(ds)+' 的事件';renderCalendar();}
-function clearCalSelect(){calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
+function clearCalSelect(){calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事務';renderCalendar();}
 function handleCalCardClick(e){
-  if(e.target.closest('.cal-day')||e.target.closest('button'))return;
+  if(e.target.closest('.cal-day')||e.target.closest('button')||e.target.closest('a'))return;
   clearCalSelect();
 }
 function renderCalEvents(){
@@ -1942,8 +2073,8 @@ function renderCalEvents(){
       </div>
     </div>`).join(''):'<div class="empty"><i class="ti ti-calendar-off"></i><p>此期間無事件</p></div>';
 }
-function prevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
-function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事件';renderCalendar();}
+function prevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事務';renderCalendar();}
+function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事務';renderCalendar();}
 function deleteEvent(id){
   if(!confirm('確定刪除？'))return;
   db.events=db.events.filter(e=>e.id!==id);save();renderCalendar();
