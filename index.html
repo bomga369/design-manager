@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260621E">
+<meta name="app-version" content="20260622A">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -611,8 +611,6 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
-<div id="fb-debug" style="position:fixed;top:0;left:0;right:0;max-height:30vh;overflow-y:auto;background:rgba(0,0,0,0.88);color:#7fffa0;font-size:11px;line-height:1.6;padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top,0px));z-index:9999;font-family:monospace;white-space:pre-wrap;"></div>
-
 <div class="migrate-banner" id="reauth-banner" style="display:none">
   <div class="migrate-banner-title">需要重新驗證一次</div>
   <div class="migrate-banner-sub">系統更新後，需要你重新驗證一次 Google 帳號，才能啟用「不管哪台裝置都同步」的雲端功能。點一下下面的按鈕就好，不會登出目前畫面、資料也不會受影響。</div>
@@ -921,13 +919,7 @@ const CITY_DISTRICTS={
 };
 
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{}};
-window.fbDebugLog=function(msg){
-  const el=document.getElementById('fb-debug');
-  if(!el)return;
-  const time=new Date().toLocaleTimeString('zh-TW',{hour12:false});
-  el.textContent+=`[${time}] ${msg}\n`;
-  el.scrollTop=el.scrollHeight;
-};
+window.fbDebugLog=function(){};
 let currentPage='dashboard';
 let currentProjectId=null;
 let currentStaffId=null;
@@ -2461,14 +2453,6 @@ function updateFontSizeUI(size){
 initFontSize();
 
 checkLogin();
-
-setTimeout(()=>{
-  if(!window.fbSignInWithGoogleIdToken){
-    window.fbDebugLog('❌ 等待 6 秒後，window.fbSignInWithGoogleIdToken 仍不存在 → Firebase 模組很可能完全沒有載入成功（常見原因：網路被擋、被瀏覽器的內容封鎖功能擋住）');
-  } else {
-    window.fbDebugLog('（保險檢查）Firebase 模組函式已存在，模組腳本確實有執行');
-  }
-},6000);
 
 // ── 版本更新提醒 ──
 const DEPLOY_URL='https://bomga369.github.io/design-manager/index.html';
