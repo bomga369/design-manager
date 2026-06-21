@@ -511,6 +511,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group"><label class="form-label">電話</label><input class="form-input" id="info-phone" type="tel" placeholder="0912-345-678" autocomplete="off"></div>
     <div class="form-group"><label class="form-label">地址</label><input class="form-input" id="info-address" placeholder="台北市信義區..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div id="info-key-group" class="form-group"><label class="form-label">密碼 / 鑰匙</label><input class="form-input" id="info-key" placeholder="大門密碼或鑰匙說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div id="info-parking-group" class="form-group"><label class="form-label">車位</label><input class="form-input" id="info-parking" placeholder="車位位置或說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-info')">取消</button>
       <button class="btn btn-primary" onclick="saveInfo()">儲存</button>
@@ -1253,7 +1254,8 @@ function exportProjectReport(pid,btnEl){
 <h2>基本資料</h2>
 <table><tbody>
 <tr><th>電話</th><td>${p.info&&p.info.phone||'—'}</td><th>地址</th><td>${p.info&&p.info.address||'—'}</td></tr>
-<tr><th>密碼/鑰匙</th><td>${p.info&&p.info.key||'—'}</td><th>備註</th><td>${p.note||'—'}</td></tr>
+<tr><th>密碼/鑰匙</th><td>${p.info&&p.info.key||'—'}</td><th>車位</th><td>${p.info&&p.info.parking||'—'}</td></tr>
+<tr><th>備註</th><td colspan="3">${p.note||'—'}</td></tr>
 </tbody></table>
 
 <h2>財務總覽</h2>
@@ -1351,6 +1353,7 @@ function renderDetail(pid){
     <div class="info-row"><span class="info-label">電話</span><span class="info-value">${p.info.phone||'—'}</span></div>
     <div class="info-row"><span class="info-label">地址</span><span class="info-value">${p.info.address||'—'}</span></div>
     ${isCon?`<div class="info-row"><span class="info-label">密碼/鑰匙</span><span class="info-value">${p.info.key||'—'}</span></div>`:''}
+    ${isCon?`<div class="info-row"><span class="info-label">車位</span><span class="info-value">${p.info.parking||'—'}</span></div>`:''}
     <div class="info-row"><span class="info-label">負責人</span><span class="info-value">${p.leader?sName(p.leader):'—'}</span></div>
   </div></div>`;
 
@@ -1572,7 +1575,10 @@ function openInfoSheet(pid){
   document.getElementById('info-phone').value=p.info.phone||'';
   document.getElementById('info-address').value=p.info.address||'';
   document.getElementById('info-key').value=p.info.key||'';
-  document.getElementById('info-key-group').style.display=(p.type==='施作中'||p.type==='已完工')?'block':'none';
+  document.getElementById('info-parking').value=p.info.parking||'';
+  const showKeyFields=(p.type==='施作中'||p.type==='已完工')?'block':'none';
+  document.getElementById('info-key-group').style.display=showKeyFields;
+  document.getElementById('info-parking-group').style.display=showKeyFields;
   openSheet('sheet-info');
 }
 function saveInfo(){
@@ -1580,7 +1586,10 @@ function saveInfo(){
   if(!p.info)p.info={};
   p.info.phone=document.getElementById('info-phone').value;
   p.info.address=document.getElementById('info-address').value;
-  if(p.type==='施作中'||p.type==='已完工')p.info.key=document.getElementById('info-key').value;
+  if(p.type==='施作中'||p.type==='已完工'){
+    p.info.key=document.getElementById('info-key').value;
+    p.info.parking=document.getElementById('info-parking').value;
+  }
   save();closeSheet('sheet-info');renderDetail(currentProjectId);
 }
 
