@@ -61,8 +61,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .nav-tab.active{color:var(--gold);}
 .nav-tab i{font-size:22px;}
 .nav-tab span{font-size:11.5px;font-weight:500;}
-.nav-tab-main i{font-size:30px;}
-.nav-tab-main span{font-size:12.5px;font-weight:600;}
+.nav-tab-main i{font-size:36px;color:#dfb028;}
+.nav-tab-main span{font-size:12.5px;font-weight:600;color:#dfb028;}
+.nav-tab-main.active i{color:#dfb028;}
+.nav-tab-main.active span{color:#dfb028;}
 .page{display:none;}.page.active{display:block;}
 .card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
 .card-inner{padding:1rem;}
@@ -196,6 +198,9 @@ textarea.form-input{resize:none;min-height:72px;}
 .wheel-item.center{color:var(--text);font-weight:500;}
 .wheel-colon{font-size:22px;font-weight:500;color:var(--text);}
 .wheel-highlight{position:absolute;left:0;right:0;top:80px;height:40px;border-top:0.5px solid var(--border2);border-bottom:0.5px solid var(--border2);pointer-events:none;background:var(--bg2);opacity:0.5;z-index:-1;}
+.area-pick-item{padding:0.9rem 0.25rem;font-size:15.5px;border-bottom:0.5px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;}
+.area-pick-item:last-child{border-bottom:none;}
+.area-pick-item.active{color:var(--gold);font-weight:600;}
 .btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:12px 15px;border-radius:var(--r);font-size:15.5px;font-weight:500;cursor:pointer;font-family:inherit;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);}
 .btn-primary{background:var(--text);color:var(--bg);border-color:var(--text);}
 .btn-danger{background:var(--red-bg);color:var(--red-text);border-color:transparent;}
@@ -284,7 +289,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="content">
       <div class="section-hd">洽談中</div>
       <div id="proj-negotiating"></div>
-      <hr style="border:none;border-top:2px solid var(--border);margin:0.5rem 0 0.25rem;">
+      <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">施作中</div>
       <div id="proj-construction"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
@@ -400,7 +405,13 @@ textarea.form-input{resize:none;min-height:72px;}
       </select>
     </div>
     <div class="grid2">
-      <div class="form-group"><label class="form-label">區 *</label><select class="form-input" id="p-area"><option value="">請先選擇縣市</option></select></div>
+      <div class="form-group"><label class="form-label">區 *</label>
+        <div class="form-input" id="p-area-display" onclick="openAreaPicker()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;color:var(--text3);">
+          <span id="p-area-text">請先選擇縣市</span>
+          <i class="ti ti-chevron-right text-muted"></i>
+        </div>
+        <input type="hidden" id="p-area" value="">
+      </div>
       <div class="form-group"><label class="form-label">建案名稱 *</label><input class="form-input" id="p-name" placeholder="例：辦公室設計" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     </div>
     <div class="form-group"><label class="form-label">業主 / 客戶</label><input class="form-input" id="p-client" placeholder="例：王先生" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
@@ -444,6 +455,14 @@ textarea.form-input{resize:none;min-height:72px;}
       <button class="btn" onclick="closeSheet('sheet-time-wheel')">取消</button>
       <button class="btn btn-primary" onclick="confirmTimeWheel()">確認</button>
     </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-area-picker">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">選擇區域<button class="sheet-close" onclick="closeSheet('sheet-area-picker')"><i class="ti ti-x"></i></button></div>
+    <div id="area-picker-list" style="max-height:50vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -812,7 +831,9 @@ function handleAdd(){
   document.getElementById('sheet-project-save').textContent='儲存專案';
   ['p-name','p-client','p-note','p-city','p-measure-date'].forEach(id=>document.getElementById(id).value='');
   setMeasureTime('09','00');
-  document.getElementById('p-area').innerHTML='<option value="">請先選擇縣市</option>';
+  document.getElementById('p-area').value='';
+  document.getElementById('p-area-text').textContent='請先選擇縣市';
+  document.getElementById('p-area-text').style.color='var(--text3)';
   document.getElementById('p-type').value='';
   document.getElementById('p-measure-group').style.display='none';
   fillStaffSel('p-leader');
@@ -820,14 +841,33 @@ function handleAdd(){
 }
 function onCityChange(){
   const city=document.getElementById('p-city').value;
-  const areaSel=document.getElementById('p-area');
-  const districts=CITY_DISTRICTS[city];
-  if(!city||!districts){
-    areaSel.innerHTML='<option value="">請先選擇縣市</option>';
+  const areaText=document.getElementById('p-area-text');
+  const areaHidden=document.getElementById('p-area');
+  areaHidden.value='';
+  if(!city||!CITY_DISTRICTS[city]){
+    areaText.textContent='請先選擇縣市';
+    areaText.style.color='var(--text3)';
     return;
   }
-  areaSel.innerHTML='<option value="">請選擇區</option>'+districts.map(d=>`<option value="${d}">${d}</option>`).join('');
-  setTimeout(()=>{areaSel.focus();},150);
+  areaText.textContent='請選擇區';
+  areaText.style.color='var(--text3)';
+  openAreaPicker();
+}
+function openAreaPicker(){
+  const city=document.getElementById('p-city').value;
+  const districts=CITY_DISTRICTS[city];
+  if(!city||!districts){alert('請先選擇縣市');return;}
+  const curArea=document.getElementById('p-area').value;
+  const listEl=document.getElementById('area-picker-list');
+  listEl.innerHTML=districts.map(d=>`<div class="area-pick-item${d===curArea?' active':''}" onclick="selectArea('${d}')">${d}${d===curArea?'<i class="ti ti-check"></i>':''}</div>`).join('');
+  openSheet('sheet-area-picker');
+}
+function selectArea(d){
+  document.getElementById('p-area').value=d;
+  const areaText=document.getElementById('p-area-text');
+  areaText.textContent=d;
+  areaText.style.color='var(--text)';
+  closeSheet('sheet-area-picker');
 }
 function onTypeChange(){
   const type=document.getElementById('p-type').value;
@@ -1088,8 +1128,9 @@ function openEditProject(pid){
   document.getElementById('sheet-project-title').textContent='編輯專案';
   document.getElementById('sheet-project-save').textContent='儲存修改';
   document.getElementById('p-city').value=p.city||'';
-  onCityChange();
   document.getElementById('p-area').value=p.area||'';
+  document.getElementById('p-area-text').textContent=p.area||(p.city?'請選擇區':'請先選擇縣市');
+  document.getElementById('p-area-text').style.color=p.area?'var(--text)':'var(--text3)';
   document.getElementById('p-name').value=p.bname||p.name||'';
   document.getElementById('p-client').value=p.client||'';
   document.getElementById('p-type').value=p.type==='無回應'||p.type==='已完工'?p.type:p.type;
