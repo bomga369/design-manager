@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260621A">
+<meta name="app-version" content="20260621B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -153,6 +153,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .migrate-banner-title{font-weight:600;margin-bottom:4px;color:var(--gold);}
 .migrate-banner-sub{font-size:0.85rem;color:var(--text2);margin-bottom:10px;line-height:1.5;}
 .migrate-banner-actions{display:flex;gap:8px;}
+.migrate-banner.migrate-banner-upper{bottom:calc(var(--nav-h) + 12px + 132px);}
 .update-banner{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;right:12px;max-width:400px;margin:0 auto;background:var(--bg2);border:1px solid var(--gold);border-radius:var(--rl);padding:12px 14px;z-index:700;box-shadow:0 8px 24px rgba(0,0,0,0.3);display:flex;align-items:center;gap:10px;}
 .update-banner-text{flex:1;font-size:0.875rem;color:var(--text);}
 .update-banner button{white-space:nowrap;}
@@ -624,6 +625,15 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="migrate-banner migrate-banner-upper" id="migrate-banner-projects" style="display:none">
+  <div class="migrate-banner-title">偵測到雲端專案資料庫是空的</div>
+  <div class="migrate-banner-sub">要把這台裝置目前的專案資料,上傳成為雲端的起始資料嗎？（其他裝置上零散的資料，之後可以再個別確認要不要補進去）</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="dismissMigrateBannerProjects()">先不要</button>
+    <button class="btn btn-primary" id="migrate-confirm-btn-projects" onclick="runProjectMigration()">上傳這台的資料</button>
+  </div>
+</div>
+
 <script>
 const GOOGLE_CLIENT_ID='218974194851-4on6g89eg6qhkftat9nhdbpvvrdtj07k.apps.googleusercontent.com';
 let currentUser=null;
@@ -703,6 +713,10 @@ window.onFirebaseReady=function(){
   if(!window.fbStartPunchListeners)return;
   window.fbStartPunchListeners(onPunchesSynced,onGcalIdsSynced,onPunchSyncError);
   checkPunchMigration();
+  if(window.fbStartProjectListeners){
+    window.fbStartProjectListeners(onProjectsSynced,onProjectSyncError);
+    checkProjectMigration();
+  }
 };
 let punchSyncErrorShown=false;
 function onPunchSyncError(){
@@ -747,6 +761,52 @@ async function runPunchMigration(){
     alert('已成功把這台裝置的打卡紀錄上傳為雲端起始資料！');
   }catch(err){
     console.error('上傳起始資料失敗',err);
+    alert('上傳失敗，請檢查網路連線後再試一次');
+    btn.disabled=false;btn.textContent='上傳這台的資料';
+  }
+}
+
+// ── Firebase 雲端同步（專案資料，第二階段）──
+let projectSyncErrorShown=false;
+function onProjectSyncError(){
+  if(projectSyncErrorShown)return;
+  projectSyncErrorShown=true;
+  alert('你的帳號目前還沒有專案雲端資料的權限，請聯絡管理者將你的 email 加入白名單');
+}
+function onProjectsSynced(arr){
+  db.projects=arr;
+  save();
+  refreshProjectDependentViews();
+}
+function refreshProjectDependentViews(){
+  if(currentPage==='dashboard')renderDashboard();
+  else if(currentPage==='projects')renderProjects();
+  else if(currentPage==='detail')renderDetail(currentProjectId);
+  else if(currentPage==='calendar')renderCalendar();
+  else if(currentPage==='finance')renderFinance();
+}
+async function checkProjectMigration(){
+  if(!window.fbCheckProjectsEmpty)return;
+  try{
+    const empty=await window.fbCheckProjectsEmpty();
+    if(empty&&localProjectsAtStartup&&localProjectsAtStartup.length){
+      document.getElementById('migrate-banner-projects').style.display='block';
+    }
+  }catch(err){console.error('檢查雲端專案資料是否為空時發生錯誤',err);}
+}
+function dismissMigrateBannerProjects(){
+  document.getElementById('migrate-banner-projects').style.display='none';
+}
+async function runProjectMigration(){
+  if(!localProjectsAtStartup||!localProjectsAtStartup.length)return dismissMigrateBannerProjects();
+  const btn=document.getElementById('migrate-confirm-btn-projects');
+  btn.disabled=true;btn.textContent='上傳中...';
+  try{
+    await window.fbMigrateProjects(localProjectsAtStartup);
+    dismissMigrateBannerProjects();
+    alert('已成功把這台裝置的專案資料上傳為雲端起始資料！');
+  }catch(err){
+    console.error('上傳專案起始資料失敗',err);
     alert('上傳失敗，請檢查網路連線後再試一次');
     btn.disabled=false;btn.textContent='上傳這台的資料';
   }
@@ -822,8 +882,9 @@ let currentStaffPeriod='current'; // current / prev / custom
 let currentStaffCustomMonth='';
 
 let localPunchesAtStartup=null;
+let localProjectsAtStartup=null;
 function save(){localStorage.setItem('dmgr_v6',JSON.stringify(db));}
-function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};localPunchesAtStartup=db.punches?[...db.punches]:[];autoCompleteMeasureSteps();}
+function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};localPunchesAtStartup=db.punches?[...db.punches]:[];localProjectsAtStartup=db.projects?JSON.parse(JSON.stringify(db.projects)):[];autoCompleteMeasureSteps();}
 function autoCompleteMeasureSteps(){
   const now=new Date();
   let changed=false;
@@ -1278,13 +1339,13 @@ function saveProject(){
     p.type=type;p.note=document.getElementById('p-note').value;
     p.leader=document.getElementById('p-leader').value;
     p.measureDate=measureDate;
-    save();closeSheet('sheet-project');
+    save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-project');
     if(currentPage==='detail')renderDetail(editingProjectId);else renderProjects();
     if(measureDate)syncMeasureToCalendar(p);
   } else {
     const np={id:uid(),name,area,bname,city,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,measureDate,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()};
     db.projects.push(np);
-    save();closeSheet('sheet-project');renderProjects();
+    save();if(window.fbSaveProject)window.fbSaveProject(np);closeSheet('sheet-project');renderProjects();
     if(measureDate)syncMeasureToCalendar(np);
   }
   editingProjectId=null;
@@ -1405,6 +1466,7 @@ function deleteProject(id){
   db.projects=db.projects.filter(p=>p.id!==id);
   db.finance=db.finance.filter(f=>f.projectId!==id);
   save();showPage(prevPage);
+  if(window.fbDeleteProject)window.fbDeleteProject(id).catch(err=>console.error('刪除雲端專案資料失敗',err));
 }
 
 // ── DETAIL ──
@@ -1569,16 +1631,16 @@ function renderDetail(pid){
 function markNoResponse(pid){
   if(!confirm('確定將此專案標記為「無回應」？'))return;
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  p.type='無回應';save();renderDetail(pid);
+  p.type='無回應';save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
   document.getElementById('topbar-title').innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${p.name}`;
 }
 function restoreNeg(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  p.type='洽談中';save();renderDetail(pid);
+  p.type='洽談中';save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
 function setSource(pid,src){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  p.negSource=p.negSource===src?'':src;save();renderDetail(pid);
+  p.negSource=p.negSource===src?'':src;save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
 function openSourceOther(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
@@ -1590,13 +1652,13 @@ function saveSourceOther(){
   const text=document.getElementById('source-other-text').value.trim();
   if(!text)return alert('請輸入來源說明');
   const p=db.projects.find(x=>x.id===currentProjectId);if(!p)return;
-  p.negSource=text;save();closeSheet('sheet-source-other');renderDetail(currentProjectId);
+  p.negSource=text;save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-source-other');renderDetail(currentProjectId);
 }
 function updateTalkTime(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!p.negStepTimes)p.negStepTimes={};
   p.negStepTimes[2]=new Date().toISOString();
-  save();renderDetail(pid);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
 
 function setNegStep(pid,step){
@@ -1614,7 +1676,7 @@ function setNegStep(pid,step){
       p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
     }
   }
-  save();renderDetail(pid);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
   document.getElementById('topbar-title').innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${p.name}`;
 }
 
@@ -1632,12 +1694,12 @@ function cycleStep(pid,stepName){
   const next={'未開始':'進行中','進行中':'完成','完成':'未開始'};
   const newState=next[cur];
   p.conSteps[stepName]={state:newState,time:newState!=='未開始'?new Date().toISOString():''};
-  if(stepName==='其他'&&newState==='進行中'&&!p.conOtherLabel){save();renderDetail(pid);setTimeout(()=>editTaskOther(pid),100);return;}
+  if(stepName==='其他'&&newState==='進行中'&&!p.conOtherLabel){save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);setTimeout(()=>editTaskOther(pid),100);return;}
   // 驗收完成 → 已完工
   if(stepName==='驗收'&&newState==='完成'){
     if(confirm('驗收完成！是否將此專案歸類為「已完工」？')){p.type='已完工';}
   }
-  save();renderDetail(pid);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
 function editTaskOther(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
@@ -1648,7 +1710,7 @@ function saveTaskOther(){
   const text=document.getElementById('task-other-text').value.trim();
   if(!text)return alert('請輸入項目說明');
   const p=db.projects.find(x=>x.id===currentProjectId);if(!p)return;
-  p.conOtherLabel=text;save();closeSheet('sheet-task-other');renderDetail(currentProjectId);
+  p.conOtherLabel=text;save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-task-other');renderDetail(currentProjectId);
 }
 
 // ── 基本資料 ──
@@ -1673,7 +1735,7 @@ function saveInfo(){
     p.info.key=document.getElementById('info-key').value;
     p.info.parking=document.getElementById('info-parking').value;
   }
-  save();closeSheet('sheet-info');renderDetail(currentProjectId);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-info');renderDetail(currentProjectId);
 }
 
 // ── 注意內容 ──
@@ -1683,12 +1745,12 @@ function saveNote(){
   const p=db.projects.find(x=>x.id===currentProjectId);if(!p)return;
   if(!p.notes)p.notes=[];
   p.notes.push({text,createdAt:today()});
-  save();closeSheet('sheet-note');document.getElementById('note-text').value='';renderDetail(currentProjectId);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-note');document.getElementById('note-text').value='';renderDetail(currentProjectId);
 }
 function deleteNote(pid,idx){
   if(!confirm('確定刪除？'))return;
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  p.notes.splice(idx,1);save();renderDetail(pid);
+  p.notes.splice(idx,1);save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
 
 // ── 檔案庫（Google Drive）── 與 Google 日曆 ──
@@ -1767,7 +1829,7 @@ function syncMeasureToCalendar(p){
         res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
       }
       const data=await res.json();
-      if(data.id){p.measureGcalId=data.id;save();}
+      if(data.id){p.measureGcalId=data.id;save();if(window.fbSaveProject)window.fbSaveProject(p);}
       else if(data.error){console.error('日曆同步失敗',data.error);}
     }catch(err){console.error('日曆同步發生錯誤',err);}
   });
@@ -1810,7 +1872,7 @@ async function ensureProjectFolderPath(p,cat){
   const projId=await findOrCreateFolder(projName,cityId);
   const catId=await findOrCreateFolder(cat,projId);
   p.driveFolders[cat]=catId;
-  save();
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
   return catId;
 }
 
@@ -1840,7 +1902,7 @@ function pickDriveFile(pid,cat){
       for(const file of fileList){
         await uploadOneFile(p,cat,file);
       }
-      save();renderDetail(pid);
+      save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
     };
     input.click();
   });
@@ -1875,7 +1937,7 @@ function removeDriveFile(pid,cat,idx){
   if(!confirm('確定從清單中移除？（Google Drive 中的檔案不會被刪除）'))return;
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(p.files&&p.files[cat])p.files[cat].splice(idx,1);
-  save();renderDetail(pid);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
 
 // ── 收支 ──
@@ -2387,7 +2449,7 @@ const fbDb = initializeFirestore(fbApp, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
 
-let punchesUnsub = null, gcalUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null;
 
 onAuthStateChanged(fbAuth, (user) => {
   if (user) {
@@ -2395,6 +2457,7 @@ onAuthStateChanged(fbAuth, (user) => {
   } else {
     if (punchesUnsub) { punchesUnsub(); punchesUnsub = null; }
     if (gcalUnsub) { gcalUnsub(); gcalUnsub = null; }
+    if (projectsUnsub) { projectsUnsub(); projectsUnsub = null; }
   }
 });
 
@@ -2449,6 +2512,36 @@ window.fbCheckPunchesEmpty = async function () {
 window.fbMigratePunches = async function (localPunches) {
   const batch = writeBatch(fbDb);
   localPunches.forEach(p => batch.set(doc(fbDb, 'punches', p.id), p));
+  await batch.commit();
+};
+
+window.fbStartProjectListeners = function (onProjects, onError) {
+  projectsUnsub = onSnapshot(collection(fbDb, 'projects'), (snap) => {
+    const arr = [];
+    snap.forEach(d => arr.push(d.data()));
+    onProjects(arr);
+  }, (err) => {
+    console.error('專案資料即時同步失敗', err);
+    if (onError) onError(err);
+  });
+};
+
+window.fbSaveProject = function (project) {
+  return setDoc(doc(fbDb, 'projects', project.id), project);
+};
+
+window.fbDeleteProject = function (id) {
+  return deleteDoc(doc(fbDb, 'projects', id));
+};
+
+window.fbCheckProjectsEmpty = async function () {
+  const snap = await getDocs(collection(fbDb, 'projects'));
+  return snap.empty;
+};
+
+window.fbMigrateProjects = async function (localProjects) {
+  const batch = writeBatch(fbDb);
+  localProjects.forEach(p => batch.set(doc(fbDb, 'projects', p.id), p));
   await batch.commit();
 };
 </script>
