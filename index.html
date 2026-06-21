@@ -190,14 +190,6 @@ textarea.form-input{resize:none;min-height:72px;}
 .sheet-title{font-size:1rem;font-weight:500;margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
 .sheet-close{background:none;border:none;font-size:1.375rem;color:var(--text3);cursor:pointer;}
 .sheet-footer{display:grid;grid-template-columns:1fr 2fr;gap:0.6rem;margin-top:1.25rem;}
-.wheel-picker-wrap{position:relative;display:flex;align-items:center;justify-content:center;height:200px;gap:4px;}
-.wheel-col{height:200px;width:70px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;text-align:center;}
-.wheel-col::-webkit-scrollbar{display:none;}
-.wheel-col-pad{height:80px;}
-.wheel-item{height:40px;line-height:40px;font-size:1.25rem;color:var(--text3);scroll-snap-align:center;}
-.wheel-item.center{color:var(--text);font-weight:500;}
-.wheel-colon{font-size:1.375rem;font-weight:500;color:var(--text);}
-.wheel-highlight{position:absolute;left:0;right:0;top:80px;height:40px;border-top:0.5px solid var(--border2);border-bottom:0.5px solid var(--border2);pointer-events:none;background:var(--bg2);opacity:0.5;z-index:-1;}
 .area-pick-item{padding:0.9rem 0.25rem;font-size:0.9688rem;border-bottom:0.5px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:space-between;}
 .area-pick-item:last-child{border-bottom:none;}
 .area-pick-item.active{color:var(--gold);font-weight:600;}
@@ -210,11 +202,11 @@ textarea.form-input{resize:none;min-height:72px;}
 .btn-ghost{background:var(--bg2);border-color:transparent;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
 .cal-hd{text-align:center;font-size:0.7812rem;color:var(--text3);padding:0.4rem 0;font-weight:500;}
-.cal-day{min-height:64px;display:flex;flex-direction:column;align-items:stretch;border-radius:var(--r);cursor:pointer;padding:3px 2px;gap:1px;}
+.cal-day{aspect-ratio:3/4;display:flex;flex-direction:column;align-items:stretch;border-radius:var(--r);cursor:pointer;padding:3px 2px;gap:1px;overflow:hidden;}
 .cal-num{font-size:0.8438rem;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin:0 auto;flex-shrink:0;}
 .cal-day.today .cal-num{background:var(--blue);color:#fff;font-weight:500;}
 .cal-day.selected{background:var(--bg3);}
-.cal-day.other-month{opacity:0.3;}
+.cal-day.other-month{opacity:0.45;}
 .cal-ev-chip{font-size:0.5625rem;line-height:1.3;padding:1px 3px;border-radius:4px;background:var(--purple-bg);color:var(--purple);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
 .cal-ev-chip.manual{background:var(--blue-bg);color:var(--blue-text);}
 .cal-ev-more{font-size:0.5625rem;color:var(--text3);text-align:center;}
@@ -424,13 +416,10 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
     <div class="form-group" id="p-measure-group" style="display:none;">
       <label class="form-label">丈量時間</label>
-      <input class="form-input" id="p-measure-date" type="date" style="margin-bottom:0.5rem;" onchange="onMeasureDateChange()">
-      <div class="form-input" id="p-measure-time-display" onclick="openTimeWheel()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-        <span id="p-measure-time-text">09:00</span>
-        <i class="ti ti-clock text-muted"></i>
+      <div class="grid2">
+        <input class="form-input" id="p-measure-date" type="date">
+        <input class="form-input" id="p-measure-time" type="time" value="09:00">
       </div>
-      <input type="hidden" id="p-measure-hour" value="09">
-      <input type="hidden" id="p-measure-minute" value="00">
     </div>
     <div class="form-group"><label class="form-label">專案負責人</label><select class="form-input" id="p-leader"><option value="">請選擇負責人</option></select></div>
     <div class="form-group"><label class="form-label">備註</label><textarea class="form-input" id="p-note" placeholder="補充說明..."></textarea></div>
@@ -441,22 +430,6 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
-<div class="sheet-overlay" id="sheet-time-wheel">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">選擇丈量時間<button class="sheet-close" onclick="closeSheet('sheet-time-wheel')"><i class="ti ti-x"></i></button></div>
-    <div class="wheel-picker-wrap">
-      <div class="wheel-col" id="wheel-hour"></div>
-      <div class="wheel-colon">:</div>
-      <div class="wheel-col" id="wheel-minute"></div>
-      <div class="wheel-highlight"></div>
-    </div>
-    <div class="sheet-footer">
-      <button class="btn" onclick="closeSheet('sheet-time-wheel')">取消</button>
-      <button class="btn btn-primary" onclick="confirmTimeWheel()">確認</button>
-    </div>
-  </div>
-</div>
 
 <div class="sheet-overlay" id="sheet-area-picker">
   <div class="sheet">
@@ -830,7 +803,7 @@ function handleAdd(){
   document.getElementById('sheet-project-title').textContent='新增專案';
   document.getElementById('sheet-project-save').textContent='儲存專案';
   ['p-name','p-client','p-note','p-city','p-measure-date'].forEach(id=>document.getElementById(id).value='');
-  setMeasureTime('09','00');
+  setMeasureTime('09:00');
   document.getElementById('p-area').value='';
   document.getElementById('p-area-text').textContent='請先選擇縣市';
   document.getElementById('p-area-text').style.color='var(--text3)';
@@ -873,49 +846,11 @@ function onTypeChange(){
   const type=document.getElementById('p-type').value;
   document.getElementById('p-measure-group').style.display=type==='洽談中'?'block':'none';
 }
-function setMeasureTime(hh,mm){
-  const roundedMin=String(Math.round(Number(mm)/10)*10%60).padStart(2,'0');
-  document.getElementById('p-measure-hour').value=hh;
-  document.getElementById('p-measure-minute').value=roundedMin;
-  document.getElementById('p-measure-time-text').textContent=hh+':'+roundedMin;
+function setMeasureTime(hhmm){
+  document.getElementById('p-measure-time').value=hhmm||'09:00';
 }
 function getMeasureTime(){
-  return document.getElementById('p-measure-hour').value+':'+document.getElementById('p-measure-minute').value;
-}
-function buildWheelCol(colEl,items,selectedValue){
-  colEl.innerHTML='<div class="wheel-col-pad"></div>'+items.map(v=>`<div class="wheel-item" data-val="${v}">${v}</div>`).join('')+'<div class="wheel-col-pad"></div>';
-  const idx=items.indexOf(selectedValue);
-  setTimeout(()=>{colEl.scrollTop=Math.max(0,idx)*40;updateWheelHighlight(colEl);},0);
-  colEl.onscroll=()=>updateWheelHighlight(colEl);
-}
-function updateWheelHighlight(colEl){
-  const idx=Math.round(colEl.scrollTop/40);
-  colEl.querySelectorAll('.wheel-item').forEach((el,i)=>el.classList.toggle('center',i===idx));
-}
-function onMeasureDateChange(){
-  const dateVal=document.getElementById('p-measure-date').value;
-  if(!dateVal)return;
-  setTimeout(()=>{openTimeWheel();},150);
-}
-function openTimeWheel(){
-  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
-  const mins=Array.from({length:6},(_,i)=>String(i*10).padStart(2,'0'));
-  const curH=document.getElementById('p-measure-hour').value||'09';
-  const curM=document.getElementById('p-measure-minute').value||'00';
-  buildWheelCol(document.getElementById('wheel-hour'),hours,curH);
-  buildWheelCol(document.getElementById('wheel-minute'),mins,curM);
-  openSheet('sheet-time-wheel');
-}
-function getWheelCenterValue(colEl){
-  const idx=Math.round(colEl.scrollTop/40);
-  const items=colEl.querySelectorAll('.wheel-item');
-  return items[idx]?items[idx].getAttribute('data-val'):items[0].getAttribute('data-val');
-}
-function confirmTimeWheel(){
-  const hh=getWheelCenterValue(document.getElementById('wheel-hour'));
-  const mm=getWheelCenterValue(document.getElementById('wheel-minute'));
-  setMeasureTime(hh,mm);
-  closeSheet('sheet-time-wheel');
+  return document.getElementById('p-measure-time').value||'09:00';
 }
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
@@ -1143,10 +1078,10 @@ function openEditProject(pid){
   document.getElementById('p-measure-group').style.display=p.type==='洽談中'?'block':'none';
   if(p.measureDate){
     document.getElementById('p-measure-date').value=p.measureDate.slice(0,10);
-    setMeasureTime(p.measureDate.slice(11,13),p.measureDate.slice(14,16));
+    setMeasureTime(p.measureDate.slice(11,16));
   } else {
     document.getElementById('p-measure-date').value='';
-    setMeasureTime('09','00');
+    setMeasureTime('09:00');
   }
   fillStaffSel('p-leader');
   document.getElementById('p-leader').value=p.leader||'';
@@ -1938,6 +1873,16 @@ function getAutoEvents(){
 }
 function allEvents(){return [...db.events,...getAutoEvents()];}
 
+function calDayCellHtml(ds,dayNum,evAll,ts,otherMonth){
+  const dayEvs=evAll.filter(e=>e.date===ds);
+  const shown=dayEvs.slice(0,2);
+  const moreCount=dayEvs.length-shown.length;
+  const chipsHtml=shown.map(e=>`<div class="cal-ev-chip${e.auto?'':' manual'}">${e.title}</div>`).join('')+(moreCount>0?`<div class="cal-ev-more">+${moreCount}</div>`:'');
+  const cls=`cal-day${otherMonth?' other-month':''}${ds===ts?' today':''}${ds===calSelected&&ds!==ts?' selected':''}`;
+  return`<div class="${cls}" onclick="selectDay('${ds}')">
+      <span class="cal-num">${dayNum}</span>${chipsHtml}
+    </div>`;
+}
 function renderCalendar(){
   document.getElementById('cal-month-label').textContent=`${calYear} 年 ${calMonth+1} 月`;
   const firstRaw=new Date(calYear,calMonth,1).getDay(); // 0=日...6=六
@@ -1947,18 +1892,21 @@ function renderCalendar(){
   const evAll=allEvents();
   let h=['一','二','三','四','五','六','日'].map(d=>`<div class="cal-hd">${d}</div>`).join('');
   const prev=new Date(calYear,calMonth,0).getDate();
-  for(let i=first-1;i>=0;i--)h+=`<div class="cal-day other-month"><span class="cal-num">${prev-i}</span></div>`;
+  const prevM=calMonth===0?11:calMonth-1, prevY=calMonth===0?calYear-1:calYear;
+  const nextM=calMonth===11?0:calMonth+1, nextY=calMonth===11?calYear+1:calYear;
+  for(let i=first-1;i>=0;i--){
+    const dayNum=prev-i;
+    const ds=`${prevY}-${String(prevM+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+    h+=calDayCellHtml(ds,dayNum,evAll,ts,true);
+  }
   for(let d=1;d<=dim;d++){
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dayEvs=evAll.filter(e=>e.date===ds);
-    const shown=dayEvs.slice(0,2);
-    const moreCount=dayEvs.length-shown.length;
-    const chipsHtml=shown.map(e=>`<div class="cal-ev-chip${e.auto?'':' manual'}">${e.title}</div>`).join('')+(moreCount>0?`<div class="cal-ev-more">+${moreCount}</div>`:'');
-    h+=`<div class="cal-day${ds===ts?' today':''}${ds===calSelected&&ds!==ts?' selected':''}" onclick="selectDay('${ds}')">
-      <span class="cal-num">${d}</span>${chipsHtml}
-    </div>`;
+    h+=calDayCellHtml(ds,d,evAll,ts,false);
   }
-  for(let d=1;d<=42-(first+dim);d++)h+=`<div class="cal-day other-month"><span class="cal-num">${d}</span></div>`;
+  for(let d=1;d<=42-(first+dim);d++){
+    const ds=`${nextY}-${String(nextM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    h+=calDayCellHtml(ds,d,evAll,ts,true);
+  }
   document.getElementById('cal-grid').innerHTML=h;renderCalEvents();
 }
 function selectDay(ds){calSelected=ds;document.getElementById('cal-selected-label').textContent=fDate(ds)+' 的事件';renderCalendar();}
