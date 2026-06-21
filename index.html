@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260621D">
+<meta name="app-version" content="20260621E">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -611,7 +611,7 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
-<div id="fb-debug" style="position:fixed;bottom:0;left:0;right:0;max-height:35vh;overflow-y:auto;background:rgba(0,0,0,0.88);color:#7fffa0;font-size:11px;line-height:1.6;padding:8px 10px;padding-bottom:calc(8px + var(--safe-bottom));z-index:9999;font-family:monospace;white-space:pre-wrap;"></div>
+<div id="fb-debug" style="position:fixed;top:0;left:0;right:0;max-height:30vh;overflow-y:auto;background:rgba(0,0,0,0.88);color:#7fffa0;font-size:11px;line-height:1.6;padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top,0px));z-index:9999;font-family:monospace;white-space:pre-wrap;"></div>
 
 <div class="migrate-banner" id="reauth-banner" style="display:none">
   <div class="migrate-banner-title">需要重新驗證一次</div>
