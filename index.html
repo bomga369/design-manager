@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260621B">
+<meta name="app-version" content="20260621C">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -611,6 +611,8 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div id="fb-debug" style="position:fixed;bottom:0;left:0;right:0;max-height:35vh;overflow-y:auto;background:rgba(0,0,0,0.88);color:#7fffa0;font-size:11px;line-height:1.6;padding:8px 10px;padding-bottom:calc(8px + var(--safe-bottom));z-index:9999;font-family:monospace;white-space:pre-wrap;"></div>
+
 <div class="update-banner" id="update-banner" style="display:none">
   <div class="update-banner-text">系統有新版本可用</div>
   <button class="btn btn-primary btn-sm" onclick="location.reload()">重新整理</button>
@@ -650,8 +652,15 @@ function handleGoogleLogin(response){
   if(!payload)return;
   currentUser={name:payload.name,email:payload.email,picture:payload.picture};
   localStorage.setItem('dmgr_user',JSON.stringify(currentUser));
+  window.fbDebugLog('Google 登入成功，帳號：'+payload.email);
   if(window.fbSignInWithGoogleIdToken){
-    window.fbSignInWithGoogleIdToken(response.credential).catch(err=>console.error('Firebase 登入失敗',err));
+    window.fbDebugLog('開始呼叫 Firebase 登入...');
+    window.fbSignInWithGoogleIdToken(response.credential).catch(err=>{
+      console.error('Firebase 登入失敗',err);
+      window.fbDebugLog('❌ Firebase 登入失敗：'+err.message);
+    });
+  } else {
+    window.fbDebugLog('❌ window.fbSignInWithGoogleIdToken 不存在，Firebase 模組可能尚未載入成功');
   }
   showApp();
 }
@@ -702,6 +711,7 @@ function checkLogin(){
   const saved=localStorage.getItem('dmgr_user');
   if(saved){
     currentUser=JSON.parse(saved);
+    window.fbDebugLog('偵測到已登入過的帳號：'+currentUser.email+'（這次屬於「回訪」流程，會等待 Firebase 自動恢復登入狀態，不會再跳一次 Google 登入）');
     showApp();
   } else {
     initGoogleLogin();
@@ -710,6 +720,7 @@ function checkLogin(){
 
 // ── Firebase 雲端同步（打卡功能，第一階段）──
 window.onFirebaseReady=function(){
+  window.fbDebugLog('✅ Firebase 已就緒（onAuthStateChanged 觸發，使用者已通過 Firebase 驗證）');
   if(!window.fbStartPunchListeners)return;
   window.fbStartPunchListeners(onPunchesSynced,onGcalIdsSynced,onPunchSyncError);
   checkPunchMigration();
@@ -720,11 +731,13 @@ window.onFirebaseReady=function(){
 };
 let punchSyncErrorShown=false;
 function onPunchSyncError(){
+  window.fbDebugLog('❌ 打卡資料監聽發生錯誤（很可能是權限問題，請確認帳號 email 已加入白名單）');
   if(punchSyncErrorShown)return;
   punchSyncErrorShown=true;
   alert('你的帳號目前還沒有打卡雲端資料的權限，請聯絡管理者將你的 email 加入白名單');
 }
 function onPunchesSynced(arr){
+  window.fbDebugLog('打卡資料同步：收到雲端 '+arr.length+' 筆');
   arr.sort((a,b)=>a.time.localeCompare(b.time));
   db.punches=arr;
   save();
@@ -743,10 +756,14 @@ async function checkPunchMigration(){
   if(!window.fbCheckPunchesEmpty)return;
   try{
     const empty=await window.fbCheckPunchesEmpty();
+    window.fbDebugLog('檢查雲端打卡資料是否為空：'+(empty?'是空的':'已有資料')+'／本機快照筆數：'+(localPunchesAtStartup?localPunchesAtStartup.length:'null'));
     if(empty&&localPunchesAtStartup&&localPunchesAtStartup.length){
       document.getElementById('migrate-banner').style.display='block';
     }
-  }catch(err){console.error('檢查雲端打卡資料是否為空時發生錯誤',err);}
+  }catch(err){
+    console.error('檢查雲端打卡資料是否為空時發生錯誤',err);
+    window.fbDebugLog('❌ 檢查雲端打卡資料時發生錯誤：'+err.message);
+  }
 }
 function dismissMigrateBanner(){
   document.getElementById('migrate-banner').style.display='none';
@@ -769,11 +786,13 @@ async function runPunchMigration(){
 // ── Firebase 雲端同步（專案資料，第二階段）──
 let projectSyncErrorShown=false;
 function onProjectSyncError(){
+  window.fbDebugLog('❌ 專案資料監聽發生錯誤（很可能是權限問題，請確認帳號 email 已加入白名單）');
   if(projectSyncErrorShown)return;
   projectSyncErrorShown=true;
   alert('你的帳號目前還沒有專案雲端資料的權限，請聯絡管理者將你的 email 加入白名單');
 }
 function onProjectsSynced(arr){
+  window.fbDebugLog('專案資料同步：收到雲端 '+arr.length+' 筆');
   db.projects=arr;
   save();
   refreshProjectDependentViews();
@@ -789,10 +808,14 @@ async function checkProjectMigration(){
   if(!window.fbCheckProjectsEmpty)return;
   try{
     const empty=await window.fbCheckProjectsEmpty();
+    window.fbDebugLog('檢查雲端專案資料是否為空：'+(empty?'是空的':'已有資料')+'／本機快照筆數：'+(localProjectsAtStartup?localProjectsAtStartup.length:'null'));
     if(empty&&localProjectsAtStartup&&localProjectsAtStartup.length){
       document.getElementById('migrate-banner-projects').style.display='block';
     }
-  }catch(err){console.error('檢查雲端專案資料是否為空時發生錯誤',err);}
+  }catch(err){
+    console.error('檢查雲端專案資料是否為空時發生錯誤',err);
+    window.fbDebugLog('❌ 檢查雲端專案資料時發生錯誤：'+err.message);
+  }
 }
 function dismissMigrateBannerProjects(){
   document.getElementById('migrate-banner-projects').style.display='none';
@@ -871,6 +894,13 @@ const CITY_DISTRICTS={
 };
 
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{}};
+window.fbDebugLog=function(msg){
+  const el=document.getElementById('fb-debug');
+  if(!el)return;
+  const time=new Date().toLocaleTimeString('zh-TW',{hour12:false});
+  el.textContent+=`[${time}] ${msg}\n`;
+  el.scrollTop=el.scrollHeight;
+};
 let currentPage='dashboard';
 let currentProjectId=null;
 let currentStaffId=null;
@@ -2405,6 +2435,14 @@ initFontSize();
 
 checkLogin();
 
+setTimeout(()=>{
+  if(!window.fbSignInWithGoogleIdToken){
+    window.fbDebugLog('❌ 等待 6 秒後，window.fbSignInWithGoogleIdToken 仍不存在 → Firebase 模組很可能完全沒有載入成功（常見原因：網路被擋、被瀏覽器的內容封鎖功能擋住）');
+  } else {
+    window.fbDebugLog('（保險檢查）Firebase 模組函式已存在，模組腳本確實有執行');
+  }
+},6000);
+
 // ── 版本更新提醒 ──
 const DEPLOY_URL='https://bomga369.github.io/design-manager/index.html';
 let updateBannerShown=false;
@@ -2429,9 +2467,11 @@ document.addEventListener('visibilitychange',()=>{
 </script>
 
 <script type="module">
+window.fbDebugLog&&window.fbDebugLog('Firebase 模組腳本開始載入...');
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, writeBatch } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+window.fbDebugLog&&window.fbDebugLog('✅ Firebase SDK 模組載入成功');
 
 // 這組設定不是機密，可以放心放在前端，Firebase 的安全性是靠後台的「規則」把關，不是靠隱藏這組資訊
 const firebaseConfig = {
@@ -2443,23 +2483,34 @@ const firebaseConfig = {
   appId: "1:218974194851:web:5aa67c3840ac21bdb20316"
 };
 
-const fbApp = initializeApp(firebaseConfig);
-const fbAuth = getAuth(fbApp);
-const fbDb = initializeFirestore(fbApp, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-});
+let fbApp, fbAuth, fbDb;
+try{
+  fbApp = initializeApp(firebaseConfig);
+  fbAuth = getAuth(fbApp);
+  fbDb = initializeFirestore(fbApp, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+  window.fbDebugLog('✅ Firebase 初始化成功（app/auth/firestore 都建立完成）');
+}catch(err){
+  window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
+}
 
 let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null;
 
-onAuthStateChanged(fbAuth, (user) => {
-  if (user) {
-    if (window.onFirebaseReady) window.onFirebaseReady();
-  } else {
-    if (punchesUnsub) { punchesUnsub(); punchesUnsub = null; }
-    if (gcalUnsub) { gcalUnsub(); gcalUnsub = null; }
-    if (projectsUnsub) { projectsUnsub(); projectsUnsub = null; }
-  }
-});
+if (fbAuth) {
+  onAuthStateChanged(fbAuth, (user) => {
+    window.fbDebugLog('Firebase onAuthStateChanged 觸發：' + (user ? ('已登入 ' + user.email) : '未登入'));
+    if (user) {
+      if (window.onFirebaseReady) window.onFirebaseReady();
+    } else {
+      if (punchesUnsub) { punchesUnsub(); punchesUnsub = null; }
+      if (gcalUnsub) { gcalUnsub(); gcalUnsub = null; }
+      if (projectsUnsub) { projectsUnsub(); projectsUnsub = null; }
+    }
+  });
+} else {
+  window.fbDebugLog('❌ fbAuth 不存在，略過 onAuthStateChanged 註冊（Firebase 初始化應該已經失敗）');
+}
 
 window.fbSignInWithGoogleIdToken = function (idToken) {
   const credential = GoogleAuthProvider.credential(idToken);
@@ -2471,12 +2522,15 @@ window.fbSignOut = function () {
 };
 
 window.fbStartPunchListeners = function (onPunches, onGcalIds, onError) {
+  window.fbDebugLog('開始啟動打卡資料即時監聽...');
   punchesUnsub = onSnapshot(collection(fbDb, 'punches'), (snap) => {
+    window.fbDebugLog('打卡監聽收到回應，共 ' + snap.size + ' 筆文件');
     const arr = [];
     snap.forEach(d => arr.push(d.data()));
     onPunches(arr);
   }, (err) => {
     console.error('打卡資料即時同步失敗', err);
+    window.fbDebugLog('❌ 打卡監聽錯誤：' + err.code + ' / ' + err.message);
     if (onError) onError(err);
   });
   gcalUnsub = onSnapshot(collection(fbDb, 'punchGcalIds'), (snap) => {
@@ -2516,12 +2570,15 @@ window.fbMigratePunches = async function (localPunches) {
 };
 
 window.fbStartProjectListeners = function (onProjects, onError) {
+  window.fbDebugLog('開始啟動專案資料即時監聽...');
   projectsUnsub = onSnapshot(collection(fbDb, 'projects'), (snap) => {
+    window.fbDebugLog('專案監聽收到回應，共 ' + snap.size + ' 筆文件');
     const arr = [];
     snap.forEach(d => arr.push(d.data()));
     onProjects(arr);
   }, (err) => {
     console.error('專案資料即時同步失敗', err);
+    window.fbDebugLog('❌ 專案監聽錯誤：' + err.code + ' / ' + err.message);
     if (onError) onError(err);
   });
 };
