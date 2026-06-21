@@ -2,6 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<meta name="app-version" content="20260621A">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -148,6 +149,13 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .login-title{font-size:1.25rem;font-weight:500;margin-bottom:0.5rem;}
 .login-sub{font-size:0.9062rem;color:var(--text3);margin-bottom:2rem;}
 .gsi-btn-wrap{display:flex;justify-content:center;}
+.migrate-banner{position:fixed;bottom:calc(var(--nav-h) + 12px);left:12px;right:12px;max-width:400px;margin:0 auto;background:var(--bg2);border:1px solid var(--gold);border-radius:var(--rl);padding:14px 16px;z-index:600;box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+.migrate-banner-title{font-weight:600;margin-bottom:4px;color:var(--gold);}
+.migrate-banner-sub{font-size:0.85rem;color:var(--text2);margin-bottom:10px;line-height:1.5;}
+.migrate-banner-actions{display:flex;gap:8px;}
+.update-banner{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:12px;right:12px;max-width:400px;margin:0 auto;background:var(--bg2);border:1px solid var(--gold);border-radius:var(--rl);padding:12px 14px;z-index:700;box-shadow:0 8px 24px rgba(0,0,0,0.3);display:flex;align-items:center;gap:10px;}
+.update-banner-text{flex:1;font-size:0.875rem;color:var(--text);}
+.update-banner button{white-space:nowrap;}
 .user-chip{display:flex;align-items:center;gap:8px;cursor:pointer;}
 .user-chip img{width:28px;height:28px;border-radius:50%;}
 .user-menu{display:none;position:absolute;top:48px;right:1rem;background:var(--bg2);border-radius:var(--rl);box-shadow:0 4px 20px rgba(0,0,0,0.15);border:0.5px solid var(--border);min-width:200px;z-index:300;overflow:hidden;}
@@ -602,6 +610,20 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="update-banner" id="update-banner" style="display:none">
+  <div class="update-banner-text">系統有新版本可用</div>
+  <button class="btn btn-primary btn-sm" onclick="location.reload()">重新整理</button>
+</div>
+
+<div class="migrate-banner" id="migrate-banner" style="display:none">
+  <div class="migrate-banner-title">偵測到雲端打卡資料庫是空的</div>
+  <div class="migrate-banner-sub">要把這台裝置目前的打卡紀錄,上傳成為雲端的起始資料嗎？（其他裝置上零散的資料，之後可以再個別確認要不要補進去）</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="dismissMigrateBanner()">先不要</button>
+    <button class="btn btn-primary" id="migrate-confirm-btn" onclick="runPunchMigration()">上傳這台的資料</button>
+  </div>
+</div>
+
 <script>
 const GOOGLE_CLIENT_ID='218974194851-4on6g89eg6qhkftat9nhdbpvvrdtj07k.apps.googleusercontent.com';
 let currentUser=null;
@@ -618,6 +640,9 @@ function handleGoogleLogin(response){
   if(!payload)return;
   currentUser={name:payload.name,email:payload.email,picture:payload.picture};
   localStorage.setItem('dmgr_user',JSON.stringify(currentUser));
+  if(window.fbSignInWithGoogleIdToken){
+    window.fbSignInWithGoogleIdToken(response.credential).catch(err=>console.error('Firebase 登入失敗',err));
+  }
   showApp();
 }
 
@@ -658,6 +683,7 @@ function logout(){
   currentUser=null;
   localStorage.removeItem('dmgr_user');
   if(window.google&&google.accounts)google.accounts.id.disableAutoSelect();
+  if(window.fbSignOut)window.fbSignOut().catch(err=>console.error('Firebase 登出失敗',err));
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('user-menu').classList.remove('open');
 }
@@ -669,6 +695,60 @@ function checkLogin(){
     showApp();
   } else {
     initGoogleLogin();
+  }
+}
+
+// ── Firebase 雲端同步（打卡功能，第一階段）──
+window.onFirebaseReady=function(){
+  if(!window.fbStartPunchListeners)return;
+  window.fbStartPunchListeners(onPunchesSynced,onGcalIdsSynced,onPunchSyncError);
+  checkPunchMigration();
+};
+let punchSyncErrorShown=false;
+function onPunchSyncError(){
+  if(punchSyncErrorShown)return;
+  punchSyncErrorShown=true;
+  alert('你的帳號目前還沒有打卡雲端資料的權限，請聯絡管理者將你的 email 加入白名單');
+}
+function onPunchesSynced(arr){
+  arr.sort((a,b)=>a.time.localeCompare(b.time));
+  db.punches=arr;
+  save();
+  refreshPunchDependentViews();
+}
+function onGcalIdsSynced(obj){
+  db.punchGcalIds=obj;
+}
+function refreshPunchDependentViews(){
+  if(currentPage==='dashboard')renderDashboard();
+  else if(currentPage==='detail')renderDetail(currentProjectId);
+  else if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
+  else if(currentPage==='calendar')renderCalendar();
+}
+async function checkPunchMigration(){
+  if(!window.fbCheckPunchesEmpty)return;
+  try{
+    const empty=await window.fbCheckPunchesEmpty();
+    if(empty&&localPunchesAtStartup&&localPunchesAtStartup.length){
+      document.getElementById('migrate-banner').style.display='block';
+    }
+  }catch(err){console.error('檢查雲端打卡資料是否為空時發生錯誤',err);}
+}
+function dismissMigrateBanner(){
+  document.getElementById('migrate-banner').style.display='none';
+}
+async function runPunchMigration(){
+  if(!localPunchesAtStartup||!localPunchesAtStartup.length)return dismissMigrateBanner();
+  const btn=document.getElementById('migrate-confirm-btn');
+  btn.disabled=true;btn.textContent='上傳中...';
+  try{
+    await window.fbMigratePunches(localPunchesAtStartup);
+    dismissMigrateBanner();
+    alert('已成功把這台裝置的打卡紀錄上傳為雲端起始資料！');
+  }catch(err){
+    console.error('上傳起始資料失敗',err);
+    alert('上傳失敗，請檢查網路連線後再試一次');
+    btn.disabled=false;btn.textContent='上傳這台的資料';
   }
 }
 
@@ -741,8 +821,9 @@ let pendingPunchType=null;
 let currentStaffPeriod='current'; // current / prev / custom
 let currentStaffCustomMonth='';
 
+let localPunchesAtStartup=null;
 function save(){localStorage.setItem('dmgr_v6',JSON.stringify(db));}
-function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};autoCompleteMeasureSteps();}
+function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};localPunchesAtStartup=db.punches?[...db.punches]:[];autoCompleteMeasureSteps();}
 function autoCompleteMeasureSteps(){
   const now=new Date();
   let changed=false;
@@ -1048,13 +1129,15 @@ function confirmPunch(){
   const name=document.getElementById('punch-name').value.trim();
   const projectId=document.getElementById('punch-project').value;
   if(!name)return alert('請輸入員工姓名');
+  if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
   const punchRecord={id:uid(),type:pendingPunchType,name,projectId,time:new Date().toISOString(),timeStr:nowFull(),date:today()};
-  db.punches.push(punchRecord);
-  save();closeSheet('sheet-punch');renderDashboard();
-  if(projectId){
-    if(!db.punchGcalIds)db.punchGcalIds={};
-    syncPunchToCalendar(punchRecord.date,name,projectId,db.punchGcalIds);
-  }
+  closeSheet('sheet-punch');
+  window.fbSavePunch(punchRecord).then(()=>{
+    if(projectId)syncPunchToCalendar(punchRecord.date,name,projectId);
+  }).catch(err=>{
+    console.error('打卡儲存失敗',err);
+    alert('打卡儲存失敗，請檢查網路連線');
+  });
 }
 function renderPunchStatus(){
   const td=db.punches.filter(p=>p.date===today());
@@ -1956,19 +2039,17 @@ function openPunchEdit(punchId){
 function resyncOrCleanCalendar(date,name,projectId,deletedId){
   if(!projectId)return;
   const remaining=db.punches.filter(x=>x.date===date&&x.name===name&&x.projectId===projectId&&x.id!==deletedId);
-  if(!db.punchGcalIds)db.punchGcalIds={};
   if(remaining.length){
-    syncPunchToCalendar(date,name,projectId,db.punchGcalIds);
+    syncPunchToCalendar(date,name,projectId);
   } else {
     const key=date+'|'+name+'|'+projectId;
-    const gcalId=db.punchGcalIds[key];
+    const gcalId=db.punchGcalIds&&db.punchGcalIds[key];
     if(gcalId){
       ensureDriveAuth(async()=>{
         try{
           await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${gcalId}`,{method:'DELETE'});
         }catch(err){console.error('刪除日曆事件失敗',err);}
-        delete db.punchGcalIds[key];
-        save();
+        if(window.fbDeleteGcalId){try{await window.fbDeleteGcalId(key);}catch(err){console.error('清除日曆對應記錄失敗',err);}}
       });
     }
   }
@@ -1978,30 +2059,29 @@ function savePunchEdit(){
   const dateVal=document.getElementById('pe-date').value;
   const timeVal=document.getElementById('pe-time').value;
   if(!name||!dateVal||!timeVal)return alert('請填入姓名、日期與時間');
+  if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
   const type=document.getElementById('pe-type').value;
   const projectId=document.getElementById('pe-project').value;
   const isoTime=new Date(`${dateVal}T${timeVal}:00`).toISOString();
   const timeStr=new Date(isoTime).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
   const id=document.getElementById('pe-id').value;
+  closeSheet('sheet-punch-edit');
   if(id){
     const rec=db.punches.find(x=>x.id===id);
-    if(rec){
-      // 如果日期/姓名/專案有變動，先針對舊的組合做一次同步清理，避免日曆留下孤兒事件
-      const changedKey=rec.date!==dateVal||rec.name!==name||rec.projectId!==projectId;
-      const oldDate=rec.date,oldName=rec.name,oldProjectId=rec.projectId;
-      rec.type=type;rec.name=name;rec.projectId=projectId;rec.date=dateVal;rec.time=isoTime;rec.timeStr=timeStr;
-      save();
+    if(!rec)return;
+    const changedKey=rec.date!==dateVal||rec.name!==name||rec.projectId!==projectId;
+    const oldDate=rec.date,oldName=rec.name,oldProjectId=rec.projectId;
+    const updated={id:rec.id,type,name,projectId,date:dateVal,time:isoTime,timeStr};
+    window.fbSavePunch(updated).then(()=>{
       if(changedKey)resyncOrCleanCalendar(oldDate,oldName,oldProjectId,null);
-      if(projectId)syncPunchToCalendar(dateVal,name,projectId,db.punchGcalIds||(db.punchGcalIds={}));
-    }
+      if(projectId)syncPunchToCalendar(dateVal,name,projectId);
+    }).catch(err=>{console.error('更新打卡紀錄失敗',err);alert('更新失敗，請檢查網路連線');});
   } else {
-    db.punches.push({id:uid(),type,name,projectId,time:isoTime,timeStr,date:dateVal});
-    save();
-    if(projectId)syncPunchToCalendar(dateVal,name,projectId,db.punchGcalIds||(db.punchGcalIds={}));
+    const newRecord={id:uid(),type,name,projectId,time:isoTime,timeStr,date:dateVal};
+    window.fbSavePunch(newRecord).then(()=>{
+      if(projectId)syncPunchToCalendar(dateVal,name,projectId);
+    }).catch(err=>{console.error('新增打卡紀錄失敗',err);alert('新增失敗，請檢查網路連線');});
   }
-  closeSheet('sheet-punch-edit');
-  renderDashboard();
-  if(currentPage==='staff-detail'&&currentStaffId)renderStaffDetail(currentStaffId);
 }
 function deletePunchEdit(){
   const id=document.getElementById('pe-id').value;
@@ -2009,12 +2089,11 @@ function deletePunchEdit(){
   const rec=db.punches.find(x=>x.id===id);
   if(!rec)return;
   if(!confirm('確定要刪除這筆打卡紀錄嗎？'))return;
-  db.punches=db.punches.filter(x=>x.id!==id);
-  save();
-  resyncOrCleanCalendar(rec.date,rec.name,rec.projectId,id);
+  if(!window.fbDeletePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
   closeSheet('sheet-punch-edit');
-  renderDashboard();
-  if(currentPage==='staff-detail'&&currentStaffId)renderStaffDetail(currentStaffId);
+  window.fbDeletePunch(id).then(()=>{
+    resyncOrCleanCalendar(rec.date,rec.name,rec.projectId,id);
+  }).catch(err=>{console.error('刪除打卡紀錄失敗',err);alert('刪除失敗，請檢查網路連線');});
 }
 function switchPeriod(period,month=''){
   currentStaffPeriod=period;currentStaffCustomMonth=month;
@@ -2079,7 +2158,7 @@ function getDayPunchSummary(dateKey,name,projectId){
   const label=`上班 ${fmtT(startRec.time)}｜下班 ${endRec?fmtT(endRec.time):'尚未下班'}`;
   return{startTime:startRec.time,endTime:endRec?endRec.time:null,label};
 }
-function syncPunchToCalendar(dateKey,name,projectId,gcalIdStore){
+function syncPunchToCalendar(dateKey,name,projectId){
   ensureDriveAuth(async()=>{
     try{
       const proj=db.projects.find(x=>x.id===projectId);
@@ -2096,7 +2175,8 @@ function syncPunchToCalendar(dateKey,name,projectId,gcalIdStore){
         start:{dateTime:new Date(startTime).toISOString(),timeZone:'Asia/Taipei'},
         end:{dateTime:new Date(endIso).toISOString(),timeZone:'Asia/Taipei'}
       };
-      const existingId=gcalIdStore[dateKey+'|'+name+'|'+projectId];
+      const key=dateKey+'|'+name+'|'+projectId;
+      const existingId=db.punchGcalIds&&db.punchGcalIds[key];
       let res;
       if(existingId){
         res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${existingId}`,{method:'PUT',body:JSON.stringify(body)});
@@ -2104,7 +2184,7 @@ function syncPunchToCalendar(dateKey,name,projectId,gcalIdStore){
         res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
       }
       const data=await res.json();
-      if(data.id){gcalIdStore[dateKey+'|'+name+'|'+projectId]=data.id;save();}
+      if(data.id&&window.fbSaveGcalId){await window.fbSaveGcalId(key,data.id);}
       else if(data.error){console.error('打卡同步失敗',data.error);}
     }catch(err){console.error('打卡同步發生錯誤',err);}
   });
@@ -2262,6 +2342,115 @@ function updateFontSizeUI(size){
 initFontSize();
 
 checkLogin();
+
+// ── 版本更新提醒 ──
+const DEPLOY_URL='https://bomga369.github.io/design-manager/index.html';
+let updateBannerShown=false;
+async function checkAppVersion(){
+  if(updateBannerShown)return;
+  try{
+    const myVersion=document.querySelector('meta[name="app-version"]').content;
+    const res=await fetch(DEPLOY_URL+'?_='+Date.now(),{cache:'no-store'});
+    const text=await res.text();
+    const m=text.match(/name="app-version"\s+content="([^"]+)"/);
+    if(m&&m[1]&&m[1]!==myVersion){
+      updateBannerShown=true;
+      document.getElementById('update-banner').style.display='flex';
+    }
+  }catch(err){/* 檢查失敗（例如離線）就靜默略過，不打擾使用者 */}
+}
+setTimeout(checkAppVersion,8000);
+setInterval(checkAppVersion,10*60*1000);
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')checkAppVersion();
+});
+</script>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithCredential, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs, writeBatch } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+
+// 這組設定不是機密，可以放心放在前端，Firebase 的安全性是靠後台的「規則」把關，不是靠隱藏這組資訊
+const firebaseConfig = {
+  apiKey: "AIzaSyCayryDb_0I2MnvMuEJbYBp_7jv4jPW_XM",
+  authDomain: "design-manager-499915.firebaseapp.com",
+  projectId: "design-manager-499915",
+  storageBucket: "design-manager-499915.firebasestorage.app",
+  messagingSenderId: "218974194851",
+  appId: "1:218974194851:web:5aa67c3840ac21bdb20316"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const fbAuth = getAuth(fbApp);
+const fbDb = initializeFirestore(fbApp, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
+
+let punchesUnsub = null, gcalUnsub = null;
+
+onAuthStateChanged(fbAuth, (user) => {
+  if (user) {
+    if (window.onFirebaseReady) window.onFirebaseReady();
+  } else {
+    if (punchesUnsub) { punchesUnsub(); punchesUnsub = null; }
+    if (gcalUnsub) { gcalUnsub(); gcalUnsub = null; }
+  }
+});
+
+window.fbSignInWithGoogleIdToken = function (idToken) {
+  const credential = GoogleAuthProvider.credential(idToken);
+  return signInWithCredential(fbAuth, credential);
+};
+
+window.fbSignOut = function () {
+  return signOut(fbAuth);
+};
+
+window.fbStartPunchListeners = function (onPunches, onGcalIds, onError) {
+  punchesUnsub = onSnapshot(collection(fbDb, 'punches'), (snap) => {
+    const arr = [];
+    snap.forEach(d => arr.push(d.data()));
+    onPunches(arr);
+  }, (err) => {
+    console.error('打卡資料即時同步失敗', err);
+    if (onError) onError(err);
+  });
+  gcalUnsub = onSnapshot(collection(fbDb, 'punchGcalIds'), (snap) => {
+    const obj = {};
+    snap.forEach(d => { obj[d.id] = d.data().gcalId; });
+    onGcalIds(obj);
+  }, (err) => {
+    console.error('日曆對應資料同步失敗', err);
+  });
+};
+
+window.fbSavePunch = function (record) {
+  return setDoc(doc(fbDb, 'punches', record.id), record);
+};
+
+window.fbDeletePunch = function (id) {
+  return deleteDoc(doc(fbDb, 'punches', id));
+};
+
+window.fbSaveGcalId = function (key, gcalId) {
+  return setDoc(doc(fbDb, 'punchGcalIds', key), { gcalId });
+};
+
+window.fbDeleteGcalId = function (key) {
+  return deleteDoc(doc(fbDb, 'punchGcalIds', key));
+};
+
+window.fbCheckPunchesEmpty = async function () {
+  const snap = await getDocs(collection(fbDb, 'punches'));
+  return snap.empty;
+};
+
+window.fbMigratePunches = async function (localPunches) {
+  const batch = writeBatch(fbDb);
+  localPunches.forEach(p => batch.set(doc(fbDb, 'punches', p.id), p));
+  await batch.commit();
+};
 </script>
 </body>
 </html>
