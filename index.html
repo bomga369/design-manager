@@ -424,7 +424,7 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
     <div class="form-group" id="p-measure-group" style="display:none;">
       <label class="form-label">丈量時間</label>
-      <input class="form-input" id="p-measure-date" type="date" style="margin-bottom:0.5rem;">
+      <input class="form-input" id="p-measure-date" type="date" style="margin-bottom:0.5rem;" onchange="onMeasureDateChange()">
       <div class="form-input" id="p-measure-time-display" onclick="openTimeWheel()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
         <span id="p-measure-time-text">09:00</span>
         <i class="ti ti-clock text-muted"></i>
@@ -633,7 +633,7 @@ function checkLogin(){
   }
 }
 
-const NEG_STEPS=['丈量','報價','洽談','簽約'];
+const NEG_STEPS=['丈量','報價','討論','簽約'];
 const CON_STEPS=['木作-保護','木作-下角料','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收','其他'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
 const FILE_CATS=['報價單','合約','保護工程','木作','油漆','燈具','保護拆除','其他'];
@@ -891,6 +891,11 @@ function buildWheelCol(colEl,items,selectedValue){
 function updateWheelHighlight(colEl){
   const idx=Math.round(colEl.scrollTop/40);
   colEl.querySelectorAll('.wheel-item').forEach((el,i)=>el.classList.toggle('center',i===idx));
+}
+function onMeasureDateChange(){
+  const dateVal=document.getElementById('p-measure-date').value;
+  if(!dateVal)return;
+  setTimeout(()=>{openTimeWheel();},150);
 }
 function openTimeWheel(){
   const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
@@ -1935,11 +1940,12 @@ function allEvents(){return [...db.events,...getAutoEvents()];}
 
 function renderCalendar(){
   document.getElementById('cal-month-label').textContent=`${calYear} 年 ${calMonth+1} 月`;
-  const first=new Date(calYear,calMonth,1).getDay();
+  const firstRaw=new Date(calYear,calMonth,1).getDay(); // 0=日...6=六
+  const first=(firstRaw+6)%7; // 轉換成以週一為0的偏移量
   const dim=new Date(calYear,calMonth+1,0).getDate();
   const ts=today();
   const evAll=allEvents();
-  let h=['日','一','二','三','四','五','六'].map(d=>`<div class="cal-hd">${d}</div>`).join('');
+  let h=['一','二','三','四','五','六','日'].map(d=>`<div class="cal-hd">${d}</div>`).join('');
   const prev=new Date(calYear,calMonth,0).getDate();
   for(let i=first-1;i>=0;i--)h+=`<div class="cal-day other-month"><span class="cal-num">${prev-i}</span></div>`;
   for(let d=1;d<=dim;d++){
