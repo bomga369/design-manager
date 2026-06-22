@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622E">
+<meta name="app-version" content="20260622F">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -272,6 +272,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <div class="fontsize-btn" data-size="xlarge" onclick="setFontSize('xlarge')">特大</div>
     </div>
   </div>
+  <div class="user-menu-item" style="color:var(--text);" onclick="reauthorizeGoogle()"><i class="ti ti-refresh"></i> 重新授權 Google（日曆/Drive）</div>
   <div class="user-menu-item" onclick="logout()"><i class="ti ti-logout"></i> 登出</div>
 </div>
 
@@ -783,6 +784,14 @@ function showApp(){
   }
 }
 
+function reauthorizeGoogle(){
+  document.getElementById('user-menu').classList.remove('open');
+  driveAccessToken=null;
+  ensureDriveAuth(()=>{
+    alert('✅ Google 日曆與 Drive 授權完成！之後打卡和新增丈量都會自動同步。');
+    checkAutoBackup();
+  });
+}
 function toggleUserMenu(){
   document.getElementById('user-menu').classList.toggle('open');
 }
@@ -902,6 +911,7 @@ function onProjectsSynced(arr){
   db.projects=arr;
   save();
   refreshProjectDependentViews();
+  if(currentPage==='projects')renderProjects();
 }
 function refreshProjectDependentViews(){
   if(currentPage==='dashboard')renderDashboard();
@@ -1837,23 +1847,21 @@ function renderDetail(pid){
           </div>`;}).join('')}
       </div>
       <div class="section-hd"><span>其他施工項目</span><button class="btn btn-sm btn-ghost" onclick="openAddCustomStep('${pid}')"><i class="ti ti-plus"></i> 新增</button></div>
-      <div class="card">
-        ${(()=>{
-          const customs=(p.conCustomSteps||[]);
-          if(!customs.length)return'<div class="empty" style="padding:1.5rem"><i class="ti ti-tool-off"></i><p>尚無自訂施工項目<br>點右上角 + 新增</p></div>';
-          return customs.map((cs,i)=>{
-            const state=cs.state||'未開始';
-            return`<div class="task-list-item">
-              <div class="task-toggle ${state==='完成'?'done':state==='進行中'?'ongoing':''}" onclick="cycleCustomStep('${pid}',${i})"></div>
-              <div style="flex:1">
-                <div class="task-name ${state==='完成'?'done':''}">${cs.label}</div>
-                ${cs.time?`<div class="task-time">${state==='完成'?'完成 ':'更新 '}${fmtMD(cs.time)}</div>`:''}
-              </div>
-              <span class="task-state ${state==='完成'?'done':state==='進行中'?'ongoing':''}">${state}</span>
-              <button onclick="deleteCustomStep('${pid}',${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);margin-left:4px;font-size:16px"><i class="ti ti-trash"></i></button>
-            </div>`;}).join('');
-        })()}
-      </div>`;
+      ${(()=>{
+        const customs=(p.conCustomSteps||[]);
+        if(!customs.length)return'';
+        return`<div class="card">${customs.map((cs,i)=>{
+          const state=cs.state||'未開始';
+          return`<div class="task-list-item">
+            <div class="task-toggle ${state==='完成'?'done':state==='進行中'?'ongoing':''}" onclick="cycleCustomStep('${pid}',${i})"></div>
+            <div style="flex:1">
+              <div class="task-name ${state==='完成'?'done':''}">${cs.label}</div>
+              ${cs.time?`<div class="task-time">${state==='完成'?'完成 ':'更新 '}${fmtMD(cs.time)}</div>`:''}
+            </div>
+            <span class="task-state ${state==='完成'?'done':state==='進行中'?'ongoing':''}">${state}</span>
+            <button onclick="deleteCustomStep('${pid}',${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);margin-left:4px;font-size:16px"><i class="ti ti-trash"></i></button>
+          </div>`;}).join('')}</div>`;
+      })()}`;
   }
 
   // 注意內容
@@ -2581,6 +2589,22 @@ function getDayPunchSummary(dateKey,name,projectId){
   return{startTime:startRec.time,endTime:endRec?endRec.time:null,label};
 }
 function syncPunchToCalendar(dateKey,name,projectId){
+  if(!driveAccessToken){
+    // 沒有授權token，嘗試靜默重新授權
+    if(window.google&&google.accounts&&google.accounts.oauth2){
+      try{
+        const tc=google.accounts.oauth2.initTokenClient({
+          client_id:GOOGLE_CLIENT_ID,scope:GOOGLE_SCOPES,
+          callback:(resp)=>{
+            if(resp&&resp.access_token){driveAccessToken=resp.access_token;syncPunchToCalendar(dateKey,name,projectId);}
+            else{alert('Google 日曆授權已過期，請點畫面右上角頭像 → 重新授權，即可恢復自動同步日曆');}
+          }
+        });
+        tc.requestAccessToken({prompt:''});
+      }catch(e){console.error('重新授權失敗',e);}
+    }
+    return;
+  }
   ensureDriveAuth(async()=>{
     try{
       const proj=db.projects.find(x=>x.id===projectId);
@@ -2589,7 +2613,7 @@ function syncPunchToCalendar(dateKey,name,projectId){
       if(!startTime)return;
       let endIso=endTime||startTime;
       if(new Date(endIso).getTime()<=new Date(startTime).getTime()){
-        endIso=new Date(new Date(startTime).getTime()+30*60000).toISOString(); // 尚未下班時，先給30分鐘長度方便在日曆上顯示
+        endIso=new Date(new Date(startTime).getTime()+30*60000).toISOString();
       }
       const body={
         summary:'施作-'+pName(projectId)+'-'+name,
