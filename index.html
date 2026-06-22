@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622F">
+<meta name="app-version" content="20260622G">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -630,6 +630,15 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="migrate-banner" id="drive-auth-banner" style="display:none;background:var(--amber-bg,#fffbeb);border-color:var(--amber,#d97706)">
+  <div class="migrate-banner-title" style="color:var(--amber,#d97706)">⚠️ 需要授權 Google 日曆 / Drive</div>
+  <div class="migrate-banner-sub">授權後打卡會自動同步到 Google 日曆，工地照片也可以上傳到 Drive。</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="document.getElementById('drive-auth-banner').style.display='none'">略過</button>
+    <button class="btn btn-primary" onclick="dodriveAuthFromBanner()">立即授權</button>
+  </div>
+</div>
+
 <div class="migrate-banner" id="reauth-banner" style="display:none">
   <div class="migrate-banner-title">需要重新驗證一次</div>
   <div class="migrate-banner-sub">系統更新後，需要你重新驗證一次 Google 帳號，才能啟用「不管哪台裝置都同步」的雲端功能。點一下下面的按鈕就好，不會登出目前畫面、資料也不會受影響。</div>
@@ -716,6 +725,7 @@ function handleGoogleLogin(response){
   // 授權完成後才進主畫面，讓使用者感覺「一次搞定」
   if(!driveAccessToken){
     ensureDriveAuth(()=>{
+      document.getElementById('drive-auth-banner').style.display='none';
       showApp();
     });
   } else {
@@ -765,8 +775,7 @@ function showApp(){
   load();renderDashboard();
   checkAutoBackup();
   checkMeasureReminder();
-  // 回訪使用者：若Drive授權尚未取得，在背景靜默補授權（不彈視窗）
-  // prompt:''讓Google嘗試靜默授權，有快取就成功，沒有才讓使用者在下次主動操作時觸發
+  // 回訪使用者：嘗試靜默補授權，失敗則顯示授權橫幅
   if(!driveAccessToken&&window.google&&google.accounts&&google.accounts.oauth2){
     try{
       const tc=google.accounts.oauth2.initTokenClient({
@@ -775,12 +784,18 @@ function showApp(){
         callback:(resp)=>{
           if(resp&&resp.access_token){
             driveAccessToken=resp.access_token;
+            document.getElementById('drive-auth-banner').style.display='none';
             checkAutoBackup();
+          } else {
+            // 靜默授權失敗，顯示橫幅提示使用者
+            document.getElementById('drive-auth-banner').style.display='block';
           }
         }
       });
       tc.requestAccessToken({prompt:''});
-    }catch(e){/* 靜默失敗，等使用者主動操作時再觸發 */}
+    }catch(e){
+      document.getElementById('drive-auth-banner').style.display='block';
+    }
   }
 }
 
@@ -788,9 +803,25 @@ function reauthorizeGoogle(){
   document.getElementById('user-menu').classList.remove('open');
   driveAccessToken=null;
   ensureDriveAuth(()=>{
+    document.getElementById('drive-auth-banner').style.display='none';
     alert('✅ Google 日曆與 Drive 授權完成！之後打卡和新增丈量都會自動同步。');
     checkAutoBackup();
   });
+}
+function dodriveAuthFromBanner(){
+  document.getElementById('drive-auth-banner').style.display='none';
+  driveAccessToken=null;
+  ensureDriveAuth(()=>{
+    alert('✅ 授權完成！之後打卡和新增丈量都會自動同步到 Google 日曆。');
+    checkAutoBackup();
+  });
+}
+function checkDriveAuthBanner(){
+  if(!driveAccessToken){
+    document.getElementById('drive-auth-banner').style.display='block';
+  } else {
+    document.getElementById('drive-auth-banner').style.display='none';
+  }
 }
 function toggleUserMenu(){
   document.getElementById('user-menu').classList.toggle('open');
@@ -1523,7 +1554,11 @@ function renderDashboard(){
 }
 
 function renderProjects(){
-  function matchQ(p){return true;}
+  const elNeg=document.getElementById('proj-negotiating');
+  const elCon=document.getElementById('proj-construction');
+  const elDone=document.getElementById('proj-completed');
+  const elNor=document.getElementById('proj-no-response');
+  if(!elNeg||!elCon||!elDone||!elNor)return;
   function negCard(p){
     const cnt=projPhotoCount(p);
     return`<div class="card" style="margin-bottom:0.75rem;">
@@ -1555,13 +1590,13 @@ function renderProjects(){
       </div>
     </div>`;
   }
-  const negs=db.projects.filter(p=>p.type==='洽談中'&&matchQ(p));
-  const nors=db.projects.filter(p=>p.type==='無回應'&&matchQ(p));
-  const cons=db.projects.filter(p=>p.type==='施作中'&&matchQ(p));
-  const done=db.projects.filter(p=>p.type==='已完工'&&matchQ(p));
-  document.getElementById('proj-negotiating').innerHTML=negs.length?negs.map(negCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-user-off"></i><p>尚無洽談中專案</p></div></div>`;
-  document.getElementById('proj-construction').innerHTML=cons.length?cons.map(conCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-building-off"></i><p>尚無施作中專案</p></div></div>`;
-  document.getElementById('proj-completed').innerHTML=done.length?done.map(p=>{
+  const negs=db.projects.filter(p=>p.type==='洽談中');
+  const nors=db.projects.filter(p=>p.type==='無回應');
+  const cons=db.projects.filter(p=>p.type==='施作中');
+  const done=db.projects.filter(p=>p.type==='已完工');
+  elNeg.innerHTML=negs.length?negs.map(negCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-user-off"></i><p>尚無洽談中專案</p></div></div>`;
+  elCon.innerHTML=cons.length?cons.map(conCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-building-off"></i><p>尚無施作中專案</p></div></div>`;
+  elDone.innerHTML=done.length?done.map(p=>{
     const steps=p.conSteps||{};
     const doneKeys=CON_STEPS.filter(s=>steps[s]&&steps[s].state==='完成');
     const lastDone=doneKeys.length?doneKeys[doneKeys.length-1]:null;
@@ -1578,7 +1613,7 @@ function renderProjects(){
         <button class="btn btn-sm" style="width:100%" onclick="event.stopPropagation();exportProjectReport('${p.id}',this)"><i class="ti ti-file-export"></i> 匯出專案總表(PDF)</button>
       </div>
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-check-off"></i><p>尚無已完工專案</p></div></div>`;
-  document.getElementById('proj-no-response').innerHTML=nors.length?nors.map(p=>{
+  elNor.innerHTML=nors.length?nors.map(p=>{
     const cnt=projPhotoCount(p);
     return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
