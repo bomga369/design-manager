@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622B">
+<meta name="app-version" content="20260622C">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -654,10 +654,37 @@ textarea.form-input{resize:none;min-height:72px;}
 
 <div class="migrate-banner migrate-banner-upper" id="migrate-banner-projects" style="display:none">
   <div class="migrate-banner-title">偵測到雲端專案資料庫是空的</div>
-  <div class="migrate-banner-sub">要把這台裝置目前的專案資料,上傳成為雲端的起始資料嗎？（其他裝置上零散的資料，之後可以再個別確認要不要補進去）</div>
+  <div class="migrate-banner-sub">要把這台裝置目前的專案資料,上傳成為雲端的起始資料嗎？</div>
   <div class="migrate-banner-actions">
     <button class="btn" onclick="dismissMigrateBannerProjects()">先不要</button>
     <button class="btn btn-primary" id="migrate-confirm-btn-projects" onclick="runProjectMigration()">上傳這台的資料</button>
+  </div>
+</div>
+
+<div class="migrate-banner migrate-banner-upper" id="migrate-banner-staff" style="display:none">
+  <div class="migrate-banner-title">偵測到雲端人事資料庫是空的</div>
+  <div class="migrate-banner-sub">要把這台裝置目前的人事資料，上傳成為雲端的起始資料嗎？</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="dismissMigrateBannerStaff()">先不要</button>
+    <button class="btn btn-primary" id="migrate-confirm-btn-staff" onclick="runStaffMigration()">上傳這台的資料</button>
+  </div>
+</div>
+
+<div class="migrate-banner migrate-banner-upper" id="migrate-banner-finance" style="display:none">
+  <div class="migrate-banner-title">偵測到雲端收支資料庫是空的</div>
+  <div class="migrate-banner-sub">要把這台裝置目前的收支資料，上傳成為雲端的起始資料嗎？</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="dismissMigrateBannerFinance()">先不要</button>
+    <button class="btn btn-primary" id="migrate-confirm-btn-finance" onclick="runFinanceMigration()">上傳這台的資料</button>
+  </div>
+</div>
+
+<div class="migrate-banner migrate-banner-upper" id="migrate-banner-events" style="display:none">
+  <div class="migrate-banner-title">偵測到雲端行事曆事件是空的</div>
+  <div class="migrate-banner-sub">要把這台裝置目前的行事曆事件，上傳成為雲端的起始資料嗎？</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="dismissMigrateBannerEvents()">先不要</button>
+    <button class="btn btn-primary" id="migrate-confirm-btn-events" onclick="runEventsMigration()">上傳這台的資料</button>
   </div>
 </div>
 
@@ -786,6 +813,18 @@ window.onFirebaseReady=function(){
     window.fbStartProjectListeners(onProjectsSynced,onProjectSyncError);
     checkProjectMigration();
   }
+  if(window.fbStartStaffListeners){
+    window.fbStartStaffListeners(onStaffSynced,onStaffSyncError);
+    checkStaffMigration();
+  }
+  if(window.fbStartFinanceListeners){
+    window.fbStartFinanceListeners(onFinanceSynced,onFinanceSyncError);
+    checkFinanceMigration();
+  }
+  if(window.fbStartEventsListeners){
+    window.fbStartEventsListeners(onEventsSynced,onEventsSyncError);
+    checkEventsMigration();
+  }
 };
 let punchSyncErrorShown=false;
 function onPunchSyncError(){
@@ -893,6 +932,90 @@ async function runProjectMigration(){
   }
 }
 
+// ── Firebase 雲端同步（人事）──
+let staffSyncErrorShown=false;
+function onStaffSyncError(){if(staffSyncErrorShown)return;staffSyncErrorShown=true;alert('人事資料雲端同步權限不足，請聯絡管理者');}
+function onStaffSynced(arr){db.staff=arr;save();if(currentPage==='staff'||currentPage==='staff-detail')renderPage();}
+async function checkStaffMigration(){
+  if(!window.fbCheckStaffEmpty)return;
+  try{
+    const empty=await window.fbCheckStaffEmpty();
+    if(empty&&localStaffAtStartup&&localStaffAtStartup.length)
+      document.getElementById('migrate-banner-staff').style.display='block';
+  }catch(err){console.error('檢查雲端人事資料失敗',err);}
+}
+function dismissMigrateBannerStaff(){document.getElementById('migrate-banner-staff').style.display='none';}
+async function runStaffMigration(){
+  if(!localStaffAtStartup||!localStaffAtStartup.length)return dismissMigrateBannerStaff();
+  const btn=document.getElementById('migrate-confirm-btn-staff');
+  btn.disabled=true;btn.textContent='上傳中...';
+  try{
+    await window.fbMigrateStaff(localStaffAtStartup);
+    dismissMigrateBannerStaff();
+    alert('已成功把這台裝置的人事資料上傳為雲端起始資料！');
+  }catch(err){
+    console.error('上傳人事資料失敗',err);
+    alert('上傳失敗，請檢查網路連線後再試一次');
+    btn.disabled=false;btn.textContent='上傳這台的資料';
+  }
+}
+
+// ── Firebase 雲端同步（收支）──
+let financeSyncErrorShown=false;
+function onFinanceSyncError(){if(financeSyncErrorShown)return;financeSyncErrorShown=true;alert('收支資料雲端同步權限不足，請聯絡管理者');}
+function onFinanceSynced(arr){db.finance=arr;save();if(currentPage==='finance')renderFinance();}
+async function checkFinanceMigration(){
+  if(!window.fbCheckFinanceEmpty)return;
+  try{
+    const empty=await window.fbCheckFinanceEmpty();
+    if(empty&&localFinanceAtStartup&&localFinanceAtStartup.length)
+      document.getElementById('migrate-banner-finance').style.display='block';
+  }catch(err){console.error('檢查雲端收支資料失敗',err);}
+}
+function dismissMigrateBannerFinance(){document.getElementById('migrate-banner-finance').style.display='none';}
+async function runFinanceMigration(){
+  if(!localFinanceAtStartup||!localFinanceAtStartup.length)return dismissMigrateBannerFinance();
+  const btn=document.getElementById('migrate-confirm-btn-finance');
+  btn.disabled=true;btn.textContent='上傳中...';
+  try{
+    await window.fbMigrateFinance(localFinanceAtStartup);
+    dismissMigrateBannerFinance();
+    alert('已成功把這台裝置的收支資料上傳為雲端起始資料！');
+  }catch(err){
+    console.error('上傳收支資料失敗',err);
+    alert('上傳失敗，請檢查網路連線後再試一次');
+    btn.disabled=false;btn.textContent='上傳這台的資料';
+  }
+}
+
+// ── Firebase 雲端同步（行事曆事件）──
+let eventsSyncErrorShown=false;
+function onEventsSyncError(){if(eventsSyncErrorShown)return;eventsSyncErrorShown=true;alert('行事曆事件雲端同步權限不足，請聯絡管理者');}
+function onEventsSynced(arr){db.events=arr;save();if(currentPage==='calendar')renderCalendar();}
+async function checkEventsMigration(){
+  if(!window.fbCheckEventsEmpty)return;
+  try{
+    const empty=await window.fbCheckEventsEmpty();
+    if(empty&&localEventsAtStartup&&localEventsAtStartup.length)
+      document.getElementById('migrate-banner-events').style.display='block';
+  }catch(err){console.error('檢查雲端行事曆事件失敗',err);}
+}
+function dismissMigrateBannerEvents(){document.getElementById('migrate-banner-events').style.display='none';}
+async function runEventsMigration(){
+  if(!localEventsAtStartup||!localEventsAtStartup.length)return dismissMigrateBannerEvents();
+  const btn=document.getElementById('migrate-confirm-btn-events');
+  btn.disabled=true;btn.textContent='上傳中...';
+  try{
+    await window.fbMigrateEvents(localEventsAtStartup);
+    dismissMigrateBannerEvents();
+    alert('已成功把這台裝置的行事曆事件上傳為雲端起始資料！');
+  }catch(err){
+    console.error('上傳行事曆事件失敗',err);
+    alert('上傳失敗，請檢查網路連線後再試一次');
+    btn.disabled=false;btn.textContent='上傳這台的資料';
+  }
+}
+
 const NEG_STEPS=['丈量','報價','討論','簽約'];
 const CON_STEPS=['木作-保護','木作-下角料','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收','其他'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
@@ -965,8 +1088,20 @@ let currentStaffCustomMonth='';
 
 let localPunchesAtStartup=null;
 let localProjectsAtStartup=null;
+let localStaffAtStartup=null;
+let localFinanceAtStartup=null;
+let localEventsAtStartup=null;
 function save(){localStorage.setItem('dmgr_v6',JSON.stringify(db));}
-function load(){const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);if(!db.punchGcalIds)db.punchGcalIds={};localPunchesAtStartup=db.punches?[...db.punches]:[];localProjectsAtStartup=db.projects?JSON.parse(JSON.stringify(db.projects)):[];autoCompleteMeasureSteps();}
+function load(){
+  const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);
+  if(!db.punchGcalIds)db.punchGcalIds={};
+  localPunchesAtStartup=db.punches?[...db.punches]:[];
+  localProjectsAtStartup=db.projects?JSON.parse(JSON.stringify(db.projects)):[];
+  localStaffAtStartup=db.staff?JSON.parse(JSON.stringify(db.staff)):[];
+  localFinanceAtStartup=db.finance?JSON.parse(JSON.stringify(db.finance)):[];
+  localEventsAtStartup=db.events?JSON.parse(JSON.stringify(db.events)):[];
+  autoCompleteMeasureSteps();
+}
 function autoCompleteMeasureSteps(){
   const now=new Date();
   let changed=false;
@@ -1601,9 +1736,11 @@ ${p.notes&&p.notes.length?`<h2>注意內容</h2><ol>${p.notes.map(n=>`<li style=
 function deleteProject(id){
   if(!confirm('確定刪除？'))return;
   db.projects=db.projects.filter(p=>p.id!==id);
+  const toDeleteFinance=db.finance.filter(f=>f.projectId===id).map(f=>f.id);
   db.finance=db.finance.filter(f=>f.projectId!==id);
   save();showPage(prevPage);
   if(window.fbDeleteProject)window.fbDeleteProject(id).catch(err=>console.error('刪除雲端專案資料失敗',err));
+  if(window.fbDeleteFinance)toDeleteFinance.forEach(fid=>window.fbDeleteFinance(fid).catch(err=>console.error('刪除雲端收支失敗',err)));
 }
 
 // ── DETAIL ──
@@ -2144,15 +2281,19 @@ function saveFinance(){
   const amount=document.getElementById('f-amount').value;
   if(!name||!amount)return alert('請填入項目名稱與金額');
   const ftype=document.getElementById('f-type').value;
-  db.finance.push({id:uid(),name,amount:Number(amount),projectId:document.getElementById('f-project').value,ftype,expCat:ftype==='支出'?document.getElementById('f-expense-cat').value:'',date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value});
-  save();closeSheet('sheet-finance');
+  const rec={id:uid(),name,amount:Number(amount),projectId:document.getElementById('f-project').value,ftype,expCat:ftype==='支出'?document.getElementById('f-expense-cat').value:'',date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
+  db.finance.push(rec);
+  save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
+  closeSheet('sheet-finance');
   ['f-name','f-amount','f-note','f-date'].forEach(id=>document.getElementById(id).value='');
   if(currentPage==='finance')renderFinance();
   if(currentPage==='detail')renderDetail(currentProjectId);
 }
 function deleteFinance(id){
   if(!confirm('確定刪除？'))return;
-  db.finance=db.finance.filter(f=>f.id!==id);save();renderFinance();
+  db.finance=db.finance.filter(f=>f.id!==id);save();
+  if(window.fbDeleteFinance)window.fbDeleteFinance(id).catch(err=>console.error('刪除收支失敗',err));
+  renderFinance();
 }
 
 // ── 人事 ──
@@ -2388,16 +2529,19 @@ function saveStaff(){
     const s=db.staff.find(x=>x.id===editingStaffId);if(!s)return;
     s.name=name;s.no=document.getElementById('s-no').value;s.phone=document.getElementById('s-phone').value;
     s.address=document.getElementById('s-address').value;s.stitle=document.getElementById('s-stitle').value;s.note=document.getElementById('s-note').value;
-    save();closeSheet('sheet-staff');renderStaffDetail(editingStaffId);
+    save();if(window.fbSaveStaff)window.fbSaveStaff(s);closeSheet('sheet-staff');renderStaffDetail(editingStaffId);
   } else {
-    db.staff.push({id:uid(),name,no:document.getElementById('s-no').value,phone:document.getElementById('s-phone').value,address:document.getElementById('s-address').value,stitle:document.getElementById('s-stitle').value,note:document.getElementById('s-note').value,createdAt:today()});
-    save();closeSheet('sheet-staff');renderStaff();
+    const ns={id:uid(),name,no:document.getElementById('s-no').value,phone:document.getElementById('s-phone').value,address:document.getElementById('s-address').value,stitle:document.getElementById('s-stitle').value,note:document.getElementById('s-note').value,createdAt:today()};
+    db.staff.push(ns);
+    save();if(window.fbSaveStaff)window.fbSaveStaff(ns);closeSheet('sheet-staff');renderStaff();
   }
   editingStaffId=null;
 }
 function deleteStaff(id){
   if(!confirm('確定刪除此員工？'))return;
-  db.staff=db.staff.filter(s=>s.id!==id);save();showPage('staff');
+  db.staff=db.staff.filter(s=>s.id!==id);save();
+  if(window.fbDeleteStaff)window.fbDeleteStaff(id).catch(err=>console.error('刪除人事失敗',err));
+  showPage('staff');
 }
 
 // ── 行事曆 ──
@@ -2545,7 +2689,9 @@ function prevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelecte
 function nextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('cal-selected-label').textContent='近半年事務';renderCalendar();}
 function deleteEvent(id){
   if(!confirm('確定刪除？'))return;
-  db.events=db.events.filter(e=>e.id!==id);save();renderCalendar();
+  db.events=db.events.filter(e=>e.id!==id);save();
+  if(window.fbDeleteEvent)window.fbDeleteEvent(id).catch(err=>console.error('刪除事件失敗',err));
+  renderCalendar();
 }
 
 // ── 深色模式 ──
@@ -2651,7 +2797,7 @@ try{
   window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
 }
 
-let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null;
 
 if (fbAuth) {
   onAuthStateChanged(fbAuth, (user) => {
@@ -2662,6 +2808,9 @@ if (fbAuth) {
       if (punchesUnsub) { punchesUnsub(); punchesUnsub = null; }
       if (gcalUnsub) { gcalUnsub(); gcalUnsub = null; }
       if (projectsUnsub) { projectsUnsub(); projectsUnsub = null; }
+      if (staffUnsub) { staffUnsub(); staffUnsub = null; }
+      if (financeUnsub) { financeUnsub(); financeUnsub = null; }
+      if (eventsUnsub) { eventsUnsub(); eventsUnsub = null; }
       if (window.onFirebaseSignedOut) window.onFirebaseSignedOut();
     }
   });
@@ -2756,6 +2905,51 @@ window.fbCheckProjectsEmpty = async function () {
 window.fbMigrateProjects = async function (localProjects) {
   const batch = writeBatch(fbDb);
   localProjects.forEach(p => batch.set(doc(fbDb, 'projects', p.id), p));
+  await batch.commit();
+};
+
+// ── Staff ──
+window.fbStartStaffListeners = function (onStaff, onError) {
+  staffUnsub = onSnapshot(collection(fbDb, 'staff'), (snap) => {
+    const arr = []; snap.forEach(d => arr.push(d.data())); onStaff(arr);
+  }, (err) => { console.error('人事資料同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveStaff = function (s) { return setDoc(doc(fbDb, 'staff', s.id), s); };
+window.fbDeleteStaff = function (id) { return deleteDoc(doc(fbDb, 'staff', id)); };
+window.fbCheckStaffEmpty = async function () { const snap = await getDocs(collection(fbDb, 'staff')); return snap.empty; };
+window.fbMigrateStaff = async function (arr) {
+  const batch = writeBatch(fbDb);
+  arr.forEach(s => batch.set(doc(fbDb, 'staff', s.id), s));
+  await batch.commit();
+};
+
+// ── Finance ──
+window.fbStartFinanceListeners = function (onFinance, onError) {
+  financeUnsub = onSnapshot(collection(fbDb, 'finance'), (snap) => {
+    const arr = []; snap.forEach(d => arr.push(d.data())); onFinance(arr);
+  }, (err) => { console.error('收支資料同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveFinance = function (f) { return setDoc(doc(fbDb, 'finance', f.id), f); };
+window.fbDeleteFinance = function (id) { return deleteDoc(doc(fbDb, 'finance', id)); };
+window.fbCheckFinanceEmpty = async function () { const snap = await getDocs(collection(fbDb, 'finance')); return snap.empty; };
+window.fbMigrateFinance = async function (arr) {
+  const batch = writeBatch(fbDb);
+  arr.forEach(f => batch.set(doc(fbDb, 'finance', f.id), f));
+  await batch.commit();
+};
+
+// ── Events ──
+window.fbStartEventsListeners = function (onEvents, onError) {
+  eventsUnsub = onSnapshot(collection(fbDb, 'events'), (snap) => {
+    const arr = []; snap.forEach(d => arr.push(d.data())); onEvents(arr);
+  }, (err) => { console.error('行事曆事件同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveEvent = function (e) { return setDoc(doc(fbDb, 'events', e.id), e); };
+window.fbDeleteEvent = function (id) { return deleteDoc(doc(fbDb, 'events', id)); };
+window.fbCheckEventsEmpty = async function () { const snap = await getDocs(collection(fbDb, 'events')); return snap.empty; };
+window.fbMigrateEvents = async function (arr) {
+  const batch = writeBatch(fbDb);
+  arr.forEach(e => batch.set(doc(fbDb, 'events', e.id), e));
   await batch.commit();
 };
 </script>
