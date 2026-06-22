@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622G">
+<meta name="app-version" content="20260622H">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1551,6 +1551,11 @@ function renderDashboard(){
       </div>
       ${sBadge('施作中')}
     </div>`;}).join(''):'<div class="empty"><i class="ti ti-building-off"></i><p>尚無施作中專案</p></div>';
+}
+
+function projPhotoCount(p){
+  if(!p.files)return 0;
+  return Object.values(p.files).reduce((s,arr)=>s+(Array.isArray(arr)?arr.length:0),0);
 }
 
 function renderProjects(){
