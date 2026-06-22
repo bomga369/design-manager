@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622I">
+<meta name="app-version" content="20260622J">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1460,7 +1460,13 @@ function punch(type){
   fillNameSel('punch-name');
   const last=db.punches[db.punches.length-1];
   if(last){const el=document.getElementById('punch-name');if(el)el.value=last.name;}
-  openSheet('sheet-punch');
+  // 打卡前先確保Drive/日曆授權，讓這次打卡能同步到Google日曆
+  // 因為是使用者主動按打卡按鈕，Safari不會擋彈窗
+  if(!driveAccessToken){
+    ensureDriveAuth(()=>{openSheet('sheet-punch');});
+  } else {
+    openSheet('sheet-punch');
+  }
 }
 function confirmPunch(){
   const name=document.getElementById('punch-name').value;
