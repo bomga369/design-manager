@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622J">
+<meta name="app-version" content="20260622K">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -272,7 +272,6 @@ textarea.form-input{resize:none;min-height:72px;}
       <div class="fontsize-btn" data-size="xlarge" onclick="setFontSize('xlarge')">特大</div>
     </div>
   </div>
-  <div class="user-menu-item" style="color:var(--text);" onclick="reauthorizeGoogle()"><i class="ti ti-refresh"></i> 重新授權 Google（日曆/Drive）</div>
   <div class="user-menu-item" onclick="logout()"><i class="ti ti-logout"></i> 登出</div>
 </div>
 
@@ -1647,23 +1646,31 @@ function saveProject(){
   const mDate=document.getElementById('p-measure-date').value;
   const mTime=getMeasureTime();
   const measureDate=(type==='洽談中'&&mDate)?mDate+'T'+(mTime||'09:00')+':00':null;
-  if(editingProjectId){
-    const p=db.projects.find(x=>x.id===editingProjectId);if(!p)return;
-    p.name=name;p.area=area;p.bname=bname;p.city=city;
-    p.client=document.getElementById('p-client').value;
-    p.type=type;p.note=document.getElementById('p-note').value;
-    p.leader=document.getElementById('p-leader').value;
-    p.measureDate=measureDate;
-    save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-project');
-    if(currentPage==='detail')renderDetail(editingProjectId);else renderProjects();
-    if(measureDate)syncMeasureToCalendar(p);
+  // 如果有填丈量時間，需要Drive授權才能同步日曆；使用者剛按儲存，Safari不會擋
+  const doSave=()=>{
+    if(editingProjectId){
+      const p=db.projects.find(x=>x.id===editingProjectId);if(!p)return;
+      p.name=name;p.area=area;p.bname=bname;p.city=city;
+      p.client=document.getElementById('p-client').value;
+      p.type=type;p.note=document.getElementById('p-note').value;
+      p.leader=document.getElementById('p-leader').value;
+      p.measureDate=measureDate;
+      save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-project');
+      if(currentPage==='detail')renderDetail(editingProjectId);else renderProjects();
+      if(measureDate)syncMeasureToCalendar(p);
+    } else {
+      const np={id:uid(),name,area,bname,city,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,measureDate,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conCustomSteps:[],conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()};
+      db.projects.push(np);
+      save();if(window.fbSaveProject)window.fbSaveProject(np);closeSheet('sheet-project');renderProjects();
+      if(measureDate)syncMeasureToCalendar(np);
+    }
+    editingProjectId=null;
+  };
+  if(measureDate&&!driveAccessToken){
+    ensureDriveAuth(doSave);
   } else {
-    const np={id:uid(),name,area,bname,city,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,measureDate,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()};
-    db.projects.push(np);
-    save();if(window.fbSaveProject)window.fbSaveProject(np);closeSheet('sheet-project');renderProjects();
-    if(measureDate)syncMeasureToCalendar(np);
+    doSave();
   }
-  editingProjectId=null;
 }
 function openEditProject(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
@@ -2481,33 +2488,38 @@ function renderStaffDetail(sid){
 }
 let editingPunchId=null;
 function openPunchEdit(punchId){
-  editingPunchId=punchId||null;
-  fillSel('pe-project');
-  fillNameSel('pe-name');
-  document.getElementById('pe-project').value='';
-  if(punchId){
-    const rec=db.punches.find(x=>x.id===punchId);
-    if(!rec)return;
-    document.getElementById('punch-edit-title').textContent='編輯打卡紀錄';
-    document.getElementById('pe-id').value=rec.id;
-    document.getElementById('pe-name').value=rec.name;
-    document.getElementById('pe-project').value=rec.projectId||'';
-    document.getElementById('pe-date').value=rec.date;
-    document.getElementById('pe-time').value=new Date(rec.time).toTimeString().slice(0,5);
-    const typeBtn=document.getElementById(rec.type==='out'?'pe-type-out':'pe-type-in');
-    selectSeg(typeBtn,'pe-type',rec.type);
-    document.getElementById('pe-delete-btn').style.display='block';
-  } else {
-    const staff=currentStaffId?db.staff.find(x=>x.id===currentStaffId):null;
-    document.getElementById('punch-edit-title').textContent='補登打卡紀錄';
-    document.getElementById('pe-id').value='';
-    document.getElementById('pe-name').value=staff?staff.name:'';
-    document.getElementById('pe-date').value=today();
-    document.getElementById('pe-time').value=new Date().toTimeString().slice(0,5);
-    selectSeg(document.getElementById('pe-type-in'),'pe-type','in');
-    document.getElementById('pe-delete-btn').style.display='none';
-  }
-  openSheet('sheet-punch-edit');
+  // 補登/編輯打卡也需要Drive授權才能同步日曆
+  // 使用者主動點擊補登按鈕，Safari不會擋彈窗
+  const doOpen=()=>{
+    editingPunchId=punchId||null;
+    fillSel('pe-project');
+    fillNameSel('pe-name');
+    document.getElementById('pe-project').value='';
+    if(punchId){
+      const rec=db.punches.find(x=>x.id===punchId);
+      if(!rec)return;
+      document.getElementById('punch-edit-title').textContent='編輯打卡紀錄';
+      document.getElementById('pe-id').value=rec.id;
+      document.getElementById('pe-name').value=rec.name;
+      document.getElementById('pe-project').value=rec.projectId||'';
+      document.getElementById('pe-date').value=rec.date;
+      document.getElementById('pe-time').value=new Date(rec.time).toTimeString().slice(0,5);
+      const typeBtn=document.getElementById(rec.type==='out'?'pe-type-out':'pe-type-in');
+      selectSeg(typeBtn,'pe-type',rec.type);
+      document.getElementById('pe-delete-btn').style.display='block';
+    } else {
+      const staff=currentStaffId?db.staff.find(x=>x.id===currentStaffId):null;
+      document.getElementById('punch-edit-title').textContent='補登打卡紀錄';
+      document.getElementById('pe-id').value='';
+      document.getElementById('pe-name').value=staff?staff.name:'';
+      document.getElementById('pe-date').value=today();
+      document.getElementById('pe-time').value=new Date().toTimeString().slice(0,5);
+      selectSeg(document.getElementById('pe-type-in'),'pe-type','in');
+      document.getElementById('pe-delete-btn').style.display='none';
+    }
+    openSheet('sheet-punch-edit');
+  };
+  if(!driveAccessToken){ensureDriveAuth(doOpen);} else {doOpen();}
 }
 function resyncOrCleanCalendar(date,name,projectId,deletedId){
   if(!projectId)return;
