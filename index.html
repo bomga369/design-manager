@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622H">
+<meta name="app-version" content="20260622I">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1169,7 +1169,7 @@ function autoCompleteMeasureSteps(){
 }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function today(){return new Date().toISOString().slice(0,10);}
-function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});}
+function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
 function fDate(d){return d?d.replace(/-/g,'/'):'—';}
