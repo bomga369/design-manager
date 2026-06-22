@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622C">
+<meta name="app-version" content="20260622D">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1503,19 +1503,6 @@ function renderDashboard(){
     </div>`;}).join(''):'<div class="empty"><i class="ti ti-building-off"></i><p>尚無施作中專案</p></div>';
 }
 
-// ── PROJECTS ──
-function projPhotoCount(p){
-  if(!p.files)return 0;
-  return Object.values(p.files).reduce((s,arr)=>s+(Array.isArray(arr)?arr.length:0),0);
-}
-function longPressStatus(pid){
-  const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  const opts=['洽談中','施作中','已完工','無回應'].filter(s=>s!==p.type);
-  const choice=opts.find(s=>confirm(`將「${p.name}」改為「${s}」嗎？`));
-  if(!choice)return;
-  p.type=choice;
-  save();if(window.fbSaveProject)window.fbSaveProject(p);renderProjects();
-}
 function renderProjects(){
   const q=(document.getElementById('proj-search')?.value||'').trim().toLowerCase();
   function matchQ(p){
@@ -1524,7 +1511,7 @@ function renderProjects(){
   }
   function negCard(p){
     const cnt=projPhotoCount(p);
-    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
+    return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('洽談中')}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
@@ -1543,7 +1530,7 @@ function renderProjects(){
     const activeTime=activeKey&&steps[activeKey]?steps[activeKey].time:'';
     const badge=p.type==='已完工'?sBadge('已完工'):sBadge('施作中');
     const cnt=projPhotoCount(p);
-    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
+    return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${badge}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
@@ -1566,7 +1553,7 @@ function renderProjects(){
     const lastLabel=lastDone?(lastDone==='其他'&&p.conOtherLabel?p.conOtherLabel:lastDone):null;
     const lastTime=lastDone&&steps[lastDone]?steps[lastDone].time:'';
     const cnt=projPhotoCount(p);
-    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
+    return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.area?p.area+' - ':''}${p.bname||p.name}</div>${sBadge('已完工')}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
@@ -1578,18 +1565,13 @@ function renderProjects(){
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-check-off"></i><p>尚無已完工專案</p></div></div>`;
   document.getElementById('proj-no-response').innerHTML=nors.length?nors.map(p=>{
     const cnt=projPhotoCount(p);
-    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
+    return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('無回應')}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
       </div>
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-mail-off"></i><p>尚無無回應專案</p></div></div>`;
 }
-
-// 長按偵測（iOS觸控）
-let _lpTimer=null;
-function startLongPress(pid){_lpTimer=setTimeout(()=>{longPressStatus(pid);},600);}
-function clearLongPress(){if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}}
 
 // ── SAVE PROJECT ──
 function saveProject(){
