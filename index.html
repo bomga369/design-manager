@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622K">
+<meta name="app-version" content="20260622L">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1473,6 +1473,11 @@ function confirmPunch(){
   if(!name)return alert('請選擇員工姓名');
   if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
   const punchRecord={id:uid(),type:pendingPunchType,name,projectId,time:new Date().toISOString(),timeStr:nowFull(),date:today()};
+  // 先把打卡記錄加到本機 db.punches，讓日曆同步時能讀到正確的上下班時間
+  // 不用等 Firebase 即時推送回來，避免日曆同步時讀不到下班打卡
+  db.punches.push(punchRecord);
+  save();
+  renderPunchStatus();
   closeSheet('sheet-punch');
   window.fbSavePunch(punchRecord).then(()=>{
     if(projectId)syncPunchToCalendar(punchRecord.date,name,projectId);
@@ -2557,12 +2562,16 @@ function savePunchEdit(){
     const changedKey=rec.date!==dateVal||rec.name!==name||rec.projectId!==projectId;
     const oldDate=rec.date,oldName=rec.name,oldProjectId=rec.projectId;
     const updated={id:rec.id,type,name,projectId,date:dateVal,time:isoTime,timeStr};
+    // 先更新本機，確保日曆同步讀到正確資料
+    Object.assign(rec,updated);save();
     window.fbSavePunch(updated).then(()=>{
       if(changedKey)resyncOrCleanCalendar(oldDate,oldName,oldProjectId,null);
       if(projectId)syncPunchToCalendar(dateVal,name,projectId);
     }).catch(err=>{console.error('更新打卡紀錄失敗',err);alert('更新失敗，請檢查網路連線');});
   } else {
     const newRecord={id:uid(),type,name,projectId,time:isoTime,timeStr,date:dateVal};
+    // 先加到本機，確保日曆同步讀到正確資料
+    db.punches.push(newRecord);save();
     window.fbSavePunch(newRecord).then(()=>{
       if(projectId)syncPunchToCalendar(dateVal,name,projectId);
     }).catch(err=>{console.error('新增打卡紀錄失敗',err);alert('新增失敗，請檢查網路連線');});
