@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622D">
+<meta name="app-version" content="20260622E">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -302,9 +302,6 @@ textarea.form-input{resize:none;min-height:72px;}
   <!-- 專案列表 -->
   <div id="page-projects" class="page">
     <div class="content">
-      <div style="padding:0 0 0.75rem">
-        <input class="form-input" id="proj-search" placeholder="🔍 搜尋專案名稱、客戶、地址..." oninput="renderProjects()" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-      </div>
       <div class="section-hd">洽談中</div>
       <div id="proj-negotiating"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
@@ -547,11 +544,11 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-task-other">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">其他施工項目<button class="sheet-close" onclick="closeSheet('sheet-task-other')"><i class="ti ti-x"></i></button></div>
-    <div class="form-group"><label class="form-label">項目說明</label><input class="form-input" id="task-other-text" placeholder="請輸入施工項目說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="sheet-title">新增施工項目<button class="sheet-close" onclick="closeSheet('sheet-task-other')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">項目名稱</label><input class="form-input" id="custom-step-label" placeholder="例：磁磚、窗框安裝..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-task-other')">取消</button>
-      <button class="btn btn-primary" onclick="saveTaskOther()">確認</button>
+      <button class="btn btn-primary" onclick="saveCustomStep()">新增</button>
     </div>
   </div>
 </div>
@@ -713,10 +710,16 @@ function handleGoogleLogin(response){
       console.error('Firebase 登入失敗',err);
       window.fbDebugLog('❌ Firebase 登入失敗：'+err.message);
     });
-  } else {
-    window.fbDebugLog('❌ window.fbSignInWithGoogleIdToken 不存在，Firebase 模組可能尚未載入成功');
   }
-  showApp();
+  // 使用者剛按過Google登入按鈕，這時彈出Drive授權視窗Safari不會擋
+  // 授權完成後才進主畫面，讓使用者感覺「一次搞定」
+  if(!driveAccessToken){
+    ensureDriveAuth(()=>{
+      showApp();
+    });
+  } else {
+    showApp();
+  }
 }
 window.onFirebaseSignedOut=function(){
   if(currentUser){
@@ -759,19 +762,25 @@ function showApp(){
   document.getElementById('user-menu-name').textContent=currentUser.name;
   document.getElementById('user-menu-email').textContent=currentUser.email;
   load();renderDashboard();
-  // 2. 登入後主動要求Google授權(使用者剛按過登入，Safari不會擋彈窗)
-  // 稍微延遲讓畫面先渲染完再彈出
-  setTimeout(()=>{
-    if(!driveAccessToken){
-      ensureDriveAuth(()=>{
-        checkAutoBackup();
-        checkMeasureReminder();
+  checkAutoBackup();
+  checkMeasureReminder();
+  // 回訪使用者：若Drive授權尚未取得，在背景靜默補授權（不彈視窗）
+  // prompt:''讓Google嘗試靜默授權，有快取就成功，沒有才讓使用者在下次主動操作時觸發
+  if(!driveAccessToken&&window.google&&google.accounts&&google.accounts.oauth2){
+    try{
+      const tc=google.accounts.oauth2.initTokenClient({
+        client_id:GOOGLE_CLIENT_ID,
+        scope:GOOGLE_SCOPES,
+        callback:(resp)=>{
+          if(resp&&resp.access_token){
+            driveAccessToken=resp.access_token;
+            checkAutoBackup();
+          }
+        }
       });
-    } else {
-      checkAutoBackup();
-      checkMeasureReminder();
-    }
-  },800);
+      tc.requestAccessToken({prompt:''});
+    }catch(e){/* 靜默失敗，等使用者主動操作時再觸發 */}
+  }
 }
 
 function toggleUserMenu(){
@@ -1017,7 +1026,7 @@ async function runEventsMigration(){
 }
 
 const NEG_STEPS=['丈量','報價','討論','簽約'];
-const CON_STEPS=['木作-保護','木作-下角料','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收','其他'];
+const CON_STEPS=['木作-保護','木作-下角料','木作-窗簾盒','木作-包管/樑','木作-冷氣帽','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
 const FILE_CATS=['報價單','合約','保護工程','木作','油漆','燈具','保護拆除','其他'];
 
@@ -1504,11 +1513,7 @@ function renderDashboard(){
 }
 
 function renderProjects(){
-  const q=(document.getElementById('proj-search')?.value||'').trim().toLowerCase();
-  function matchQ(p){
-    if(!q)return true;
-    return(p.name||'').toLowerCase().includes(q)||(p.bname||'').toLowerCase().includes(q)||(p.client||'').toLowerCase().includes(q)||(p.area||'').toLowerCase().includes(q)||(p.info?.address||'').toLowerCase().includes(q);
-  }
+  function matchQ(p){return true;}
   function negCard(p){
     const cnt=projPhotoCount(p);
     return`<div class="card" style="margin-bottom:0.75rem;">
@@ -1667,7 +1672,8 @@ function exportProjectReport(pid,btnEl){
 
 <h2>施工進度</h2>
 <table><thead><tr><th>項目</th><th>狀態</th><th>完成時間</th></tr></thead><tbody>
-${CON_STEPS.map(s=>{const sd=steps[s]||{state:'未開始'};const label=s==='其他'&&p.conOtherLabel?p.conOtherLabel:s;return`<tr><td>${label}</td><td>${sd.state}</td><td>${sd.time?fmtMD(sd.time):'—'}</td></tr>`;}).join('')}
+${CON_STEPS.map(s=>{const sd=steps[s]||{state:'未開始'};return`<tr><td>${s}</td><td>${sd.state}</td><td>${sd.time?fmtMD(sd.time):'—'}</td></tr>`;}).join('')}
+${(p.conCustomSteps||[]).map(cs=>`<tr><td>${cs.label}（自訂）</td><td>${cs.state}</td><td>${cs.time?fmtMD(cs.time):'—'}</td></tr>`).join('')}
 </tbody></table>
 
 <h2>施作人員工時</h2>
@@ -1821,15 +1827,32 @@ function renderDetail(pid){
         ${CON_STEPS.map(s=>{
           const sd=steps[s]||{state:'未開始'};
           const state=sd.state||'未開始';
-          const label=s==='其他'?(p.conOtherLabel||'其他'):s;
           return`<div class="task-list-item">
             <div class="task-toggle ${state==='完成'?'done':state==='進行中'?'ongoing':''}" onclick="cycleStep('${pid}','${s}')"></div>
             <div style="flex:1">
-              <div class="task-name ${state==='完成'?'done':''}">${label}${s==='其他'?`<button onclick="editTaskOther('${pid}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--blue-text);margin-left:4px">✏️</button>`:''}</div>
+              <div class="task-name ${state==='完成'?'done':''}">${s}</div>
               ${sd.time?`<div class="task-time">${state==='完成'?'完成 ':'更新 '}${fmtMD(sd.time)}</div>`:''}
             </div>
             <span class="task-state ${state==='完成'?'done':state==='進行中'?'ongoing':''}">${state}</span>
           </div>`;}).join('')}
+      </div>
+      <div class="section-hd"><span>其他施工項目</span><button class="btn btn-sm btn-ghost" onclick="openAddCustomStep('${pid}')"><i class="ti ti-plus"></i> 新增</button></div>
+      <div class="card">
+        ${(()=>{
+          const customs=(p.conCustomSteps||[]);
+          if(!customs.length)return'<div class="empty" style="padding:1.5rem"><i class="ti ti-tool-off"></i><p>尚無自訂施工項目<br>點右上角 + 新增</p></div>';
+          return customs.map((cs,i)=>{
+            const state=cs.state||'未開始';
+            return`<div class="task-list-item">
+              <div class="task-toggle ${state==='完成'?'done':state==='進行中'?'ongoing':''}" onclick="cycleCustomStep('${pid}',${i})"></div>
+              <div style="flex:1">
+                <div class="task-name ${state==='完成'?'done':''}">${cs.label}</div>
+                ${cs.time?`<div class="task-time">${state==='完成'?'完成 ':'更新 '}${fmtMD(cs.time)}</div>`:''}
+              </div>
+              <span class="task-state ${state==='完成'?'done':state==='進行中'?'ongoing':''}">${state}</span>
+              <button onclick="deleteCustomStep('${pid}',${i})" style="background:none;border:none;cursor:pointer;color:var(--text3);margin-left:4px;font-size:16px"><i class="ti ti-trash"></i></button>
+            </div>`;}).join('');
+        })()}
       </div>`;
   }
 
@@ -1950,23 +1973,40 @@ function cycleStep(pid,stepName){
   const next={'未開始':'進行中','進行中':'完成','完成':'未開始'};
   const newState=next[cur];
   p.conSteps[stepName]={state:newState,time:newState!=='未開始'?new Date().toISOString():''};
-  if(stepName==='其他'&&newState==='進行中'&&!p.conOtherLabel){save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);setTimeout(()=>editTaskOther(pid),100);return;}
   // 驗收完成 → 已完工
   if(stepName==='驗收'&&newState==='完成'){
     if(confirm('驗收完成！是否將此專案歸類為「已完工」？')){p.type='已完工';}
   }
   save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
-function editTaskOther(pid){
-  const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  document.getElementById('task-other-text').value=p.conOtherLabel||'';
+function openAddCustomStep(pid){
+  currentProjectId=pid;
+  document.getElementById('custom-step-label').value='';
   openSheet('sheet-task-other');
 }
-function saveTaskOther(){
-  const text=document.getElementById('task-other-text').value.trim();
-  if(!text)return alert('請輸入項目說明');
+function saveCustomStep(){
+  const label=document.getElementById('custom-step-label').value.trim();
+  if(!label)return alert('請輸入項目名稱');
   const p=db.projects.find(x=>x.id===currentProjectId);if(!p)return;
-  p.conOtherLabel=text;save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-task-other');renderDetail(currentProjectId);
+  if(!p.conCustomSteps)p.conCustomSteps=[];
+  p.conCustomSteps.push({label,state:'未開始',time:''});
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
+  closeSheet('sheet-task-other');renderDetail(currentProjectId);
+}
+function cycleCustomStep(pid,idx){
+  const p=db.projects.find(x=>x.id===pid);if(!p||!p.conCustomSteps)return;
+  const cs=p.conCustomSteps[idx];if(!cs)return;
+  const states=['未開始','進行中','完成'];
+  const cur=states.indexOf(cs.state||'未開始');
+  cs.state=states[(cur+1)%3];
+  cs.time=cs.state!=='未開始'?new Date().toISOString():'';
+  save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
+}
+function deleteCustomStep(pid,idx){
+  if(!confirm('確定刪除此施工項目？'))return;
+  const p=db.projects.find(x=>x.id===pid);if(!p||!p.conCustomSteps)return;
+  p.conCustomSteps.splice(idx,1);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
 }
 
 // ── 基本資料 ──
