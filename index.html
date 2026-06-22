@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622L">
+<meta name="app-version" content="20260623B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1172,7 +1172,7 @@ function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
 function fDate(d){return d?d.replace(/-/g,'/'):'—';}
-function pName(id){const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
+function pName(id){if(id==='__andun__')return'安盾總管';const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
 function sName(id){const s=db.staff.find(x=>x.id===id);return s?s.name:'—';}
 
 function selectSeg(el,hid,val){
@@ -1292,7 +1292,7 @@ function showPage(id,opts={}){
   }
   if(id==='dashboard')renderDashboard();
   if(id==='projects')renderProjects();
-  if(id==='finance'){fillSel('finance-filter-project',true);fillSel('f-project');renderFinance();}
+  if(id==='finance'){fillSel('finance-filter-project',true,true);fillSel('f-project',false,true);renderFinance();}
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();}
   if(id==='staff')renderStaff();
   if(id==='staff-detail')renderStaffDetail(currentStaffId);
@@ -1402,10 +1402,12 @@ function confirmTimeWheel(){
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
 // ── HELPERS ──
-function fillSel(selId,addAll=false){
+function fillSel(selId,addAll=false,addAndun=false){
   const el=document.getElementById(selId);if(!el)return;
   const val=el.value;el.innerHTML='';
   if(addAll)el.innerHTML='<option value="">所有專案</option>';
+  if(addAll&&addAndun)el.innerHTML+='<option value="__andun__">安盾總管</option>';
+  if(!addAll&&addAndun)el.innerHTML='<option value="__andun__">安盾總管</option>';
   db.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o);});
   if(val)el.value=val;
 }
@@ -1471,6 +1473,7 @@ function confirmPunch(){
   const name=document.getElementById('punch-name').value;
   const projectId=document.getElementById('punch-project').value;
   if(!name)return alert('請選擇員工姓名');
+  if(!projectId)return alert('請選擇今日工作專案');
   if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
   const punchRecord={id:uid(),type:pendingPunchType,name,projectId,time:new Date().toISOString(),timeStr:nowFull(),date:today()};
   // 先把打卡記錄加到本機 db.punches，讓日曆同步時能讀到正確的上下班時間
@@ -1487,26 +1490,43 @@ function confirmPunch(){
   });
 }
 function renderPunchStatus(){
-  const td=db.punches.filter(p=>p.date===today());
-  // 7. 顯示今日所有人出勤狀況
+  const todayStr=today();
+  const td=db.punches.filter(p=>p.date===todayStr);
   const nameMap={};
   td.forEach(p=>{if(!nameMap[p.name])nameMap[p.name]={in:null,out:null};if(p.type==='in')nameMap[p.name].in=p;else nameMap[p.name].out=p;});
+  // 檢查昨天是否有人有上班卡但超過12小時沒下班（跨日異常）
+  const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
+  const yStr=yesterday.toISOString().slice(0,10);
+  const yd=db.punches.filter(p=>p.date===yStr);
+  const yMap={};
+  yd.forEach(p=>{if(!yMap[p.name])yMap[p.name]={in:null,out:null};if(p.type==='in')yMap[p.name].in=p;else yMap[p.name].out=p;});
+  Object.entries(yMap).forEach(([name,{in:i,out:o}])=>{
+    if(i&&!o){
+      const diffH=(Date.now()-new Date(i.time))/(1000*60*60);
+      if(diffH>12&&!nameMap[name]){
+        nameMap[name]={in:i,out:null,crossDay:true};
+      }
+    }
+  });
   const names=Object.keys(nameMap);
   let html='';
   if(!names.length){
-    html='尚未打卡';
+    html='今日尚未打卡';
   } else {
     html=names.map(name=>{
-      const{in:i,out:o}=nameMap[name];
-      // 3. 異常提醒
+      const{in:i,out:o,crossDay}=nameMap[name];
       let warn='';
-      if(i){
+      if(i&&!crossDay){
         const inH=new Date(i.time).getHours();
         if(inH<5||inH>=12)warn=' ⚠️';
       }
       if(i&&!o){
         const diffH=(Date.now()-new Date(i.time))/(1000*60*60);
         if(diffH>12)warn+=' ⚠️未下班';
+      }
+      // 昨天打卡但沒下班的跨日異常才顯示，今天正常完成的不顯示
+      if(crossDay){
+        return`<div style="font-size:13px;line-height:1.8">⚠️ <b>${name}</b>　昨日${warn}</div>`;
       }
       const inStr=i?i.timeStr.slice(-5):'—';
       const outStr=o?o.timeStr.slice(-5):'未下班';
@@ -1521,13 +1541,9 @@ function renderDashboard(){
   renderPunchStatus();
   const neg=db.projects.filter(p=>p.type==='洽談中').length;
   const con=db.projects.filter(p=>p.type==='施作中').length;
-  const income=db.finance.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
-  const exp=db.finance.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
   document.getElementById('dash-stats').innerHTML=`
     <div class="stat-card"><div class="stat-label">施作中</div><div class="stat-value">${con}</div></div>
-    <div class="stat-card"><div class="stat-label">洽談中</div><div class="stat-value">${neg}</div></div>
-    <div class="stat-card"><div class="stat-label">累計收入</div><div class="stat-value text-green" style="font-size:18px">$${fMoney(income)}</div></div>
-    <div class="stat-card"><div class="stat-label">累計支出</div><div class="stat-value text-red" style="font-size:18px">$${fMoney(exp)}</div></div>`;
+    <div class="stat-card"><div class="stat-label">洽談中</div><div class="stat-value">${neg}</div></div>`;
 
   // 洽談中（含進度時間）
   const negs=db.projects.filter(p=>p.type==='洽談中');
@@ -1648,6 +1664,8 @@ function saveProject(){
   if(!city)return alert('請選擇縣市');
   if(!name)return alert('請輸入區與建案名稱');
   if(!type)return alert('請選擇分類');
+  const leader=document.getElementById('p-leader').value;
+  if(!leader)return alert('請選擇專案負責人');
   const mDate=document.getElementById('p-measure-date').value;
   const mTime=getMeasureTime();
   const measureDate=(type==='洽談中'&&mDate)?mDate+'T'+(mTime||'09:00')+':00':null;
@@ -2026,7 +2044,7 @@ function setNegStep(pid,step){
 }
 
 function openFinanceForProject(pid){
-  fillSel('f-project');
+  fillSel('f-project',false,true);
   document.getElementById('f-project').value=pid;
   openSheet('sheet-finance');
 }
@@ -2039,11 +2057,33 @@ function cycleStep(pid,stepName){
   const next={'未開始':'進行中','進行中':'完成','完成':'未開始'};
   const newState=next[cur];
   p.conSteps[stepName]={state:newState,time:newState!=='未開始'?new Date().toISOString():''};
-  // 驗收完成 → 已完工
+  // 驗收完成 → 已完工 + 自動結算盈餘到安盾總管
   if(stepName==='驗收'&&newState==='完成'){
-    if(confirm('驗收完成！是否將此專案歸類為「已完工」？')){p.type='已完工';}
+    if(confirm('驗收完成！是否將此專案歸類為「已完工」並結算盈餘到安盾總管？')){
+      p.type='已完工';
+      settleProjectToAndun(pid,p.name);
+    }
   }
   save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
+}
+function settleProjectToAndun(pid,pname){
+  // 計算該專案盈餘（收入 - 支出）
+  const pFin=db.finance.filter(f=>f.projectId===pid);
+  const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
+  const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
+  const profit=income-exp;
+  // 刪除舊的結算記錄（若曾結算過）
+  const oldId=db.finance.find(f=>f.projectId==='__andun__'&&f.settleFromPid===pid);
+  if(oldId){
+    db.finance=db.finance.filter(f=>!(f.projectId==='__andun__'&&f.settleFromPid===pid));
+    if(window.fbDeleteFinance)window.fbDeleteFinance(oldId.id).catch(()=>{});
+  }
+  // 建立新結算記錄
+  const rec={id:uid(),name:'專案結算',amount:Math.abs(profit),projectId:'__andun__',ftype:profit>=0?'收入':'支出',expCat:'',date:today(),note:`來自：${pname}`,settleFromPid:pid};
+  db.finance.push(rec);
+  save();
+  if(window.fbSaveFinance)window.fbSaveFinance(rec);
+  alert(`已結算「${pname}」盈餘 ${profit>=0?'+':''}$${fMoney(profit)} 至安盾總管`);
 }
 function openAddCustomStep(pid){
   currentProjectId=pid;
@@ -2368,8 +2408,10 @@ function saveFinance(){
   const name=document.getElementById('f-name').value.trim();
   const amount=document.getElementById('f-amount').value;
   if(!name||!amount)return alert('請填入項目名稱與金額');
+  const projectId=document.getElementById('f-project').value;
+  if(!projectId)return alert('請選擇所屬專案（公司費用請選「安盾總管」）');
   const ftype=document.getElementById('f-type').value;
-  const rec={id:uid(),name,amount:Number(amount),projectId:document.getElementById('f-project').value,ftype,expCat:ftype==='支出'?document.getElementById('f-expense-cat').value:'',date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
+  const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:ftype==='支出'?document.getElementById('f-expense-cat').value:'',date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
   db.finance.push(rec);
   save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
   closeSheet('sheet-finance');
