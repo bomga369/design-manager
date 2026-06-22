@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260622A">
+<meta name="app-version" content="20260622B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -302,6 +302,9 @@ textarea.form-input{resize:none;min-height:72px;}
   <!-- 專案列表 -->
   <div id="page-projects" class="page">
     <div class="content">
+      <div style="padding:0 0 0.75rem">
+        <input class="form-input" id="proj-search" placeholder="🔍 搜尋專案名稱、客戶、地址..." oninput="renderProjects()" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
       <div class="section-hd">洽談中</div>
       <div id="proj-negotiating"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
@@ -379,7 +382,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="sheet-punch-title">上班打卡</span><button class="sheet-close" onclick="closeSheet('sheet-punch')"><i class="ti ti-x"></i></button></div>
     <div class="form-group"><label class="form-label">今日工作專案</label><select class="form-input" id="punch-project"></select></div>
-    <div class="form-group"><label class="form-label">員工姓名</label><input class="form-input" id="punch-name" placeholder="請輸入姓名" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="form-group"><label class="form-label">員工姓名</label><select class="form-input" id="punch-name"><option value="">請選擇員工</option></select></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-punch')">取消</button>
       <button class="btn btn-primary" onclick="confirmPunch()">確認打卡</button>
@@ -399,7 +402,7 @@ textarea.form-input{resize:none;min-height:72px;}
       </div>
       <input type="hidden" id="pe-type" value="in">
     </div>
-    <div class="form-group"><label class="form-label">員工姓名 *</label><input class="form-input" id="pe-name" placeholder="請輸入姓名" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="form-group"><label class="form-label">員工姓名 *</label><select class="form-input" id="pe-name"><option value="">請選擇員工</option></select></div>
     <div class="form-group"><label class="form-label">所屬專案</label><select class="form-input" id="pe-project"></select></div>
     <div class="form-group">
       <label class="form-label">日期 / 時間 *</label>
@@ -521,6 +524,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group"><label class="form-label">地址</label><input class="form-input" id="info-address" placeholder="台北市信義區..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div id="info-key-group" class="form-group"><label class="form-label">密碼 / 鑰匙</label><input class="form-input" id="info-key" placeholder="大門密碼或鑰匙說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div id="info-parking-group" class="form-group"><label class="form-label">車位</label><input class="form-input" id="info-parking" placeholder="車位位置或說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="form-group"><label class="form-label">負責人</label><select class="form-input" id="info-leader"><option value="">請選擇負責人</option></select></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-info')">取消</button>
       <button class="btn btn-primary" onclick="saveInfo()">儲存</button>
@@ -608,6 +612,23 @@ textarea.form-input{resize:none;min-height:72px;}
       <button class="btn" onclick="closeSheet('sheet-staff')">取消</button>
       <button class="btn btn-primary" id="sheet-staff-save" onclick="saveStaff()">儲存</button>
     </div>
+  </div>
+</div>
+
+<div class="migrate-banner" id="backup-fail-banner" style="display:none">
+  <div class="migrate-banner-title">⚠️ 今日自動備份失敗</div>
+  <div class="migrate-banner-sub">Google Drive 備份未成功，建議手動匯出一份備份檔儲存到手機。</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="document.getElementById('backup-fail-banner').style.display='none'">略過</button>
+    <button class="btn btn-primary" onclick="exportBackupJson()">匯出備份檔</button>
+  </div>
+</div>
+
+<div class="migrate-banner" id="measure-reminder-banner" style="display:none;background:var(--blue-bg);border-color:var(--blue-text)">
+  <div class="migrate-banner-title" style="color:var(--blue-text)">📐 近期丈量提醒</div>
+  <div id="measure-reminder-content" class="migrate-banner-sub"></div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="document.getElementById('measure-reminder-banner').style.display='none'">知道了</button>
   </div>
 </div>
 
@@ -711,7 +732,19 @@ function showApp(){
   document.getElementById('user-menu-name').textContent=currentUser.name;
   document.getElementById('user-menu-email').textContent=currentUser.email;
   load();renderDashboard();
-  checkAutoBackup();
+  // 2. 登入後主動要求Google授權(使用者剛按過登入，Safari不會擋彈窗)
+  // 稍微延遲讓畫面先渲染完再彈出
+  setTimeout(()=>{
+    if(!driveAccessToken){
+      ensureDriveAuth(()=>{
+        checkAutoBackup();
+        checkMeasureReminder();
+      });
+    } else {
+      checkAutoBackup();
+      checkMeasureReminder();
+    }
+  },800);
 }
 
 function toggleUserMenu(){
@@ -1226,19 +1259,28 @@ function dotHtml(p,clickable=false){
     </div>${i<NEG_STEPS.length-1?`<div class="dot-line ${i<step?'done':''}"></div>`:''}`;}).join('');
 }
 
+function fillNameSel(selId){
+  const el=document.getElementById(selId);if(!el)return;
+  const val=el.value;
+  el.innerHTML='<option value="">請選擇員工</option>';
+  db.staff.forEach(s=>{const o=document.createElement('option');o.value=s.name;o.textContent=s.name+(s.stitle?' · '+s.stitle:'');el.appendChild(o);});
+  if(val)el.value=val;
+}
+
 // ── 打卡 ──
 function punch(type){
   pendingPunchType=type;
   document.getElementById('sheet-punch-title').textContent=type==='in'?'上班打卡 🟢':'下班打卡 🔴';
   fillSel('punch-project');
+  fillNameSel('punch-name');
   const last=db.punches[db.punches.length-1];
-  document.getElementById('punch-name').value=last?last.name:'';
+  if(last){const el=document.getElementById('punch-name');if(el)el.value=last.name;}
   openSheet('sheet-punch');
 }
 function confirmPunch(){
-  const name=document.getElementById('punch-name').value.trim();
+  const name=document.getElementById('punch-name').value;
   const projectId=document.getElementById('punch-project').value;
-  if(!name)return alert('請輸入員工姓名');
+  if(!name)return alert('請選擇員工姓名');
   if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
   const punchRecord={id:uid(),type:pendingPunchType,name,projectId,time:new Date().toISOString(),timeStr:nowFull(),date:today()};
   closeSheet('sheet-punch');
@@ -1251,12 +1293,32 @@ function confirmPunch(){
 }
 function renderPunchStatus(){
   const td=db.punches.filter(p=>p.date===today());
-  const lastIn=td.filter(p=>p.type==='in').slice(-1)[0];
-  const lastOut=td.filter(p=>p.type==='out').slice(-1)[0];
-  const el=document.getElementById('punch-status');
-  if(lastIn&&lastOut)el.textContent=`✅ 上班 ${lastIn.timeStr} · 下班 ${lastOut.timeStr}`;
-  else if(lastIn)el.textContent=`🟢 上班打卡：${lastIn.timeStr}`;
-  else el.textContent='尚未打卡';
+  // 7. 顯示今日所有人出勤狀況
+  const nameMap={};
+  td.forEach(p=>{if(!nameMap[p.name])nameMap[p.name]={in:null,out:null};if(p.type==='in')nameMap[p.name].in=p;else nameMap[p.name].out=p;});
+  const names=Object.keys(nameMap);
+  let html='';
+  if(!names.length){
+    html='尚未打卡';
+  } else {
+    html=names.map(name=>{
+      const{in:i,out:o}=nameMap[name];
+      // 3. 異常提醒
+      let warn='';
+      if(i){
+        const inH=new Date(i.time).getHours();
+        if(inH<5||inH>=12)warn=' ⚠️';
+      }
+      if(i&&!o){
+        const diffH=(Date.now()-new Date(i.time))/(1000*60*60);
+        if(diffH>12)warn+=' ⚠️未下班';
+      }
+      const inStr=i?i.timeStr.slice(-5):'—';
+      const outStr=o?o.timeStr.slice(-5):'未下班';
+      return`<div style="font-size:13px;line-height:1.8">${i?'✅':'🟡'} <b>${name}</b>　上 ${inStr}　下 ${outStr}${warn}</div>`;
+    }).join('');
+  }
+  document.getElementById('punch-status').innerHTML=html;
 }
 
 // ── DASHBOARD ──
@@ -1307,12 +1369,30 @@ function renderDashboard(){
 }
 
 // ── PROJECTS ──
+function projPhotoCount(p){
+  if(!p.files)return 0;
+  return Object.values(p.files).reduce((s,arr)=>s+(Array.isArray(arr)?arr.length:0),0);
+}
+function longPressStatus(pid){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  const opts=['洽談中','施作中','已完工','無回應'].filter(s=>s!==p.type);
+  const choice=opts.find(s=>confirm(`將「${p.name}」改為「${s}」嗎？`));
+  if(!choice)return;
+  p.type=choice;
+  save();if(window.fbSaveProject)window.fbSaveProject(p);renderProjects();
+}
 function renderProjects(){
+  const q=(document.getElementById('proj-search')?.value||'').trim().toLowerCase();
+  function matchQ(p){
+    if(!q)return true;
+    return(p.name||'').toLowerCase().includes(q)||(p.bname||'').toLowerCase().includes(q)||(p.client||'').toLowerCase().includes(q)||(p.area||'').toLowerCase().includes(q)||(p.info?.address||'').toLowerCase().includes(q);
+  }
   function negCard(p){
-    return`<div class="card" style="margin-bottom:0.75rem;">
+    const cnt=projPhotoCount(p);
+    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('洽談中')}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
         <div class="dot-progress mt2">${dotHtml(p)}</div>
       </div>
     </div>`;
@@ -1327,20 +1407,21 @@ function renderProjects(){
     const activeLabel=activeKey?(activeKey==='其他'&&p.conOtherLabel?p.conOtherLabel:activeKey):null;
     const activeTime=activeKey&&steps[activeKey]?steps[activeKey].time:'';
     const badge=p.type==='已完工'?sBadge('已完工'):sBadge('施作中');
-    return`<div class="card" style="margin-bottom:0.75rem;">
+    const cnt=projPhotoCount(p);
+    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${badge}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
         ${lastLabel?`<div class="text-xs mt2" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
         ${activeLabel?`<div class="text-xs mt1" style="color:var(--amber)">🔄 ${activeLabel}${activeTime?' · '+fmtMD(activeTime):''}</div>`:''}
         ${!lastDone&&!activeKey?`<div class="text-xs text-muted mt2">尚未開始施工</div>`:''}
       </div>
     </div>`;
   }
-  const negs=db.projects.filter(p=>p.type==='洽談中');
-  const nors=db.projects.filter(p=>p.type==='無回應');
-  const cons=db.projects.filter(p=>p.type==='施作中');
-  const done=db.projects.filter(p=>p.type==='已完工');
+  const negs=db.projects.filter(p=>p.type==='洽談中'&&matchQ(p));
+  const nors=db.projects.filter(p=>p.type==='無回應'&&matchQ(p));
+  const cons=db.projects.filter(p=>p.type==='施作中'&&matchQ(p));
+  const done=db.projects.filter(p=>p.type==='已完工'&&matchQ(p));
   document.getElementById('proj-negotiating').innerHTML=negs.length?negs.map(negCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-user-off"></i><p>尚無洽談中專案</p></div></div>`;
   document.getElementById('proj-construction').innerHTML=cons.length?cons.map(conCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-building-off"></i><p>尚無施作中專案</p></div></div>`;
   document.getElementById('proj-completed').innerHTML=done.length?done.map(p=>{
@@ -1349,24 +1430,31 @@ function renderProjects(){
     const lastDone=doneKeys.length?doneKeys[doneKeys.length-1]:null;
     const lastLabel=lastDone?(lastDone==='其他'&&p.conOtherLabel?p.conOtherLabel:lastDone):null;
     const lastTime=lastDone&&steps[lastDone]?steps[lastDone].time:'';
-    return`<div class="card" style="margin-bottom:0.75rem;">
+    const cnt=projPhotoCount(p);
+    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.area?p.area+' - ':''}${p.bname||p.name}</div>${sBadge('已完工')}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
         ${lastLabel?`<div class="text-xs mt2" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
       </div>
       <div style="padding:0.6rem 1rem;border-top:0.5px solid var(--border)">
         <button class="btn btn-sm" style="width:100%" onclick="event.stopPropagation();exportProjectReport('${p.id}',this)"><i class="ti ti-file-export"></i> 匯出專案總表(PDF)</button>
       </div>
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-check-off"></i><p>尚無已完工專案</p></div></div>`;
-  document.getElementById('proj-no-response').innerHTML=nors.length?nors.map(p=>`
-    <div class="card" style="margin-bottom:0.75rem;">
+  document.getElementById('proj-no-response').innerHTML=nors.length?nors.map(p=>{
+    const cnt=projPhotoCount(p);
+    return`<div class="card" style="margin-bottom:0.75rem;" ontouchstart="startLongPress('${p.id}')" ontouchend="clearLongPress()" ontouchmove="clearLongPress()" oncontextmenu="event.preventDefault();longPressStatus('${p.id}')">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('無回應')}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
       </div>
-    </div>`).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-mail-off"></i><p>尚無無回應專案</p></div></div>`;
+    </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-mail-off"></i><p>尚無無回應專案</p></div></div>`;
 }
+
+// 長按偵測（iOS觸控）
+let _lpTimer=null;
+function startLongPress(pid){_lpTimer=setTimeout(()=>{longPressStatus(pid);},600);}
+function clearLongPress(){if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}}
 
 // ── SAVE PROJECT ──
 function saveProject(){
@@ -1770,6 +1858,8 @@ function openInfoSheet(pid){
   document.getElementById('info-address').value=p.info.address||'';
   document.getElementById('info-key').value=p.info.key||'';
   document.getElementById('info-parking').value=p.info.parking||'';
+  fillStaffSel('info-leader');
+  document.getElementById('info-leader').value=p.leader||'';
   const showKeyFields=(p.type==='施作中'||p.type==='已完工')?'block':'none';
   document.getElementById('info-key-group').style.display=showKeyFields;
   document.getElementById('info-parking-group').style.display=showKeyFields;
@@ -1780,6 +1870,7 @@ function saveInfo(){
   if(!p.info)p.info={};
   p.info.phone=document.getElementById('info-phone').value;
   p.info.address=document.getElementById('info-address').value;
+  p.leader=document.getElementById('info-leader').value;
   if(p.type==='施作中'||p.type==='已完工'){
     p.info.key=document.getElementById('info-key').value;
     p.info.parking=document.getElementById('info-parking').value;
@@ -1909,7 +2000,38 @@ function checkAutoBackup(){
   const todayStr=today();
   if(lastBackup===todayStr)return;
   if(!driveAccessToken)return;
-  uploadBackupFile().catch(err=>console.error('自動備份失敗',err));
+  uploadBackupFile().catch(err=>{
+    console.error('自動備份失敗',err);
+    document.getElementById('backup-fail-banner').style.display='flex';
+  });
+}
+function exportBackupJson(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`安盾備份_${today()}.json`;a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('backup-fail-banner').style.display='none';
+}
+
+// 9. 丈量提醒：開啟App時檢查3天內有丈量日期的專案
+function checkMeasureReminder(){
+  const now=new Date();
+  const soon=db.projects.filter(p=>{
+    if(p.type!=='洽談中'||!p.measureDate)return false;
+    const diff=(new Date(p.measureDate)-now)/(1000*60*60*24);
+    return diff>=0&&diff<=3;
+  });
+  const el=document.getElementById('measure-reminder-banner');
+  if(!soon.length){el.style.display='none';return;}
+  const lines=soon.map(p=>{
+    const d=new Date(p.measureDate);
+    const diff=Math.ceil((d-now)/(1000*60*60*24));
+    const label=diff===0?'今天':diff===1?'明天':`${diff}天後`;
+    return`<div>📐 ${label}・${p.name}（${p.measureDate.slice(11,16)}）</div>`;
+  }).join('');
+  document.getElementById('measure-reminder-content').innerHTML=lines;
+  el.style.display='block';
 }
 
 async function ensureProjectFolderPath(p,cat){
@@ -2116,12 +2238,35 @@ function renderStaffDetail(sid){
           <i class="ti ti-chevron-right text-muted"></i>
         </div>`).join(''):'<div class="empty" style="padding:1.5rem"><i class="ti ti-clock-off"></i><p>此期間無打卡紀錄</p></div>'}
     </div>
-    <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteStaff('${sid}')"><i class="ti ti-trash"></i> 刪除此員工</button>`;
+    <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteStaff('${sid}')"><i class="ti ti-trash"></i> 刪除此員工</button>
+    <div class="section-hd">專案出勤明細</div>
+    <div class="card">
+      ${(()=>{
+        const projMap={};
+        periodPunches.forEach(p=>{
+          if(!p.projectId)return;
+          const key=p.projectId+'|'+p.date;
+          if(!projMap[p.projectId])projMap[p.projectId]=new Set();
+          projMap[p.projectId].add(p.date);
+        });
+        const keys=Object.keys(projMap);
+        if(!keys.length)return'<div class="empty" style="padding:1.5rem"><i class="ti ti-building-off"></i><p>此期間無專案出勤紀錄</p></div>';
+        return keys.map(pid=>{
+          const proj=db.projects.find(x=>x.id===pid);
+          const days=projMap[pid].size;
+          return`<div class="card-row" style="cursor:default">
+            <div class="card-row-body"><div class="card-row-title">${proj?proj.name:'已刪除的專案'}</div></div>
+            <div style="font-weight:500;color:var(--text2)">${days}天</div>
+          </div>`;
+        }).join('');
+      })()}
+    </div>`;
 }
 let editingPunchId=null;
 function openPunchEdit(punchId){
   editingPunchId=punchId||null;
   fillSel('pe-project');
+  fillNameSel('pe-name');
   document.getElementById('pe-project').value='';
   if(punchId){
     const rec=db.punches.find(x=>x.id===punchId);
@@ -2166,10 +2311,10 @@ function resyncOrCleanCalendar(date,name,projectId,deletedId){
   }
 }
 function savePunchEdit(){
-  const name=document.getElementById('pe-name').value.trim();
+  const name=document.getElementById('pe-name').value;
   const dateVal=document.getElementById('pe-date').value;
   const timeVal=document.getElementById('pe-time').value;
-  if(!name||!dateVal||!timeVal)return alert('請填入姓名、日期與時間');
+  if(!name||!dateVal||!timeVal)return alert('請選擇員工並填入日期與時間');
   if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
   const type=document.getElementById('pe-type').value;
   const projectId=document.getElementById('pe-project').value;
