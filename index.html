@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623G">
+<meta name="app-version" content="20260623H">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1980,10 +1980,9 @@ function renderDetail(pid){
   const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span></div>
     <div class="card">
       ${FILE_CATS.map(cat=>{
-        const files=(p.files&&p.files[cat])||[];
         return`<div class="file-row">
           <div class="file-icon"><i class="ti ti-folder"></i></div>
-          <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">📷 已上傳 ${files.length} 張</div></div>
+          <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div></div>
           <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
           <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
         </div>`;}).join('')}
@@ -2354,7 +2353,9 @@ function pickDriveFile(pid,cat){
       for(const file of fileList){
         await uploadOneFile(p,cat,file);
       }
-      save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
+      save();if(window.fbSaveProject)window.fbSaveProject(p);
+      alert(`✅ 已成功上傳 ${fileList.length} 個檔案到「${cat}」資料夾`);
+      renderDetail(pid);
     };
     input.click();
   });
