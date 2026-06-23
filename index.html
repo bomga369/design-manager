@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623R">
+<meta name="app-version" content="20260623S">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1614,11 +1614,10 @@ function renderProjects(){
   const elNor=document.getElementById('proj-no-response');
   if(!elNeg||!elCon||!elDone||!elNor)return;
   function negCard(p){
-    const cnt=projPhotoCount(p);
     return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('洽談中')}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
         <div class="dot-progress mt2">${dotHtml(p)}</div>
       </div>
     </div>`;
@@ -1633,11 +1632,10 @@ function renderProjects(){
     const activeLabel=activeKey?(activeKey==='其他'&&p.conOtherLabel?p.conOtherLabel:activeKey):null;
     const activeTime=activeKey&&steps[activeKey]?steps[activeKey].time:'';
     const badge=p.type==='已完工'?sBadge('已完工'):sBadge('施作中');
-    const cnt=projPhotoCount(p);
     return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${badge}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
         ${lastLabel?`<div class="text-xs mt2" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
         ${activeLabel?`<div class="text-xs mt1" style="color:var(--amber)">🔄 ${activeLabel}${activeTime?' · '+fmtMD(activeTime):''}</div>`:''}
         ${!lastDone&&!activeKey?`<div class="text-xs text-muted mt2">尚未開始施工</div>`:''}
@@ -1656,11 +1654,10 @@ function renderProjects(){
     const lastDone=doneKeys.length?doneKeys[doneKeys.length-1]:null;
     const lastLabel=lastDone?(lastDone==='其他'&&p.conOtherLabel?p.conOtherLabel:lastDone):null;
     const lastTime=lastDone&&steps[lastDone]?steps[lastDone].time:'';
-    const cnt=projPhotoCount(p);
     return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.area?p.area+' - ':''}${p.bname||p.name}</div>${sBadge('已完工')}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
         ${lastLabel?`<div class="text-xs mt2" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
       </div>
       <div style="padding:0.6rem 1rem;border-top:0.5px solid var(--border)">
@@ -1668,11 +1665,10 @@ function renderProjects(){
       </div>
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-check-off"></i><p>尚無已完工專案</p></div></div>`;
   elNor.innerHTML=nors.length?nors.map(p=>{
-    const cnt=projPhotoCount(p);
     return`<div class="card" style="margin-bottom:0.75rem;">
       <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('無回應')}</div>
-        <div class="text-xs text-muted mt1">${p.client||'—'}${cnt?` · 📷${cnt}張`:''}</div>
+        <div class="text-xs text-muted mt1">${p.client||'—'}</div>
       </div>
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-mail-off"></i><p>尚無無回應專案</p></div></div>`;
 }
