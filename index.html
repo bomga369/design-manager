@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623O">
+<meta name="app-version" content="20260623P">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2228,9 +2228,9 @@ async function findOrCreateFolder(name,parentId){
 
 async function verifyFolderExists(folderId){
   try{
-    const res=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id`);
+    const res=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,trashed`);
     const data=await res.json();
-    return !!(data.id);
+    return !!(data.id)&&!data.trashed; // 存在且不在垃圾桶
   }catch(e){return false;}
 }
 async function findOrCreateFolderShared(name, parentId){
