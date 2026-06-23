@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623M">
+<meta name="app-version" content="20260623N">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2173,7 +2173,7 @@ function deleteNote(pid,idx){
 
 // ── 檔案庫（Google Drive）── 與 Google 日曆 ──
 const GOOGLE_API_KEY='AIzaSyDRS3Wnse8MmutBfgv-GlVCrATyhTq446M';
-const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.file';
+const DRIVE_SCOPE='https://www.googleapis.com/auth/drive';
 const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
 const GOOGLE_SCOPES=DRIVE_SCOPE+' '+CALENDAR_SCOPE;
 const SHARED_ROOT_FOLDER_ID='1Qh9Z1uISphuymrgiBMNraTh0DnBFzFsX'; // 共用「工程管理系統」資料夾（Drive 資料夾本身名稱可自行更改，不影響此 ID 連結）
@@ -2374,6 +2374,11 @@ async function ensureProjectFolderPath(p,cat){
   const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
   const projId=await findOrCreateFolderShared(projName,cityId);
   const catId=await findOrCreateFolderShared(cat,projId);
+  // 如果這個分類的資料夾是新建的，清除舊的上傳記錄（Drive被清空的情況）
+  if(p.driveFolders[cat]&&p.driveFolders[cat]!==catId){
+    if(!p.files)p.files={};
+    p.files[cat]=[];
+  }
   p.driveFolders[cat]=catId;
   save();if(window.fbSaveProject)window.fbSaveProject(p);
   return catId;
