@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623B">
+<meta name="app-version" content="20260623G">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -560,17 +560,32 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group"><label class="form-label">所屬專案 *</label><select class="form-input" id="f-project"></select></div>
     <div class="form-group"><label class="form-label">類型</label>
       <div class="segmented">
-        <div class="seg-btn" onclick="selectSeg(this,'f-type','支出');toggleExpCat('支出')">支出（付款）</div>
-        <div class="seg-btn active" onclick="selectSeg(this,'f-type','收入');toggleExpCat('收入')">收入（請款）</div>
+        <div class="seg-btn" onclick="selectSeg(this,'f-type','支出');toggleFinanceCat('支出')">支出（付款）</div>
+        <div class="seg-btn active" onclick="selectSeg(this,'f-type','收入');toggleFinanceCat('收入')">收入（請款）</div>
       </div>
       <input type="hidden" id="f-type" value="收入">
     </div>
     <div class="form-group" id="f-expense-cat-group" style="display:none;"><label class="form-label">支出類別</label>
-      <select class="form-input" id="f-expense-cat">
-        <option value="午餐">午餐</option><option value="晚餐">晚餐</option>
-        <option value="材料五金">材料五金</option><option value="其他">其他</option>
+      <select class="form-input" id="f-expense-cat" onchange="toggleFinanceStaff()">
+        <option value="午餐">午餐</option>
+        <option value="晚餐">晚餐</option>
+        <option value="材料五金">材料五金</option>
+        <option value="薪資">薪資</option>
+        <option value="臨時性支出">臨時性支出</option>
+        <option value="其他">其他</option>
       </select>
     </div>
+    <div class="form-group" id="f-income-cat-group" style="display:block;"><label class="form-label">收入類別</label>
+      <select class="form-input" id="f-income-cat" onchange="toggleFinanceStaff()">
+        <option value="工程款01期">工程款01期</option>
+        <option value="工程款02期">工程款02期</option>
+        <option value="工程款03期">工程款03期</option>
+        <option value="尾款">尾款</option>
+        <option value="款項還回">款項還回</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group"><label class="form-label">項目名稱 *</label><input class="form-input" id="f-name" placeholder="例：第一期工程款" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
@@ -1179,14 +1194,26 @@ function selectSeg(el,hid,val){
   el.closest('.segmented').querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');document.getElementById(hid).value=val;
 }
-function toggleExpCat(t){document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';}
+function toggleFinanceCat(t){
+  document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';
+  document.getElementById('f-income-cat-group').style.display=t==='收入'?'block':'none';
+  toggleFinanceStaff();
+}
+function toggleFinanceStaff(){
+  const t=document.getElementById('f-type').value;
+  const expCat=document.getElementById('f-expense-cat').value;
+  const incCat=document.getElementById('f-income-cat').value;
+  const needStaff=(t==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'))||(t==='收入'&&incCat==='款項還回');
+  const grp=document.getElementById('f-staff-group');
+  grp.style.display=needStaff?'block':'none';
+  if(needStaff)fillStaffSel('f-staff-sel');
+}
 function openSheet(id){document.getElementById(id).classList.add('open');}
 function closeSheet(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.sheet-overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});});
 
 // ── 打卡計算 ──
 function calcWorkStats(punches){
-  // 依日期分組
   const byDate={};
   punches.forEach(p=>{if(!byDate[p.date])byDate[p.date]=[];byDate[p.date].push(p);});
   let totalDays=0, totalOTMins=0;
@@ -1195,28 +1222,24 @@ function calcWorkStats(punches){
     const outs=arr.filter(p=>p.type==='out').map(p=>new Date(p.time)).sort((a,b)=>a-b);
     if(!ins.length||!outs.length)return;
     const inT=ins[0], outT=outs[outs.length-1];
-    // 實際工時（分鐘），扣掉午休
     const inMs=inT.getTime(), outMs=outT.getTime();
+    // 扣午休 12:00-13:00
     const lunchStart=new Date(inT);lunchStart.setHours(12,0,0,0);
     const lunchEnd=new Date(inT);lunchEnd.setHours(13,0,0,0);
     let workMins=(outMs-inMs)/60000;
-    // 扣午休（只有實際橫跨午休才扣）
     if(inMs<lunchEnd.getTime()&&outMs>lunchStart.getTime()){
       const overlapStart=Math.max(inMs,lunchStart.getTime());
       const overlapEnd=Math.min(outMs,lunchEnd.getTime());
       if(overlapEnd>overlapStart)workMins-=(overlapEnd-overlapStart)/60000;
     }
-    // 天數計算
-    if(workMins>=480)totalDays+=1;
-    else if(workMins>=240)totalDays+=0.5;
-    else if(workMins>0)totalDays+=0.5; // 未滿4h以半天計
-    // 加班：17:00後，每0.5h算0.5h
+    // 天數計算：實際工時≥6小時→1天，不滿6小時→0.5天
+    if(workMins>=360)totalDays+=1;
+    else totalDays+=0.5;
+    // 加班：17:00後每滿1小時計1小時（不足1小時不計）
     const ot17=new Date(outT);ot17.setHours(17,0,0,0);
     if(outT>ot17){
-      const otMins=(outT-ot17)/60000;
-      // 每0.5h(30min)計0.5h加班
-      const otHalf=Math.floor(otMins/30);
-      totalOTMins+=otHalf*30;
+      const otMins=(outT.getTime()-ot17.getTime())/60000;
+      totalOTMins+=Math.floor(otMins/60)*60;
     }
   });
   return{days:totalDays,otHours:totalOTMins/60};
@@ -1493,19 +1516,20 @@ function renderPunchStatus(){
   const todayStr=today();
   const td=db.punches.filter(p=>p.date===todayStr);
   const nameMap={};
-  td.forEach(p=>{if(!nameMap[p.name])nameMap[p.name]={in:null,out:null};if(p.type==='in')nameMap[p.name].in=p;else nameMap[p.name].out=p;});
-  // 檢查昨天是否有人有上班卡但超過12小時沒下班（跨日異常）
-  const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
-  const yStr=yesterday.toISOString().slice(0,10);
-  const yd=db.punches.filter(p=>p.date===yStr);
-  const yMap={};
-  yd.forEach(p=>{if(!yMap[p.name])yMap[p.name]={in:null,out:null};if(p.type==='in')yMap[p.name].in=p;else yMap[p.name].out=p;});
-  Object.entries(yMap).forEach(([name,{in:i,out:o}])=>{
-    if(i&&!o){
-      const diffH=(Date.now()-new Date(i.time))/(1000*60*60);
-      if(diffH>12&&!nameMap[name]){
-        nameMap[name]={in:i,out:null,crossDay:true};
-      }
+  td.forEach(p=>{
+    if(!nameMap[p.name])nameMap[p.name]={in:null,out:null,crossDay:false};
+    if(p.type==='in')nameMap[p.name].in=p;
+    else nameMap[p.name].out=p;
+  });
+  // 找出任何一天有上班卡但無下班卡超過12小時的人（跨日異常）
+  const allIn=db.punches.filter(p=>p.type==='in');
+  allIn.forEach(pi=>{
+    const diffH=(Date.now()-new Date(pi.time))/(1000*60*60);
+    if(diffH<12)return;
+    // 同一天同一人有沒有下班卡
+    const hasOut=db.punches.some(p=>p.type==='out'&&p.name===pi.name&&p.date===pi.date);
+    if(!hasOut&&!nameMap[pi.name]){
+      nameMap[pi.name]={in:pi,out:null,crossDay:pi.date!==todayStr};
     }
   });
   const names=Object.keys(nameMap);
@@ -1524,9 +1548,8 @@ function renderPunchStatus(){
         const diffH=(Date.now()-new Date(i.time))/(1000*60*60);
         if(diffH>12)warn+=' ⚠️未下班';
       }
-      // 昨天打卡但沒下班的跨日異常才顯示，今天正常完成的不顯示
       if(crossDay){
-        return`<div style="font-size:13px;line-height:1.8">⚠️ <b>${name}</b>　昨日${warn}</div>`;
+        return`<div style="font-size:13px;line-height:1.8">⚠️ <b>${name}</b>　${i.timeStr.slice(0,-6)}未下班，請補登</div>`;
       }
       const inStr=i?i.timeStr.slice(-5):'—';
       const outStr=o?o.timeStr.slice(-5):'未下班';
@@ -1893,20 +1916,21 @@ function renderDetail(pid){
     const staffMap={};
     projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
     const staffNames=Object.keys(staffMap);
-    let totalEffMins=0;
+    let totalEffMins=0, totalOTHours=0;
     const effRows=staffNames.map(name=>{
       const st=calcWorkStats(staffMap[name]);
       totalEffMins+=st.days;
+      totalOTHours+=st.otHours;
       return`<div class="eff-row">
         <div class="staff-avatar" style="width:32px;height:32px;font-size:14px"><i class="ti ti-user"></i></div>
         <div class="eff-name">${name}</div>
-        <div class="eff-val">${st.days}天${st.otHours>0?' + 加班'+st.otHours+'h':''}</div>
+        <div class="eff-val">${st.days}天${st.otHours>0?' +'+st.otHours+'h加班':''}</div>
       </div>`;}).join('');
 
     progressHtml=`
       <div class="section-hd">施作效率</div>
       <div class="card">
-        ${staffNames.length?effRows+'<div class="eff-row" style="background:var(--bg2)"><div class="eff-name fw500">合計工時</div><div class="eff-val fw500">${totalEffMins}天</div></div>':'<div class="empty" style="padding:1.5rem"><i class="ti ti-users-off"></i><p>尚無打卡記錄</p></div>'}
+        ${staffNames.length?effRows+`<div class="eff-row" style="background:var(--bg2)"><div class="eff-name fw500">合計</div><div class="eff-val fw500">${totalEffMins}天${totalOTHours>0?' +'+totalOTHours+'h加班':''}</div></div>`:'<div class="empty" style="padding:1.5rem"><i class="ti ti-users-off"></i><p>尚無打卡記錄</p></div>'}
       </div>
       <div class="section-hd">施工進度</div>
       <div class="card">
@@ -1957,21 +1981,11 @@ function renderDetail(pid){
     <div class="card">
       ${FILE_CATS.map(cat=>{
         const files=(p.files&&p.files[cat])||[];
-        const folderId=p.driveFolders&&p.driveFolders[cat];
-        return`<div class="file-row" style="flex-direction:column;align-items:stretch;gap:8px;">
-          <div style="display:flex;align-items:center;gap:0.75rem;">
-            <div class="file-icon"><i class="ti ti-folder"></i></div>
-            <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">${files.length?files.length+' 個檔案':'尚無檔案'}</div></div>
-            <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
-            <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
-          </div>
-          ${files.length?`<div style="padding-left:50px;display:flex;flex-direction:column;gap:4px;">
-            ${files.map((f,fi)=>`
-              <div style="display:flex;align-items:center;gap:6px;">
-                <a href="${f.url}" target="_blank" style="flex:1;font-size:12px;color:var(--blue-text);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="ti ti-file"></i> ${f.name}</a>
-                <button class="btn btn-icon btn-sm btn-danger" onclick="removeDriveFile('${pid}','${cat}',${fi})"><i class="ti ti-x" style="font-size:11px"></i></button>
-              </div>`).join('')}
-          </div>`:''}
+        return`<div class="file-row">
+          <div class="file-icon"><i class="ti ti-folder"></i></div>
+          <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">📷 已上傳 ${files.length} 張</div></div>
+          <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
+          <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
         </div>`;}).join('')}
     </div>`;
 
@@ -2301,7 +2315,7 @@ function checkMeasureReminder(){
 
 async function ensureProjectFolderPath(p,cat){
   if(!p.driveFolders)p.driveFolders={};
-  if(p.driveFolders[cat])return p.driveFolders[cat];
+  // 不使用快取，每次都重新查找，避免舊ID失效導致上傳或開啟失敗
   const rootId=SHARED_ROOT_FOLDER_ID;
   const cityId=await findOrCreateFolder(p.city||'未分類',rootId);
   const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
@@ -2314,16 +2328,12 @@ async function ensureProjectFolderPath(p,cat){
 
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  const folderId=p.driveFolders&&p.driveFolders[cat];
-  if(folderId){
-    window.open(`https://drive.google.com/drive/folders/${folderId}`,'_blank');
-  } else {
-    ensureDriveAuth(async()=>{
-      const id=await ensureProjectFolderPath(p,cat);
-      renderDetail(pid);
-      window.open(`https://drive.google.com/drive/folders/${id}`,'_blank');
-    });
-  }
+  // 每次都重新查找，不用快取，確保資料夾ID有效
+  ensureDriveAuth(async()=>{
+    const id=await ensureProjectFolderPath(p,cat);
+    renderDetail(pid);
+    window.open(`https://drive.google.com/drive/folders/${id}`,'_blank');
+  });
 }
 
 function pickDriveFile(pid,cat){
@@ -2335,6 +2345,12 @@ function pickDriveFile(pid,cat){
       const fileList=Array.from(input.files);
       if(!fileList.length)return;
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
+      const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
+      const duplicates=fileList.filter(f=>existingNames.includes(f.name));
+      if(duplicates.length){
+        const names=duplicates.map(f=>f.name).join('、');
+        if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`))return;
+      }
       for(const file of fileList){
         await uploadOneFile(p,cat,file);
       }
@@ -2351,7 +2367,7 @@ async function uploadOneFile(p,cat,file){
     const form=new FormData();
     form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
     form.append('file',file);
-    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink&key=${GOOGLE_API_KEY}`,{
+    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name&key=${GOOGLE_API_KEY}`,{
       method:'POST',
       headers:{'Authorization':'Bearer '+driveAccessToken},
       body:form
@@ -2360,11 +2376,13 @@ async function uploadOneFile(p,cat,file){
     if(result.id){
       if(!p.files)p.files={};
       if(!p.files[cat])p.files[cat]=[];
-      p.files[cat].push({name:result.name,url:result.webViewLink||`https://drive.google.com/file/d/${result.id}/view`,driveId:result.id});
+      p.files[cat].push({name:result.name,driveId:result.id});
     } else {
+      if(p.driveFolders)delete p.driveFolders[cat];
       alert('上傳失敗：'+(result.error?.message||'未知錯誤'));
     }
   }catch(e){
+    if(p.driveFolders)delete p.driveFolders[cat];
     alert('上傳發生錯誤：'+e.message);
   }
 }
@@ -2396,7 +2414,7 @@ function renderFinance(){
       <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
       <div class="finance-body">
         <div class="finance-name">${f.name}${f.expCat?` <span style="color:var(--text3);font-size:11px">${f.expCat}</span>`:''}</div>
-        <div class="finance-meta">${fDate(f.date)} · ${pName(f.projectId)}${f.note?' · '+f.note:''}</div>
+        <div class="finance-meta">${fDate(f.date)} · ${pName(f.projectId)}${f.expCat?' · '+f.expCat:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.note?' · '+f.note:''}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         <span class="fw500 ${f.ftype==='收入'?'text-green':'text-red'}">${f.ftype==='收入'?'+':'-'}$${fMoney(f.amount)}</span>
@@ -2411,7 +2429,13 @@ function saveFinance(){
   const projectId=document.getElementById('f-project').value;
   if(!projectId)return alert('請選擇所屬專案（公司費用請選「安盾總管」）');
   const ftype=document.getElementById('f-type').value;
-  const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:ftype==='支出'?document.getElementById('f-expense-cat').value:'',date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
+  const expCat=ftype==='支出'?document.getElementById('f-expense-cat').value:'';
+  const incCat=ftype==='收入'?document.getElementById('f-income-cat').value:'';
+  const needStaff=(ftype==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'))||(ftype==='收入'&&incCat==='款項還回');
+  const staffId=needStaff?document.getElementById('f-staff-sel').value:'';
+  if(needStaff&&!staffId)return alert('請選擇相關人員');
+  const staffName=staffId?(db.staff.find(s=>s.id===staffId)||{}).name||'':'';
+  const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat,incCat,staffId,staffName,date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
   db.finance.push(rec);
   save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
   closeSheet('sheet-finance');
