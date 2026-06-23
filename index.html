@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623L">
+<meta name="app-version" content="20260623M">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2207,19 +2207,23 @@ async function driveApiFetch(url,options={}){
 async function findOrCreateFolder(name,parentId){
   let q=`mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g,"\\'")}' and trashed=false`;
   if(parentId)q+=` and '${parentId}' in parents`; else q+=` and 'root' in parents`;
-  // includeItemsFromAllDrives 確保搜尋到其他帳號在共用資料夾裡建的子資料夾
-  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&includeItemsFromAllDrives=true&supportsAllDrives=true&key=${GOOGLE_API_KEY}`;
+  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&key=${GOOGLE_API_KEY}`;
   const res=await driveApiFetch(searchUrl);
   const data=await res.json();
   if(data.files&&data.files.length>0)return data.files[0].id;
   // 找不到才建立
-  const metadata={name,mimeType:'application/vnd.google-apps.folder',parents:parentId?[parentId]:undefined};
-  const createRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&key=${GOOGLE_API_KEY}`,{
+  const metadata={name,mimeType:'application/vnd.google-apps.folder'};
+  if(parentId)metadata.parents=[parentId];
+  const createRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files?key=${GOOGLE_API_KEY}`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(metadata)
   });
   const created=await createRes.json();
+  if(!created.id){
+    console.error('建立資料夾失敗',created);
+    throw new Error('建立資料夾失敗：'+(created.error?.message||'未知錯誤'));
+  }
   return created.id;
 }
 
