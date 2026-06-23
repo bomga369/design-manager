@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623Q">
+<meta name="app-version" content="20260623R">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2372,6 +2372,9 @@ function pickDriveFile(pid,cat){
       const fileList=Array.from(input.files);
       if(!fileList.length)return;
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
+      // 先確認資料夾路徑（若Drive被清空，會自動清除p.files舊記錄）
+      try{ await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); return; }
+      // 確認後再檢查重複（此時p.files已是最新狀態）
       const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
       const duplicates=fileList.filter(f=>existingNames.includes(f.name));
       if(duplicates.length){
