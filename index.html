@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623N">
+<meta name="app-version" content="20260623O">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2207,29 +2207,28 @@ async function driveApiFetch(url,options={}){
 async function findOrCreateFolder(name,parentId){
   let q=`mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g,"\\'")}' and trashed=false`;
   if(parentId)q+=` and '${parentId}' in parents`; else q+=` and 'root' in parents`;
-  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&key=${GOOGLE_API_KEY}`;
+  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
   const res=await driveApiFetch(searchUrl);
   const data=await res.json();
   if(data.files&&data.files.length>0)return data.files[0].id;
-  // 找不到才建立
   const metadata={name,mimeType:'application/vnd.google-apps.folder'};
   if(parentId)metadata.parents=[parentId];
-  const createRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files?key=${GOOGLE_API_KEY}`,{
+  const createRes=await driveApiFetch('https://www.googleapis.com/drive/v3/files',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(metadata)
   });
   const created=await createRes.json();
   if(!created.id){
-    console.error('建立資料夾失敗',created);
-    throw new Error('建立資料夾失敗：'+(created.error?.message||'未知錯誤'));
+    console.error('建立資料夾失敗',JSON.stringify(created));
+    throw new Error('建立資料夾失敗：'+(created.error?.message||JSON.stringify(created)));
   }
   return created.id;
 }
 
 async function verifyFolderExists(folderId){
   try{
-    const res=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id&supportsAllDrives=true&key=${GOOGLE_API_KEY}`);
+    const res=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id`);
     const data=await res.json();
     return !!(data.id);
   }catch(e){return false;}
@@ -2419,11 +2418,13 @@ function pickDriveFile(pid,cat){
         const names=duplicates.map(f=>f.name).join('、');
         if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`))return;
       }
+      let successCount=0;
       for(const file of fileList){
-        await uploadOneFile(p,cat,file);
+        const ok=await uploadOneFile(p,cat,file);
+        if(ok)successCount++;
       }
       save();if(window.fbSaveProject)window.fbSaveProject(p);
-      alert(`✅ 已成功上傳 ${fileList.length} 個檔案到「${cat}」資料夾`);
+      if(successCount>0)alert(`✅ 已成功上傳 ${successCount} 個檔案到「${cat}」資料夾`);
       renderDetail(pid);
     };
     input.click();
@@ -2437,7 +2438,7 @@ async function uploadOneFile(p,cat,file){
     const form=new FormData();
     form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
     form.append('file',file);
-    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name&key=${GOOGLE_API_KEY}`,{
+    const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{
       method:'POST',
       headers:{'Authorization':'Bearer '+driveAccessToken},
       body:form
@@ -2447,13 +2448,17 @@ async function uploadOneFile(p,cat,file){
       if(!p.files)p.files={};
       if(!p.files[cat])p.files[cat]=[];
       p.files[cat].push({name:result.name,driveId:result.id});
+      return true;
     } else {
       if(p.driveFolders)delete p.driveFolders[cat];
-      alert('上傳失敗：'+(result.error?.message||'未知錯誤'));
+      console.error('上傳失敗',JSON.stringify(result));
+      alert('上傳失敗：'+(result.error?.message||JSON.stringify(result)));
+      return false;
     }
   }catch(e){
     if(p.driveFolders)delete p.driveFolders[cat];
     alert('上傳發生錯誤：'+e.message);
+    return false;
   }
 }
 
