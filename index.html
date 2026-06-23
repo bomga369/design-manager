@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623H">
+<meta name="app-version" content="20260623I">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2312,14 +2312,34 @@ function checkMeasureReminder(){
   el.style.display='block';
 }
 
+// 共用Drive資料夾ID快取（從Firestore載入，避免多帳號重複建資料夾）
+let sharedDriveFolderIds = null;
+async function getSharedFolderIds(){
+  if(sharedDriveFolderIds)return sharedDriveFolderIds;
+  if(window.fbGetDriveFolderIds){
+    sharedDriveFolderIds = await window.fbGetDriveFolderIds();
+  } else {
+    sharedDriveFolderIds = {};
+  }
+  return sharedDriveFolderIds;
+}
+async function findOrCreateFolderShared(name, parentId){
+  const map = await getSharedFolderIds();
+  const key = parentId ? `${parentId}/${name}` : name;
+  if(map[key]) return map[key];
+  // 不在快取，去 Drive 查找或建立
+  const id = await findOrCreateFolder(name, parentId);
+  map[key] = id;
+  if(window.fbSaveDriveFolderId) window.fbSaveDriveFolderId(key, id).catch(()=>{});
+  return id;
+}
 async function ensureProjectFolderPath(p,cat){
   if(!p.driveFolders)p.driveFolders={};
-  // 不使用快取，每次都重新查找，避免舊ID失效導致上傳或開啟失敗
   const rootId=SHARED_ROOT_FOLDER_ID;
-  const cityId=await findOrCreateFolder(p.city||'未分類',rootId);
+  const cityId=await findOrCreateFolderShared(p.city||'未分類',rootId);
   const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
-  const projId=await findOrCreateFolder(projName,cityId);
-  const catId=await findOrCreateFolder(cat,projId);
+  const projId=await findOrCreateFolderShared(projName,cityId);
+  const catId=await findOrCreateFolderShared(cat,projId);
   p.driveFolders[cat]=catId;
   save();if(window.fbSaveProject)window.fbSaveProject(p);
   return catId;
@@ -2327,11 +2347,21 @@ async function ensureProjectFolderPath(p,cat){
 
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  // 每次都重新查找，不用快取，確保資料夾ID有效
   ensureDriveAuth(async()=>{
     const id=await ensureProjectFolderPath(p,cat);
     renderDetail(pid);
-    window.open(`https://drive.google.com/drive/folders/${id}`,'_blank');
+    // iOS 優先嘗試開啟 Drive App，失敗則降回網頁版
+    const appUrl=`googledrive://folders/${id}`;
+    const webUrl=`https://drive.google.com/drive/folders/${id}`;
+    const iframe=document.createElement('iframe');
+    iframe.style.display='none';
+    document.body.appendChild(iframe);
+    iframe.src=appUrl;
+    setTimeout(()=>{
+      document.body.removeChild(iframe);
+      // 如果 App 沒打開（頁面還在前景），就開網頁版
+      if(!document.hidden)window.open(webUrl,'_blank');
+    },1500);
   });
 }
 
@@ -3131,6 +3161,17 @@ window.fbMigrateEvents = async function (arr) {
   const batch = writeBatch(fbDb);
   arr.forEach(e => batch.set(doc(fbDb, 'events', e.id), e));
   await batch.commit();
+};
+
+// ── 共用 Drive 資料夾 ID（避免多帳號重複建資料夾）──
+window.fbGetDriveFolderIds = async function(){
+  const snap = await getDocs(collection(fbDb,'driveFolderIds'));
+  const map = {};
+  snap.forEach(d=>{ const v=d.data(); map[v.key]=v.id; });
+  return map;
+};
+window.fbSaveDriveFolderId = function(key, folderId){
+  return setDoc(doc(fbDb,'driveFolderIds',key),{key,id:folderId});
 };
 </script>
 </body>
