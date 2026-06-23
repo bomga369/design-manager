@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623P">
+<meta name="app-version" content="20260623Q">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2226,36 +2226,7 @@ async function findOrCreateFolder(name,parentId){
   return created.id;
 }
 
-async function verifyFolderExists(folderId){
-  try{
-    const res=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,trashed`);
-    const data=await res.json();
-    return !!(data.id)&&!data.trashed; // 存在且不在垃圾桶
-  }catch(e){return false;}
-}
-async function findOrCreateFolderShared(name, parentId){
-  const map = await getSharedFolderIds();
-  const key = parentId ? `${parentId}__${name}` : name;
-  if(map[key]){
-    // 驗證快取的ID是否還有效（防止刪除資料夾後殘留舊ID）
-    const valid = await verifyFolderExists(map[key]);
-    if(!valid){
-      // 快取ID失效，清除並重新建立
-      delete map[key];
-      if(window.fbSaveDriveFolderId) window.fbSaveDriveFolderId(key,'').catch(()=>{});
-    } else {
-      return map[key];
-    }
-  }
-  const id = await findOrCreateFolder(name, parentId);
-  if(id){
-    map[key] = id;
-    if(window.fbSaveDriveFolderId) window.fbSaveDriveFolderId(key, id).catch(()=>{});
-  }
-  return id;
-}
-
-// ── Google 日曆同步（系統 → 共用日曆，單向）──
+// session 記憶體快取（避免過時ID問題）（系統 → 共用日曆，單向）──
 async function calendarApiFetch(url,options={}){
   const headers=Object.assign({},options.headers,{'Authorization':'Bearer '+driveAccessToken,'Content-Type':'application/json'});
   return fetch(url,Object.assign({},options,{headers}));
@@ -2346,24 +2317,13 @@ function checkMeasureReminder(){
 }
 
 // 共用Drive資料夾ID快取（從Firestore載入，避免多帳號重複建資料夾）
-let sharedDriveFolderIds = null;
-async function getSharedFolderIds(){
-  if(sharedDriveFolderIds)return sharedDriveFolderIds;
-  if(window.fbGetDriveFolderIds){
-    sharedDriveFolderIds = await window.fbGetDriveFolderIds();
-  } else {
-    sharedDriveFolderIds = {};
-  }
-  return sharedDriveFolderIds;
-}
+// session 記憶體快取（避免過時ID問題）
+const sessionFolderCache={};
 async function findOrCreateFolderShared(name, parentId){
-  const map = await getSharedFolderIds();
-  // 用__代替/，避免Firestore文件ID不能含/的限制
-  const key = parentId ? `${parentId}__${name}` : name;
-  if(map[key]) return map[key];
-  const id = await findOrCreateFolder(name, parentId);
-  map[key] = id;
-  if(window.fbSaveDriveFolderId) window.fbSaveDriveFolderId(key, id).catch(()=>{});
+  const key=parentId?`${parentId}|${name}`:name;
+  if(sessionFolderCache[key])return sessionFolderCache[key];
+  const id=await findOrCreateFolder(name,parentId);
+  if(id)sessionFolderCache[key]=id;
   return id;
 }
 async function ensureProjectFolderPath(p,cat){
