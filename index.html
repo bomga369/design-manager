@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623B">
+<meta name="app-version" content="20260623D">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -560,17 +560,31 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group"><label class="form-label">所屬專案 *</label><select class="form-input" id="f-project"></select></div>
     <div class="form-group"><label class="form-label">類型</label>
       <div class="segmented">
-        <div class="seg-btn" onclick="selectSeg(this,'f-type','支出');toggleExpCat('支出')">支出（付款）</div>
-        <div class="seg-btn active" onclick="selectSeg(this,'f-type','收入');toggleExpCat('收入')">收入（請款）</div>
+        <div class="seg-btn" onclick="selectSeg(this,'f-type','支出');toggleFinanceCat('支出')">支出（付款）</div>
+        <div class="seg-btn active" onclick="selectSeg(this,'f-type','收入');toggleFinanceCat('收入')">收入（請款）</div>
       </div>
       <input type="hidden" id="f-type" value="收入">
     </div>
     <div class="form-group" id="f-expense-cat-group" style="display:none;"><label class="form-label">支出類別</label>
-      <select class="form-input" id="f-expense-cat">
-        <option value="午餐">午餐</option><option value="晚餐">晚餐</option>
-        <option value="材料五金">材料五金</option><option value="其他">其他</option>
+      <select class="form-input" id="f-expense-cat" onchange="toggleFinanceStaff()">
+        <option value="午餐">午餐</option>
+        <option value="晚餐">晚餐</option>
+        <option value="材料五金">材料五金</option>
+        <option value="薪資">薪資</option>
+        <option value="臨時性支出">臨時性支出</option>
+        <option value="其他">其他</option>
       </select>
     </div>
+    <div class="form-group" id="f-income-cat-group" style="display:block;"><label class="form-label">收入類別</label>
+      <select class="form-input" id="f-income-cat" onchange="toggleFinanceStaff()">
+        <option value="工程款">工程款</option>
+        <option value="訂金">訂金</option>
+        <option value="尾款">尾款</option>
+        <option value="款項還回">款項還回</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group"><label class="form-label">項目名稱 *</label><input class="form-input" id="f-name" placeholder="例：第一期工程款" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
@@ -1179,7 +1193,20 @@ function selectSeg(el,hid,val){
   el.closest('.segmented').querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');document.getElementById(hid).value=val;
 }
-function toggleExpCat(t){document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';}
+function toggleFinanceCat(t){
+  document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';
+  document.getElementById('f-income-cat-group').style.display=t==='收入'?'block':'none';
+  toggleFinanceStaff();
+}
+function toggleFinanceStaff(){
+  const t=document.getElementById('f-type').value;
+  const expCat=document.getElementById('f-expense-cat').value;
+  const incCat=document.getElementById('f-income-cat').value;
+  const needStaff=(t==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'))||(t==='收入'&&incCat==='款項還回');
+  const grp=document.getElementById('f-staff-group');
+  grp.style.display=needStaff?'block':'none';
+  if(needStaff)fillStaffSel('f-staff-sel');
+}
 function openSheet(id){document.getElementById(id).classList.add('open');}
 function closeSheet(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.sheet-overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});});
@@ -1493,19 +1520,20 @@ function renderPunchStatus(){
   const todayStr=today();
   const td=db.punches.filter(p=>p.date===todayStr);
   const nameMap={};
-  td.forEach(p=>{if(!nameMap[p.name])nameMap[p.name]={in:null,out:null};if(p.type==='in')nameMap[p.name].in=p;else nameMap[p.name].out=p;});
-  // 檢查昨天是否有人有上班卡但超過12小時沒下班（跨日異常）
-  const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);
-  const yStr=yesterday.toISOString().slice(0,10);
-  const yd=db.punches.filter(p=>p.date===yStr);
-  const yMap={};
-  yd.forEach(p=>{if(!yMap[p.name])yMap[p.name]={in:null,out:null};if(p.type==='in')yMap[p.name].in=p;else yMap[p.name].out=p;});
-  Object.entries(yMap).forEach(([name,{in:i,out:o}])=>{
-    if(i&&!o){
-      const diffH=(Date.now()-new Date(i.time))/(1000*60*60);
-      if(diffH>12&&!nameMap[name]){
-        nameMap[name]={in:i,out:null,crossDay:true};
-      }
+  td.forEach(p=>{
+    if(!nameMap[p.name])nameMap[p.name]={in:null,out:null,crossDay:false};
+    if(p.type==='in')nameMap[p.name].in=p;
+    else nameMap[p.name].out=p;
+  });
+  // 找出任何一天有上班卡但無下班卡超過12小時的人（跨日異常）
+  const allIn=db.punches.filter(p=>p.type==='in');
+  allIn.forEach(pi=>{
+    const diffH=(Date.now()-new Date(pi.time))/(1000*60*60);
+    if(diffH<12)return;
+    // 同一天同一人有沒有下班卡
+    const hasOut=db.punches.some(p=>p.type==='out'&&p.name===pi.name&&p.date===pi.date);
+    if(!hasOut&&!nameMap[pi.name]){
+      nameMap[pi.name]={in:pi,out:null,crossDay:pi.date!==todayStr};
     }
   });
   const names=Object.keys(nameMap);
@@ -1524,9 +1552,8 @@ function renderPunchStatus(){
         const diffH=(Date.now()-new Date(i.time))/(1000*60*60);
         if(diffH>12)warn+=' ⚠️未下班';
       }
-      // 昨天打卡但沒下班的跨日異常才顯示，今天正常完成的不顯示
       if(crossDay){
-        return`<div style="font-size:13px;line-height:1.8">⚠️ <b>${name}</b>　昨日${warn}</div>`;
+        return`<div style="font-size:13px;line-height:1.8">⚠️ <b>${name}</b>　${i.timeStr.slice(0,-6)}未下班，請補登</div>`;
       }
       const inStr=i?i.timeStr.slice(-5):'—';
       const outStr=o?o.timeStr.slice(-5):'未下班';
@@ -2396,7 +2423,7 @@ function renderFinance(){
       <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
       <div class="finance-body">
         <div class="finance-name">${f.name}${f.expCat?` <span style="color:var(--text3);font-size:11px">${f.expCat}</span>`:''}</div>
-        <div class="finance-meta">${fDate(f.date)} · ${pName(f.projectId)}${f.note?' · '+f.note:''}</div>
+        <div class="finance-meta">${fDate(f.date)} · ${pName(f.projectId)}${f.expCat?' · '+f.expCat:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.note?' · '+f.note:''}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         <span class="fw500 ${f.ftype==='收入'?'text-green':'text-red'}">${f.ftype==='收入'?'+':'-'}$${fMoney(f.amount)}</span>
@@ -2411,7 +2438,13 @@ function saveFinance(){
   const projectId=document.getElementById('f-project').value;
   if(!projectId)return alert('請選擇所屬專案（公司費用請選「安盾總管」）');
   const ftype=document.getElementById('f-type').value;
-  const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:ftype==='支出'?document.getElementById('f-expense-cat').value:'',date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
+  const expCat=ftype==='支出'?document.getElementById('f-expense-cat').value:'';
+  const incCat=ftype==='收入'?document.getElementById('f-income-cat').value:'';
+  const needStaff=(ftype==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'))||(ftype==='收入'&&incCat==='款項還回');
+  const staffId=needStaff?document.getElementById('f-staff-sel').value:'';
+  if(needStaff&&!staffId)return alert('請選擇相關人員');
+  const staffName=staffId?(db.staff.find(s=>s.id===staffId)||{}).name||'':'';
+  const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat,incCat,staffId,staffName,date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
   db.finance.push(rec);
   save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
   closeSheet('sheet-finance');
