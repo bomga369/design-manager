@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623D">
+<meta name="app-version" content="20260623F">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -577,8 +577,9 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
     <div class="form-group" id="f-income-cat-group" style="display:block;"><label class="form-label">收入類別</label>
       <select class="form-input" id="f-income-cat" onchange="toggleFinanceStaff()">
-        <option value="工程款">工程款</option>
-        <option value="訂金">訂金</option>
+        <option value="工程款01期">工程款01期</option>
+        <option value="工程款02期">工程款02期</option>
+        <option value="工程款03期">工程款03期</option>
         <option value="尾款">尾款</option>
         <option value="款項還回">款項還回</option>
         <option value="其他">其他</option>
@@ -1213,7 +1214,6 @@ document.querySelectorAll('.sheet-overlay').forEach(m=>{m.addEventListener('clic
 
 // ── 打卡計算 ──
 function calcWorkStats(punches){
-  // 依日期分組
   const byDate={};
   punches.forEach(p=>{if(!byDate[p.date])byDate[p.date]=[];byDate[p.date].push(p);});
   let totalDays=0, totalOTMins=0;
@@ -1222,28 +1222,24 @@ function calcWorkStats(punches){
     const outs=arr.filter(p=>p.type==='out').map(p=>new Date(p.time)).sort((a,b)=>a-b);
     if(!ins.length||!outs.length)return;
     const inT=ins[0], outT=outs[outs.length-1];
-    // 實際工時（分鐘），扣掉午休
     const inMs=inT.getTime(), outMs=outT.getTime();
+    // 扣午休 12:00-13:00
     const lunchStart=new Date(inT);lunchStart.setHours(12,0,0,0);
     const lunchEnd=new Date(inT);lunchEnd.setHours(13,0,0,0);
     let workMins=(outMs-inMs)/60000;
-    // 扣午休（只有實際橫跨午休才扣）
     if(inMs<lunchEnd.getTime()&&outMs>lunchStart.getTime()){
       const overlapStart=Math.max(inMs,lunchStart.getTime());
       const overlapEnd=Math.min(outMs,lunchEnd.getTime());
       if(overlapEnd>overlapStart)workMins-=(overlapEnd-overlapStart)/60000;
     }
-    // 天數計算
-    if(workMins>=480)totalDays+=1;
-    else if(workMins>=240)totalDays+=0.5;
-    else if(workMins>0)totalDays+=0.5; // 未滿4h以半天計
-    // 加班：17:00後，每0.5h算0.5h
+    // 天數計算：實際工時≥6小時→1天，不滿6小時→0.5天
+    if(workMins>=360)totalDays+=1;
+    else totalDays+=0.5;
+    // 加班：17:00後每滿1小時計1小時（不足1小時不計）
     const ot17=new Date(outT);ot17.setHours(17,0,0,0);
     if(outT>ot17){
-      const otMins=(outT-ot17)/60000;
-      // 每0.5h(30min)計0.5h加班
-      const otHalf=Math.floor(otMins/30);
-      totalOTMins+=otHalf*30;
+      const otMins=(outT.getTime()-ot17.getTime())/60000;
+      totalOTMins+=Math.floor(otMins/60)*60;
     }
   });
   return{days:totalDays,otHours:totalOTMins/60};
@@ -1920,20 +1916,21 @@ function renderDetail(pid){
     const staffMap={};
     projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
     const staffNames=Object.keys(staffMap);
-    let totalEffMins=0;
+    let totalEffMins=0, totalOTHours=0;
     const effRows=staffNames.map(name=>{
       const st=calcWorkStats(staffMap[name]);
       totalEffMins+=st.days;
+      totalOTHours+=st.otHours;
       return`<div class="eff-row">
         <div class="staff-avatar" style="width:32px;height:32px;font-size:14px"><i class="ti ti-user"></i></div>
         <div class="eff-name">${name}</div>
-        <div class="eff-val">${st.days}天${st.otHours>0?' + 加班'+st.otHours+'h':''}</div>
+        <div class="eff-val">${st.days}天${st.otHours>0?' +'+st.otHours+'h加班':''}</div>
       </div>`;}).join('');
 
     progressHtml=`
       <div class="section-hd">施作效率</div>
       <div class="card">
-        ${staffNames.length?effRows+'<div class="eff-row" style="background:var(--bg2)"><div class="eff-name fw500">合計工時</div><div class="eff-val fw500">${totalEffMins}天</div></div>':'<div class="empty" style="padding:1.5rem"><i class="ti ti-users-off"></i><p>尚無打卡記錄</p></div>'}
+        ${staffNames.length?effRows+`<div class="eff-row" style="background:var(--bg2)"><div class="eff-name fw500">合計</div><div class="eff-val fw500">${totalEffMins}天${totalOTHours>0?' +'+totalOTHours+'h加班':''}</div></div>`:'<div class="empty" style="padding:1.5rem"><i class="ti ti-users-off"></i><p>尚無打卡記錄</p></div>'}
       </div>
       <div class="section-hd">施工進度</div>
       <div class="card">
@@ -1984,21 +1981,11 @@ function renderDetail(pid){
     <div class="card">
       ${FILE_CATS.map(cat=>{
         const files=(p.files&&p.files[cat])||[];
-        const folderId=p.driveFolders&&p.driveFolders[cat];
-        return`<div class="file-row" style="flex-direction:column;align-items:stretch;gap:8px;">
-          <div style="display:flex;align-items:center;gap:0.75rem;">
-            <div class="file-icon"><i class="ti ti-folder"></i></div>
-            <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">${files.length?files.length+' 個檔案':'尚無檔案'}</div></div>
-            <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
-            <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
-          </div>
-          ${files.length?`<div style="padding-left:50px;display:flex;flex-direction:column;gap:4px;">
-            ${files.map((f,fi)=>`
-              <div style="display:flex;align-items:center;gap:6px;">
-                <a href="${f.url}" target="_blank" style="flex:1;font-size:12px;color:var(--blue-text);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="ti ti-file"></i> ${f.name}</a>
-                <button class="btn btn-icon btn-sm btn-danger" onclick="removeDriveFile('${pid}','${cat}',${fi})"><i class="ti ti-x" style="font-size:11px"></i></button>
-              </div>`).join('')}
-          </div>`:''}
+        return`<div class="file-row">
+          <div class="file-icon"><i class="ti ti-folder"></i></div>
+          <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div><div class="text-xs text-muted">📷 已上傳 ${files.length} 張</div></div>
+          <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
+          <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
         </div>`;}).join('')}
     </div>`;
 
@@ -2362,6 +2349,12 @@ function pickDriveFile(pid,cat){
       const fileList=Array.from(input.files);
       if(!fileList.length)return;
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
+      const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
+      const duplicates=fileList.filter(f=>existingNames.includes(f.name));
+      if(duplicates.length){
+        const names=duplicates.map(f=>f.name).join('、');
+        if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`))return;
+      }
       for(const file of fileList){
         await uploadOneFile(p,cat,file);
       }
@@ -2378,7 +2371,7 @@ async function uploadOneFile(p,cat,file){
     const form=new FormData();
     form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
     form.append('file',file);
-    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink&key=${GOOGLE_API_KEY}`,{
+    const res=await fetch(`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name&key=${GOOGLE_API_KEY}`,{
       method:'POST',
       headers:{'Authorization':'Bearer '+driveAccessToken},
       body:form
@@ -2387,7 +2380,8 @@ async function uploadOneFile(p,cat,file){
     if(result.id){
       if(!p.files)p.files={};
       if(!p.files[cat])p.files[cat]=[];
-      p.files[cat].push({name:result.name,url:result.webViewLink||`https://drive.google.com/file/d/${result.id}/view`,driveId:result.id});
+      // 只記錄檔名，不記縮圖或連結，顯示時只顯示數量
+      p.files[cat].push({name:result.name,driveId:result.id});
     } else {
       alert('上傳失敗：'+(result.error?.message||'未知錯誤'));
     }
