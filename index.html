@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623J">
+<meta name="app-version" content="20260623L">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2207,19 +2207,49 @@ async function driveApiFetch(url,options={}){
 async function findOrCreateFolder(name,parentId){
   let q=`mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g,"\\'")}' and trashed=false`;
   if(parentId)q+=` and '${parentId}' in parents`; else q+=` and 'root' in parents`;
-  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&key=${GOOGLE_API_KEY}`;
+  // includeItemsFromAllDrives 確保搜尋到其他帳號在共用資料夾裡建的子資料夾
+  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&includeItemsFromAllDrives=true&supportsAllDrives=true&key=${GOOGLE_API_KEY}`;
   const res=await driveApiFetch(searchUrl);
   const data=await res.json();
-  if(data.files&&data.files.length)return data.files[0].id;
-  const metadata={name,mimeType:'application/vnd.google-apps.folder'};
-  if(parentId)metadata.parents=[parentId];
-  const createRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files?key=${GOOGLE_API_KEY}`,{
+  if(data.files&&data.files.length>0)return data.files[0].id;
+  // 找不到才建立
+  const metadata={name,mimeType:'application/vnd.google-apps.folder',parents:parentId?[parentId]:undefined};
+  const createRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&key=${GOOGLE_API_KEY}`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(metadata)
   });
   const created=await createRes.json();
   return created.id;
+}
+
+async function verifyFolderExists(folderId){
+  try{
+    const res=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id&supportsAllDrives=true&key=${GOOGLE_API_KEY}`);
+    const data=await res.json();
+    return !!(data.id);
+  }catch(e){return false;}
+}
+async function findOrCreateFolderShared(name, parentId){
+  const map = await getSharedFolderIds();
+  const key = parentId ? `${parentId}__${name}` : name;
+  if(map[key]){
+    // 驗證快取的ID是否還有效（防止刪除資料夾後殘留舊ID）
+    const valid = await verifyFolderExists(map[key]);
+    if(!valid){
+      // 快取ID失效，清除並重新建立
+      delete map[key];
+      if(window.fbSaveDriveFolderId) window.fbSaveDriveFolderId(key,'').catch(()=>{});
+    } else {
+      return map[key];
+    }
+  }
+  const id = await findOrCreateFolder(name, parentId);
+  if(id){
+    map[key] = id;
+    if(window.fbSaveDriveFolderId) window.fbSaveDriveFolderId(key, id).catch(()=>{});
+  }
+  return id;
 }
 
 // ── Google 日曆同步（系統 → 共用日曆，單向）──
@@ -3167,7 +3197,7 @@ window.fbMigrateEvents = async function (arr) {
 window.fbGetDriveFolderIds = async function(){
   const snap = await getDocs(collection(fbDb,'driveFolderIds'));
   const map = {};
-  snap.forEach(d=>{ const v=d.data(); map[v.key]=v.id; });
+  snap.forEach(d=>{ const v=d.data(); if(v.id)map[v.key]=v.id; }); // 過濾掉空字串（已失效的快取）
   return map;
 };
 window.fbSaveDriveFolderId = function(key, folderId){
