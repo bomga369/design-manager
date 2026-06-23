@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623I">
+<meta name="app-version" content="20260623J">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2325,9 +2325,9 @@ async function getSharedFolderIds(){
 }
 async function findOrCreateFolderShared(name, parentId){
   const map = await getSharedFolderIds();
-  const key = parentId ? `${parentId}/${name}` : name;
+  // 用__代替/，避免Firestore文件ID不能含/的限制
+  const key = parentId ? `${parentId}__${name}` : name;
   if(map[key]) return map[key];
-  // 不在快取，去 Drive 查找或建立
   const id = await findOrCreateFolder(name, parentId);
   map[key] = id;
   if(window.fbSaveDriveFolderId) window.fbSaveDriveFolderId(key, id).catch(()=>{});
