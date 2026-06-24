@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260623S">
+<meta name="app-version" content="20260624B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -789,6 +789,7 @@ function showApp(){
   load();renderDashboard();
   checkAutoBackup();
   checkMeasureReminder();
+  checkAndDeleteCompletedProjects();
   // 回訪使用者：嘗試靜默補授權，失敗則顯示授權橫幅
   if(!driveAccessToken&&window.google&&google.accounts&&google.accounts.oauth2){
     try{
@@ -1182,7 +1183,7 @@ function autoCompleteMeasureSteps(){
   if(changed)save();
 }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
-function today(){return new Date().toISOString().slice(0,10);}
+function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
@@ -2066,14 +2067,98 @@ function cycleStep(pid,stepName){
   const next={'未開始':'進行中','進行中':'完成','完成':'未開始'};
   const newState=next[cur];
   p.conSteps[stepName]={state:newState,time:newState!=='未開始'?new Date().toISOString():''};
-  // 驗收完成 → 已完工 + 自動結算盈餘到安盾總管
+  // 驗收完成 → 已完工 + 自動結算盈餘到安盾總管 + 自動儲存PDF到Drive
   if(stepName==='驗收'&&newState==='完成'){
     if(confirm('驗收完成！是否將此專案歸類為「已完工」並結算盈餘到安盾總管？')){
       p.type='已完工';
+      p.completedAt=new Date().toISOString(); // 記錄完工時間，供兩個月刪除使用
       settleProjectToAndun(pid,p.name);
+      // 自動儲存PDF總表到Drive
+      autoSaveReportToDrive(pid);
     }
   }
   save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
+}
+
+// 自動儲存PDF總表到Drive（驗收完成時觸發）
+async function autoSaveReportToDrive(pid){
+  if(!window.html2pdf)return;
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  ensureDriveAuth(async()=>{
+    try{
+      // 產生PDF blob
+      const pFin=db.finance.filter(f=>f.projectId===pid);
+      const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
+      const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
+      const profit=income-exp;
+      const steps=p.conSteps||{};
+      const projPunches=db.punches.filter(punch=>punch.projectId===pid);
+      const staffMap={};
+      projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
+      const staffRows=Object.entries(staffMap).map(([name,ps])=>{const st=calcWorkStats(ps);return`<tr><td>${name}</td><td>${st.days}天</td><td>${st.otHours}h</td></tr>`;}).join('');
+      const finRows=pFin.map(f=>`<tr><td>${fDate(f.date)}</td><td>${f.ftype}</td><td>${f.expCat||'—'}</td><td>${f.name}</td><td>$${fMoney(f.amount)}</td></tr>`).join('');
+      const reportHtml=`<div style="font-family:sans-serif;padding:24px;color:#1a1a18;width:760px;background:#fff;">
+<h1 style="font-size:22px;font-weight:500">${p.name} 專案總表</h1>
+<p style="font-size:13px;color:#6b6b68">業主：${p.client||'—'} ｜ 負責人：${p.leader?sName(p.leader):'—'} ｜ 完工日期：${fDate(today())}</p>
+<h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">財務總覽</h2>
+<p>收入：$${fMoney(income)}　支出：$${fMoney(exp)}　淨利：$${fMoney(profit)}</p>
+<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>日期</th><th>類型</th><th>類別</th><th>項目</th><th>金額</th></tr></thead><tbody>${finRows}</tbody></table>
+<h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">施工進度</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>項目</th><th>狀態</th><th>完成時間</th></tr></thead><tbody>
+${CON_STEPS.map(s=>{const sd=steps[s]||{state:'未開始'};return`<tr><td>${s}</td><td>${sd.state}</td><td>${sd.time?fmtMD(sd.time):'—'}</td></tr>`;}).join('')}
+</tbody></table>
+<h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">施作人員工時</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>人員</th><th>出勤天數</th><th>加班工時</th></tr></thead><tbody>${staffRows||'<tr><td colspan="3">無打卡記錄</td></tr>'}</tbody></table>
+<p style="margin-top:32px;font-size:12px;color:#a0a09c">匯出時間：${new Date().toLocaleString('zh-TW')}</p>
+</div>`;
+      const container=document.createElement('div');
+      container.style.cssText='position:fixed;left:-9999px;top:0;';
+      container.innerHTML=reportHtml;
+      document.body.appendChild(container);
+      const blob=await html2pdf().set({
+        margin:[10,10,10,10],
+        filename:`${p.name}_專案總表.pdf`,
+        image:{type:'jpeg',quality:0.95},
+        html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+      }).from(container.querySelector('div')).outputPdf('blob');
+      document.body.removeChild(container);
+      // 上傳PDF到Drive的專案根資料夾
+      const cityId=await findOrCreateFolderShared(p.city||'未分類',SHARED_ROOT_FOLDER_ID);
+      const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
+      const projId=await findOrCreateFolderShared(projName,cityId);
+      const filename=`${p.name}_專案總表_${today()}.pdf`;
+      const form=new FormData();
+      form.append('metadata',new Blob([JSON.stringify({name:filename,parents:[projId]})],{type:'application/json'}));
+      form.append('file',blob);
+      const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
+        method:'POST',headers:{'Authorization':'Bearer '+driveAccessToken},body:form
+      });
+      const result=await res.json();
+      if(result.id){console.log('✅ 專案總表已儲存到Drive');}
+    }catch(e){console.error('自動儲存PDF失敗',e);}
+  });
+}
+
+// 已完工兩個月自動刪除
+function checkAndDeleteCompletedProjects(){
+  const twoMonthsAgo=new Date();
+  twoMonthsAgo.setMonth(twoMonthsAgo.getMonth()-2);
+  const toDelete=db.projects.filter(p=>{
+    if(p.type!=='已完工')return false;
+    if(!p.completedAt)return false;
+    return new Date(p.completedAt)<twoMonthsAgo;
+  });
+  if(!toDelete.length)return;
+  toDelete.forEach(p=>{
+    const finIds=db.finance.filter(f=>f.projectId===p.id).map(f=>f.id);
+    db.finance=db.finance.filter(f=>f.projectId!==p.id);
+    db.projects=db.projects.filter(x=>x.id!==p.id);
+    if(window.fbDeleteProject)window.fbDeleteProject(p.id).catch(()=>{});
+    if(window.fbDeleteFinance)finIds.forEach(fid=>window.fbDeleteFinance(fid).catch(()=>{}));
+  });
+  save();
+  console.log(`已自動刪除 ${toDelete.length} 個完工超過兩個月的專案`);
 }
 function settleProjectToAndun(pid,pname){
   // 計算該專案盈餘（收入 - 支出）
