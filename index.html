@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260624B">
+<meta name="app-version" content="20260628A">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1188,7 +1188,7 @@ function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
 function fDate(d){return d?d.replace(/-/g,'/'):'—';}
-function pName(id){if(id==='__andun__')return'安盾總管';const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
+function pName(id){if(id==='__andun__')return'安盾總管';if(id==='__factory__')return'安盾工廠';const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
 function sName(id){const s=db.staff.find(x=>x.id===id);return s?s.name:'—';}
 
 function selectSeg(el,hid,val){
@@ -1426,12 +1426,13 @@ function confirmTimeWheel(){
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
 // ── HELPERS ──
-function fillSel(selId,addAll=false,addAndun=false){
+function fillSel(selId,addAll=false,addAndun=false,addFactory=false){
   const el=document.getElementById(selId);if(!el)return;
   const val=el.value;el.innerHTML='';
   if(addAll)el.innerHTML='<option value="">所有專案</option>';
   if(addAll&&addAndun)el.innerHTML+='<option value="__andun__">安盾總管</option>';
   if(!addAll&&addAndun)el.innerHTML='<option value="__andun__">安盾總管</option>';
+  if(addFactory)el.innerHTML+='<option value="__factory__">安盾工廠</option>';
   db.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o);});
   if(val)el.value=val;
 }
@@ -1481,7 +1482,7 @@ function fillNameSel(selId){
 function punch(type){
   pendingPunchType=type;
   document.getElementById('sheet-punch-title').textContent=type==='in'?'上班打卡 🟢':'下班打卡 🔴';
-  fillSel('punch-project');
+  fillSel('punch-project',false,false,true);
   fillNameSel('punch-name');
   const last=db.punches[db.punches.length-1];
   if(last){const el=document.getElementById('punch-name');if(el)el.value=last.name;}
@@ -2259,6 +2260,7 @@ const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
 const GOOGLE_SCOPES=DRIVE_SCOPE+' '+CALENDAR_SCOPE;
 const SHARED_ROOT_FOLDER_ID='1Qh9Z1uISphuymrgiBMNraTh0DnBFzFsX'; // 共用「工程管理系統」資料夾（Drive 資料夾本身名稱可自行更改，不影響此 ID 連結）
 const SHARED_CALENDAR_ID='6f1dbb6876ceb869a98c8f8bc77661191cc7bf7f80b5b3dbaa6bfcc093532bbd@group.calendar.google.com'; // 團隊共用日曆
+const SURVEY_CALENDAR_ID='dcef6ceeff60164d091a36015a460d34517c5d2fab718a598987e3538d129b32@group.calendar.google.com'; // 安盾場開勘日曆
 let driveAccessToken=null;
 let tokenClient=null;
 
@@ -2327,9 +2329,9 @@ function syncMeasureToCalendar(p){
       };
       let res;
       if(p.measureGcalId){
-        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${p.measureGcalId}`,{method:'PUT',body:JSON.stringify(body)});
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SURVEY_CALENDAR_ID)}/events/${p.measureGcalId}`,{method:'PUT',body:JSON.stringify(body)});
       } else {
-        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SURVEY_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
       }
       const data=await res.json();
       if(data.id){p.measureGcalId=data.id;save();if(window.fbSaveProject)window.fbSaveProject(p);}
@@ -2682,7 +2684,7 @@ function openPunchEdit(punchId){
   // 使用者主動點擊補登按鈕，Safari不會擋彈窗
   const doOpen=()=>{
     editingPunchId=punchId||null;
-    fillSel('pe-project');
+    fillSel('pe-project',false,false,true);
     fillNameSel('pe-name');
     document.getElementById('pe-project').value='';
     if(punchId){
