@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260717G">
+<meta name="app-version" content="20260717H">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -55,6 +55,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .topbar-right{display:flex;gap:8px;}
 .topbar-btn{width:36px;height:36px;border-radius:var(--r);border:none;background:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);font-size:1.25rem;}
 .topbar-btn.primary{background:var(--text);color:var(--bg);}
+.topbar-btn-add{width:46px;height:46px;border-radius:50%;border:none;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.625rem;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
 .topbar-btn.ghost{background:var(--bg2);}
 .scroll-area{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--nav-h) + var(--safe-bottom) + 1rem);}
 .content{padding:1rem;}
@@ -63,10 +64,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .nav-tab.active{color:var(--gold);}
 .nav-tab i{font-size:1.375rem;}
 .nav-tab span{font-size:0.7188rem;font-weight:500;}
-.nav-tab-main i{font-size:1.75rem;color:#dfb028;opacity:0.55;transition:opacity 0.15s;}
-.nav-tab-main span{font-size:0.7812rem;font-weight:600;color:#dfb028;opacity:0.55;transition:opacity 0.15s;}
-.nav-tab-main.active i{opacity:1;}
-.nav-tab-main.active span{opacity:1;}
+.nav-tab-main i{font-size:1.75rem;}
+.nav-tab-main span{font-size:0.7812rem;font-weight:600;}
 .page{display:none;}.page.active{display:block;}
 .card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
 .card-inner{padding:1rem;}
@@ -588,13 +587,13 @@ textarea.form-input{resize:none;min-height:72px;}
       <label class="form-label">支出類別</label>
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
-    <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project"></select></div>
     <div class="form-group" id="f-expense-detail-group" style="display:none;"><label class="form-label" id="f-expense-detail-label">明細項目</label>
       <select class="form-input" id="f-expense-detail"></select>
     </div>
     <div class="form-group" id="f-income-cat-group" style="display:block;"><label class="form-label">收入類別</label>
       <select class="form-input" id="f-income-cat" onchange="onIncomeCatChange()"></select>
     </div>
+    <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project"></select></div>
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
@@ -1412,13 +1411,13 @@ function showPage(id,opts={}){
     tr.innerHTML=`<button class="topbar-btn ghost" onclick="openEditStaff('${currentStaffId}')"><i class="ti ti-pencil"></i></button>`;
   } else if(id==='projects'){
     titleEl.textContent=titles[id];
-    tr.innerHTML=`<button class="topbar-btn primary" onclick="handleAdd()"><i class="ti ti-plus"></i></button>`;
+    tr.innerHTML=`<button class="topbar-btn-add" onclick="handleAdd()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='staff'){
     titleEl.textContent=titles[id];
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openAddStaff()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='finance'){
     titleEl.textContent=titles[id];
-    tr.innerHTML=`<button class="topbar-btn primary" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></button>`;
+    tr.innerHTML=`<button class="topbar-btn-add" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='calendar'){
     titleEl.textContent=titles[id];
     tr.innerHTML='';
