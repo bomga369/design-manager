@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260628A">
+<meta name="app-version" content="20260624C">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -336,21 +336,24 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
   </div>
 
-  <!-- 行事曆 -->
+  <!-- 小工具 -->
   <div id="page-calendar" class="page">
-    <div class="content" onclick="handleCalCardClick(event)">
-      <div class="card" id="cal-card-wrap"><div class="card-inner">
-        <div class="flex-between" style="margin-bottom:0.75rem;">
-          <button class="btn btn-sm btn-icon" onclick="prevMonth()"><i class="ti ti-chevron-left"></i></button>
-          <span class="fw500" id="cal-month-label"></span>
-          <button class="btn btn-sm btn-icon" onclick="nextMonth()"><i class="ti ti-chevron-right"></i></button>
+    <div class="content">
+      <div class="section-hd">小工具</div>
+      <div class="card">
+        <div class="card-inner" onclick="window.open('https://spiffy-panda-0f24c1.netlify.app','_blank')" style="cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🛡️</div>
+          <div><div class="text-sm fw500">保護工程</div><div class="text-xs text-muted">計算工具</div></div>
+          <i class="ti ti-external-link" style="margin-left:auto;color:var(--text3)"></i>
         </div>
-        <div class="cal-grid" id="cal-grid"></div>
-      </div></div>
-      <div class="section-hd">
-        <span id="cal-selected-label">近半年事務</span>
       </div>
-      <div class="card" id="cal-events-list"></div>
+      <div class="card" style="margin-top:0.75rem">
+        <div class="card-inner" onclick="window.open('https://resilient-longma-7142ca.netlify.app','_blank')" style="cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">❄️</div>
+          <div><div class="text-sm fw500">冷氣帽</div><div class="text-xs text-muted">計算工具</div></div>
+          <i class="ti ti-external-link" style="margin-left:auto;color:var(--text3)"></i>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -369,7 +372,7 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="nav-tab active" onclick="showPage('dashboard')"><i class="ti ti-layout-dashboard"></i><span>總覽</span></div>
   <div class="nav-tab" onclick="showPage('finance')"><i class="ti ti-receipt"></i><span>收支</span></div>
   <div class="nav-tab nav-tab-main" onclick="showPage('projects')"><i class="ti ti-folder"></i><span>專案</span></div>
-  <div class="nav-tab" onclick="showPage('calendar')"><i class="ti ti-calendar"></i><span>行事曆</span></div>
+  <div class="nav-tab" onclick="showPage('calendar')"><i class="ti ti-tools"></i><span>小工具</span></div>
   <div class="nav-tab" onclick="showPage('staff')"><i class="ti ti-users"></i><span>人事</span></div>
 </nav>
 
@@ -522,6 +525,8 @@ textarea.form-input{resize:none;min-height:72px;}
     <div id="info-key-group" class="form-group"><label class="form-label">密碼 / 鑰匙</label><input class="form-input" id="info-key" placeholder="大門密碼或鑰匙說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div id="info-parking-group" class="form-group"><label class="form-label">車位</label><input class="form-input" id="info-parking" placeholder="車位位置或說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label class="form-label">負責人</label><select class="form-input" id="info-leader"><option value="">請選擇負責人</option></select></div>
+    <div class="form-group"><label class="form-label">油漆色號</label><input class="form-input" id="info-paint" placeholder="例：白色 SW7015、牆面 OC-17..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="form-group"><label class="form-label">備註</label><textarea class="form-input" id="info-remark" placeholder="其他注意事項..." style="min-height:80px;"></textarea></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-info')">取消</button>
       <button class="btn btn-primary" onclick="saveInfo()">儲存</button>
@@ -1188,7 +1193,7 @@ function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
 function fDate(d){return d?d.replace(/-/g,'/'):'—';}
-function pName(id){if(id==='__andun__')return'安盾總管';if(id==='__factory__')return'安盾工廠';const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
+function pName(id){if(id==='__andun__')return'安盾總管';const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
 function sName(id){const s=db.staff.find(x=>x.id===id);return s?s.name:'—';}
 
 function selectSeg(el,hid,val){
@@ -1288,7 +1293,7 @@ function showPage(id,opts={}){
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   const tabMap={dashboard:0,finance:1,projects:2,calendar:3,staff:4};
   if(tabMap[id]!==undefined)document.querySelectorAll('.nav-tab')[tabMap[id]].classList.add('active');
-  const titles={dashboard:'總覽',projects:'專案',finance:'收支管理',calendar:'行事曆',staff:'人事'};
+  const titles={dashboard:'總覽',projects:'專案',finance:'收支管理',calendar:'小工具',staff:'人事'};
   const tr=document.getElementById('topbar-right');
   const titleEl=document.getElementById('topbar-title');
   if(id==='detail'){
@@ -1426,13 +1431,12 @@ function confirmTimeWheel(){
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
 // ── HELPERS ──
-function fillSel(selId,addAll=false,addAndun=false,addFactory=false){
+function fillSel(selId,addAll=false,addAndun=false){
   const el=document.getElementById(selId);if(!el)return;
   const val=el.value;el.innerHTML='';
   if(addAll)el.innerHTML='<option value="">所有專案</option>';
   if(addAll&&addAndun)el.innerHTML+='<option value="__andun__">安盾總管</option>';
   if(!addAll&&addAndun)el.innerHTML='<option value="__andun__">安盾總管</option>';
-  if(addFactory)el.innerHTML+='<option value="__factory__">安盾工廠</option>';
   db.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o);});
   if(val)el.value=val;
 }
@@ -1482,7 +1486,7 @@ function fillNameSel(selId){
 function punch(type){
   pendingPunchType=type;
   document.getElementById('sheet-punch-title').textContent=type==='in'?'上班打卡 🟢':'下班打卡 🔴';
-  fillSel('punch-project',false,false,true);
+  fillSel('punch-project');
   fillNameSel('punch-name');
   const last=db.punches[db.punches.length-1];
   if(last){const el=document.getElementById('punch-name');if(el)el.value=last.name;}
@@ -1869,6 +1873,8 @@ function renderDetail(pid){
     ${isCon?`<div class="info-row"><span class="info-label">密碼/鑰匙</span><span class="info-value">${p.info.key||'—'}</span></div>`:''}
     ${isCon?`<div class="info-row"><span class="info-label">車位</span><span class="info-value">${p.info.parking||'—'}</span></div>`:''}
     <div class="info-row"><span class="info-label">負責人</span><span class="info-value">${p.leader?sName(p.leader):'—'}</span></div>
+    ${p.info.paint?`<div class="info-row"><span class="info-label">油漆色號</span><span class="info-value" style="white-space:pre-wrap">${p.info.paint}</span></div>`:''}
+    ${p.info.remark?`<div class="info-row"><span class="info-label">備註</span><span class="info-value" style="white-space:pre-wrap">${p.info.remark}</span></div>`:''}
   </div></div>`;
 
   // 收支（施作中才顯示）
@@ -1969,7 +1975,7 @@ function renderDetail(pid){
       ${notes.length?notes.map((n,i)=>`
         <div class="note-item">
           <div class="note-num">${i+1}</div>
-          <div style="flex:1;font-size:14px;line-height:1.6">${n.text}</div>
+          <div style="flex:1;font-size:14px;line-height:1.6;white-space:pre-wrap">${n.text}</div>
           <button class="btn btn-danger btn-icon btn-sm" onclick="deleteNote('${pid}',${i})"><i class="ti ti-trash"></i></button>
         </div>`).join(''):'<div class="empty" style="padding:1.5rem"><i class="ti ti-notes-off"></i><p>尚無注意內容</p></div>'}
     </div>`;
@@ -2218,6 +2224,8 @@ function openInfoSheet(pid){
   document.getElementById('info-address').value=p.info.address||'';
   document.getElementById('info-key').value=p.info.key||'';
   document.getElementById('info-parking').value=p.info.parking||'';
+  document.getElementById('info-paint').value=p.info.paint||'';
+  document.getElementById('info-remark').value=p.info.remark||'';
   fillStaffSel('info-leader');
   document.getElementById('info-leader').value=p.leader||'';
   const showKeyFields=(p.type==='施作中'||p.type==='已完工')?'block':'none';
@@ -2230,6 +2238,8 @@ function saveInfo(){
   if(!p.info)p.info={};
   p.info.phone=document.getElementById('info-phone').value;
   p.info.address=document.getElementById('info-address').value;
+  p.info.paint=document.getElementById('info-paint').value;
+  p.info.remark=document.getElementById('info-remark').value;
   p.leader=document.getElementById('info-leader').value;
   if(p.type==='施作中'||p.type==='已完工'){
     p.info.key=document.getElementById('info-key').value;
@@ -2260,7 +2270,6 @@ const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
 const GOOGLE_SCOPES=DRIVE_SCOPE+' '+CALENDAR_SCOPE;
 const SHARED_ROOT_FOLDER_ID='1Qh9Z1uISphuymrgiBMNraTh0DnBFzFsX'; // 共用「工程管理系統」資料夾（Drive 資料夾本身名稱可自行更改，不影響此 ID 連結）
 const SHARED_CALENDAR_ID='6f1dbb6876ceb869a98c8f8bc77661191cc7bf7f80b5b3dbaa6bfcc093532bbd@group.calendar.google.com'; // 團隊共用日曆
-const SURVEY_CALENDAR_ID='dcef6ceeff60164d091a36015a460d34517c5d2fab718a598987e3538d129b32@group.calendar.google.com'; // 安盾場開勘日曆
 let driveAccessToken=null;
 let tokenClient=null;
 
@@ -2329,9 +2338,9 @@ function syncMeasureToCalendar(p){
       };
       let res;
       if(p.measureGcalId){
-        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SURVEY_CALENDAR_ID)}/events/${p.measureGcalId}`,{method:'PUT',body:JSON.stringify(body)});
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${p.measureGcalId}`,{method:'PUT',body:JSON.stringify(body)});
       } else {
-        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SURVEY_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
       }
       const data=await res.json();
       if(data.id){p.measureGcalId=data.id;save();if(window.fbSaveProject)window.fbSaveProject(p);}
@@ -2684,7 +2693,7 @@ function openPunchEdit(punchId){
   // 使用者主動點擊補登按鈕，Safari不會擋彈窗
   const doOpen=()=>{
     editingPunchId=punchId||null;
-    fillSel('pe-project',false,false,true);
+    fillSel('pe-project');
     fillNameSel('pe-name');
     document.getElementById('pe-project').value='';
     if(punchId){
