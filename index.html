@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260717D">
+<meta name="app-version" content="20260717E">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -585,7 +585,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <div id="f-reserve-hint" style="display:none;color:var(--text3);font-size:0.8125rem;margin-top:4px;">此帳戶為備用金帳：選「支出」＝報帳；選「收入」＝補款（公司撥入備用金）</div>
     </div>
     <div class="form-group" id="f-expense-cat-group" style="display:none;">
-      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出類別<span id="f-cat-manage-link" style="display:none;color:var(--accent);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage()">管理分類</span></label>
+      <label class="form-label">支出類別</label>
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
     <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project"></select></div>
@@ -596,43 +596,12 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-income-cat" onchange="toggleFinanceStaff()"></select>
     </div>
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
-    <div class="form-group"><label class="form-label">項目名稱 *</label><input class="form-input" id="f-name" placeholder="例：第一期工程款" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
     <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="f-note" placeholder="補充說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-finance')">取消</button>
       <button class="btn btn-primary" onclick="saveFinance()">儲存</button>
-    </div>
-  </div>
-</div>
-
-<div class="sheet-overlay" id="sheet-cat-manage">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">管理支出分類<button class="sheet-close" onclick="closeSheet('sheet-cat-manage')"><i class="ti ti-x"></i></button></div>
-    <div id="cat-manage-list"></div>
-    <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
-      <div style="flex:1"><label class="form-label">新增分類</label><input class="form-input" id="cat-new-name" placeholder="例：油漆工錢" autocomplete="off"></div>
-      <button class="btn btn-primary" onclick="addFinanceCat()">新增</button>
-    </div>
-    <div class="sheet-footer">
-      <button class="btn btn-primary" onclick="closeSheet('sheet-cat-manage')">完成</button>
-    </div>
-  </div>
-</div>
-
-<div class="sheet-overlay" id="sheet-subcat-manage">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title"><span id="subcat-title">明細項目</span><button class="sheet-close" onclick="closeSheet('sheet-subcat-manage')"><i class="ti ti-x"></i></button></div>
-    <div id="subcat-manage-list"></div>
-    <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
-      <div style="flex:1"><label class="form-label">新增明細項目</label><input class="form-input" id="subcat-new-name" placeholder="例：中租貸款" autocomplete="off"></div>
-      <button class="btn btn-primary" onclick="addFinanceSubcat()">新增</button>
-    </div>
-    <div class="sheet-footer">
-      <button class="btn btn-primary" onclick="closeSheet('sheet-subcat-manage')">完成</button>
     </div>
   </div>
 </div>
@@ -1092,8 +1061,6 @@ function onFinanceCatsSynced(cfg){
   db.financeCats=cfg;save();
   const sheet=document.getElementById('sheet-finance');
   if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
-  const catSheet=document.getElementById('sheet-cat-manage');
-  if(catSheet&&catSheet.classList.contains('open'))renderCatManageList();
 }
 async function checkFinanceMigration(){
   if(!window.fbCheckFinanceEmpty)return;
@@ -1277,75 +1244,6 @@ const FIN_INC_CATS_PROJECT=['工程款01期','工程款02期','工程款03期','
 const FIN_INC_CATS_ANDUN=['其他'];
 function andunCats(){return(db.financeCats&&db.financeCats.cats)||[];}
 function andunSubcats(cat){return(db.financeCats&&db.financeCats.sub&&db.financeCats.sub[cat])||[];}
-function saveFinanceCatsConfig(){
-  save();
-  if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);
-  const sheet=document.getElementById('sheet-finance');
-  if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
-}
-let currentEditingCat=null;
-function openCatManage(){renderCatManageList();openSheet('sheet-cat-manage');}
-function renderCatManageList(){
-  const cats=andunCats();
-  document.getElementById('cat-manage-list').innerHTML=cats.length?cats.map(c=>{
-    const special=c==='專案'||c==='薪資';
-    const subCount=andunSubcats(c).length;
-    const meta=c==='專案'?'新增時可選擇專案':(c==='薪資'?'新增時可選擇人員':(subCount?subCount+' 個明細項目':'無明細項目'));
-    return `<div class="finance-item">
-      <div class="finance-body"><div class="finance-name">${c}</div><div class="finance-meta">${meta}</div></div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        ${special?'':`<button class="btn btn-sm" onclick="openSubcatManage('${c}')">明細</button>`}
-        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinanceCat('${c}')"><i class="ti ti-trash"></i></button>
-      </div>
-    </div>`;
-  }).join(''):'<div class="empty"><p>尚無分類</p></div>';
-}
-function addFinanceCat(){
-  const input=document.getElementById('cat-new-name');
-  const name=input.value.trim();
-  if(!name)return;
-  if(!db.financeCats.cats.includes(name))db.financeCats.cats.push(name);
-  input.value='';
-  saveFinanceCatsConfig();
-  renderCatManageList();
-}
-function deleteFinanceCat(name){
-  if(!confirm(`確定刪除分類「${name}」？`))return;
-  db.financeCats.cats=db.financeCats.cats.filter(c=>c!==name);
-  delete db.financeCats.sub[name];
-  saveFinanceCatsConfig();
-  renderCatManageList();
-}
-function openSubcatManage(cat){
-  currentEditingCat=cat;
-  document.getElementById('subcat-title').textContent=cat+' · 明細項目';
-  renderSubcatManageList();
-  openSheet('sheet-subcat-manage');
-}
-function renderSubcatManageList(){
-  const subs=andunSubcats(currentEditingCat);
-  document.getElementById('subcat-manage-list').innerHTML=subs.length?subs.map(s=>`
-    <div class="finance-item">
-      <div class="finance-body"><div class="finance-name">${s}</div></div>
-      <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinanceSubcat('${s}')"><i class="ti ti-trash"></i></button>
-    </div>`).join(''):'<div class="empty"><p>尚無明細項目</p></div>';
-}
-function addFinanceSubcat(){
-  const input=document.getElementById('subcat-new-name');
-  const name=input.value.trim();
-  if(!name||!currentEditingCat)return;
-  if(!db.financeCats.sub[currentEditingCat])db.financeCats.sub[currentEditingCat]=[];
-  if(!db.financeCats.sub[currentEditingCat].includes(name))db.financeCats.sub[currentEditingCat].push(name);
-  input.value='';
-  saveFinanceCatsConfig();
-  renderSubcatManageList();
-}
-function deleteFinanceSubcat(name){
-  if(!currentEditingCat)return;
-  db.financeCats.sub[currentEditingCat]=(db.financeCats.sub[currentEditingCat]||[]).filter(s=>s!==name);
-  saveFinanceCatsConfig();
-  renderSubcatManageList();
-}
 function onFinanceAccountChange(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
@@ -1357,8 +1255,6 @@ function refreshFinanceCategories(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
   const useCustomCats=reserve||acct==='__andun__';
-  const mgLink=document.getElementById('f-cat-manage-link');
-  if(mgLink)mgLink.style.display=useCustomCats?'inline':'none';
   const expSel=document.getElementById('f-expense-cat');
   const incSel=document.getElementById('f-income-cat');
   const expVal=expSel.value,incVal=incSel.value;
@@ -1524,7 +1420,7 @@ function showPage(id,opts={}){
   }
   if(id==='dashboard')renderDashboard();
   if(id==='projects')renderProjects();
-  if(id==='finance'){fillAccountSel('finance-filter-project',true);fillAccountSel('f-project',false);onFinanceAccountChange();renderFinance();}
+  if(id==='finance'){fillAccountSel('finance-filter-project',true);fillAccountSel('f-project',false,false);onFinanceAccountChange();renderFinance();}
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();}
   if(id==='staff')renderStaff();
   if(id==='staff-detail')renderStaffDetail(currentStaffId);
@@ -1643,13 +1539,13 @@ function fillSel(selId,addAll=false,addAndun=false){
   db.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o);});
   if(val)el.value=val;
 }
-function fillAccountSel(selId,addAll=false){
+function fillAccountSel(selId,addAll=false,includeProjects=true){
   const el=document.getElementById(selId);if(!el)return;
   const val=el.value;
   let html=addAll?'<option value="">所有專案</option>':'';
   html+='<option value="__andun__">安盾裝修</option>';
   db.staff.filter(s=>s.hasReserve).forEach(s=>{html+=`<option value="__reserve_${s.id}__">${s.name}備用金帳</option>`;});
-  db.projects.forEach(p=>{html+=`<option value="${p.id}">${p.name}</option>`;});
+  if(includeProjects)db.projects.forEach(p=>{html+=`<option value="${p.id}">${p.name}</option>`;});
   el.innerHTML=html;
   if(val)el.value=val;
 }
@@ -1666,13 +1562,14 @@ function reserveBalance(staffId){
 }
 function openFinanceAddSheet(){
   const filter=document.getElementById('finance-filter-project').value;
-  fillAccountSel('f-project',false);
-  if(filter)document.getElementById('f-project').value=filter;
+  fillAccountSel('f-project',false,false);
+  const sel=document.getElementById('f-project');
+  if(filter&&[...sel.options].some(o=>o.value===filter))sel.value=filter;
   onFinanceAccountChange();
   openSheet('sheet-finance');
 }
 function openReserveEntry(staffId){
-  fillAccountSel('f-project',false);
+  fillAccountSel('f-project',false,false);
   document.getElementById('f-project').value='__reserve_'+staffId+'__';
   setSeg('f-type','收入');
   onFinanceAccountChange();
@@ -2299,8 +2196,13 @@ function setNegStep(pid,step){
 }
 
 function openFinanceForProject(pid){
-  fillAccountSel('f-project',false);
-  document.getElementById('f-project').value=pid;
+  fillAccountSel('f-project',false,false);
+  const proj=db.projects.find(p=>p.id===pid);
+  const sel=document.getElementById('f-project');
+  const opt=document.createElement('option');
+  opt.value=pid;opt.textContent=proj?proj.name:'專案';
+  sel.appendChild(opt);
+  sel.value=pid;
   onFinanceAccountChange();
   openSheet('sheet-finance');
 }
@@ -2829,7 +2731,7 @@ function renderReserveLedger(staffId){
     </div>`).join(''):'<div class="empty"><i class="ti ti-receipt-off"></i><p>尚無備用金記錄</p></div>';
 }
 function resetFinanceForm(){
-  ['f-name','f-amount','f-note','f-date'].forEach(id=>document.getElementById(id).value='');
+  ['f-amount','f-note','f-date'].forEach(id=>document.getElementById(id).value='');
 }
 function saveFinance(){
   const acct=document.getElementById('f-project').value;
@@ -2844,7 +2746,7 @@ function saveFinance(){
   if(reserve&&ftype==='收入'){
     // 補款：公司撥入備用金
     const staffId=reserveStaffId(acct);
-    const rec={id:uid(),staffId,amount:Number(amount),date:dateVal,note:noteVal||document.getElementById('f-name').value};
+    const rec={id:uid(),staffId,amount:Number(amount),date:dateVal,note:noteVal};
     db.reserveFunding.push(rec);
     save();if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec);
     closeSheet('sheet-finance');resetFinanceForm();
@@ -2856,10 +2758,8 @@ function saveFinance(){
   if(reserve||acct==='__andun__'){
     if(ftype!=='支出'){
       // 安盾裝修收入（簡易分類，無專案/薪資特殊邏輯）
-      const name=document.getElementById('f-name').value.trim();
-      if(!name)return alert('請填入項目名稱');
       const incCat=document.getElementById('f-income-cat').value;
-      const rec={id:uid(),name,amount:Number(amount),projectId:acct,ftype,expCat:'',incCat,expDetail:'',staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
+      const rec={id:uid(),name:incCat||'收入',amount:Number(amount),projectId:acct,ftype,expCat:'',incCat,expDetail:'',staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
       db.finance.push(rec);
       save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
       closeSheet('sheet-finance');resetFinanceForm();
@@ -2869,23 +2769,25 @@ function saveFinance(){
     // 安盾裝修支出 或 Wallace/Mark 報帳：共用可自訂分類（含「專案」「薪資」特殊選項）
     const cat=document.getElementById('f-expense-cat').value;
     if(!cat)return alert('請選擇支出類別');
-    let projectId='__andun__',staffId='',staffName='',expDetail='',expCat=cat;
+    let projectId='__andun__',staffId='',staffName='',expDetail='',expCat=cat,name=cat;
     if(cat==='專案'){
       const proj=document.getElementById('f-cat-project').value;
       if(!proj)return alert('請選擇專案');
       projectId=proj;expCat='';
+      name=(db.projects.find(p=>p.id===proj)||{}).name||'專案支出';
     } else if(cat==='薪資'){
       staffId=document.getElementById('f-staff-sel').value;
       if(!staffId)return alert('請選擇相關人員');
       staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
+      name=staffName?'薪資 · '+staffName:'薪資';
     } else {
       const subs=andunSubcats(cat);
       if(subs.length){
         expDetail=document.getElementById('f-expense-detail').value;
         if(!expDetail)return alert('請選擇明細項目');
+        name=cat+' · '+expDetail;
       }
     }
-    const name=document.getElementById('f-name').value.trim()||cat;
     const paidBy=reserve?reserveStaffId(acct):'';
     const rec={id:uid(),name,amount:Number(amount),projectId,ftype:'支出',expCat,incCat:'',expDetail,staffId,staffName,paidBy,date:dateVal,note:noteVal};
     db.finance.push(rec);
@@ -2898,14 +2800,13 @@ function saveFinance(){
   }
 
   // 一般帳戶（實際專案）維持原本固定分類邏輯
-  const name=document.getElementById('f-name').value.trim();
-  if(!name)return alert('請填入項目名稱');
   const expCat=ftype==='支出'?document.getElementById('f-expense-cat').value:'';
   const incCat=ftype==='收入'?document.getElementById('f-income-cat').value:'';
   const needStaff=(ftype==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'))||(ftype==='收入'&&incCat==='款項還回');
   const staffId=needStaff?document.getElementById('f-staff-sel').value:'';
   if(needStaff&&!staffId)return alert('請選擇相關人員');
   const staffName=staffId?(db.staff.find(s=>s.id===staffId)||{}).name||'':'';
+  const name=(ftype==='支出'?expCat:incCat)+(staffName?' · '+staffName:'');
   const rec={id:uid(),name,amount:Number(amount),projectId:acct,ftype,expCat,incCat,expDetail:'',staffId,staffName,paidBy:'',date:dateVal,note:noteVal};
   db.finance.push(rec);
   save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
