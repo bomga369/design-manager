@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260717E">
+<meta name="app-version" content="20260717G">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -593,7 +593,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-expense-detail"></select>
     </div>
     <div class="form-group" id="f-income-cat-group" style="display:block;"><label class="form-label">收入類別</label>
-      <select class="form-input" id="f-income-cat" onchange="toggleFinanceStaff()"></select>
+      <select class="form-input" id="f-income-cat" onchange="onIncomeCatChange()"></select>
     </div>
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
@@ -1241,8 +1241,12 @@ function setSeg(hidId,val){
 }
 const FIN_EXP_CATS_PROJECT=['午餐','晚餐','材料五金','薪資','臨時性支出','其他'];
 const FIN_INC_CATS_PROJECT=['工程款01期','工程款02期','工程款03期','尾款','款項還回','其他'];
-const FIN_INC_CATS_ANDUN=['其他'];
-function andunCats(){return(db.financeCats&&db.financeCats.cats)||[];}
+const FIN_INC_CATS_ANDUN=['專案','其他'];
+function andunCats(){
+  const cats=(db.financeCats&&db.financeCats.cats)||[];
+  // 「專案」固定排在第一位，不論儲存的順序為何
+  return['專案',...cats.filter(c=>c!=='專案')];
+}
 function andunSubcats(cat){return(db.financeCats&&db.financeCats.sub&&db.financeCats.sub[cat])||[];}
 function onFinanceAccountChange(){
   const acct=document.getElementById('f-project').value;
@@ -1264,23 +1268,24 @@ function refreshFinanceCategories(){
   incSel.innerHTML=incCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   if(expCats.includes(expVal))expSel.value=expVal;
   if(incCats.includes(incVal))incSel.value=incVal;
-  onExpenseCatChange();
+  updateCatDependentUI();
 }
-function onExpenseCatChange(){
+function updateCatDependentUI(){
+  const t=document.getElementById('f-type').value;
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
-  const useCustomCats=reserve||acct==='__andun__';
-  const cat=document.getElementById('f-expense-cat').value;
+  const isAndunLike=reserve||acct==='__andun__';
+  const cat=t==='支出'?document.getElementById('f-expense-cat').value:document.getElementById('f-income-cat').value;
   const detGrp=document.getElementById('f-expense-detail-group');
   const detSel=document.getElementById('f-expense-detail');
   const projGrp=document.getElementById('f-cat-project-group');
-  if(useCustomCats&&cat==='專案'){
+  if(isAndunLike&&cat==='專案'){
     projGrp.style.display='block';
     fillSel('f-cat-project',false,false);
     detGrp.style.display='none';detSel.innerHTML='';
   } else {
     projGrp.style.display='none';
-    const subs=useCustomCats?andunSubcats(cat):[];
+    const subs=(t==='支出'&&isAndunLike)?andunSubcats(cat):[];
     if(subs.length){
       detGrp.style.display='block';
       document.getElementById('f-expense-detail-label').textContent=cat+'項目';
@@ -1291,17 +1296,19 @@ function onExpenseCatChange(){
   }
   toggleFinanceStaff();
 }
+function onExpenseCatChange(){updateCatDependentUI();}
+function onIncomeCatChange(){updateCatDependentUI();}
 function toggleFinanceCat(t){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
   document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';
   document.getElementById('f-income-cat-group').style.display=(!reserve&&t==='收入')?'block':'none';
-  if(t==='支出')refreshFinanceCategories();
+  if(t==='支出'||!reserve)refreshFinanceCategories();
   else{
+    // 備用金帳的收入＝補款，無分類
     document.getElementById('f-expense-detail-group').style.display='none';
     document.getElementById('f-cat-project-group').style.display='none';
-    if(reserve)document.getElementById('f-staff-group').style.display='none';
-    else toggleFinanceStaff();
+    document.getElementById('f-staff-group').style.display='none';
   }
 }
 function toggleFinanceStaff(){
@@ -2672,8 +2679,9 @@ function renderFinance(){
   const typeFilter=document.getElementById('finance-filter-type').value;
   let items=[...db.finance].sort((a,b)=>b.date?.localeCompare(a.date||''));
   if(filter)items=items.filter(f=>f.projectId===filter);
+  else items=items.filter(f=>!f.settleFromPid); // 所有專案總覽：排除結算摘要，避免與專案原始收支重複計算
   if(typeFilter)items=items.filter(f=>f.ftype===typeFilter);
-  const base=filter?db.finance.filter(f=>f.projectId===filter):db.finance;
+  const base=filter?db.finance.filter(f=>f.projectId===filter):db.finance.filter(f=>!f.settleFromPid);
   const income=base.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const reserveOutflow=filter==='__andun__'?db.reserveFunding.reduce((s,r)=>s+Number(r.amount||0),0):0;
   const exp=base.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0)+reserveOutflow;
@@ -2757,13 +2765,24 @@ function saveFinance(){
 
   if(reserve||acct==='__andun__'){
     if(ftype!=='支出'){
-      // 安盾裝修收入（簡易分類，無專案/薪資特殊邏輯）
+      // 安盾裝修收入：可選「專案」直接算進該專案的進項，或「其他」算公司自身收入
       const incCat=document.getElementById('f-income-cat').value;
-      const rec={id:uid(),name:incCat||'收入',amount:Number(amount),projectId:acct,ftype,expCat:'',incCat,expDetail:'',staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
+      if(!incCat)return alert('請選擇收入類別');
+      let projectId=acct,storedIncCat=incCat,name='收入';
+      if(incCat==='專案'){
+        const proj=document.getElementById('f-cat-project').value;
+        if(!proj)return alert('請選擇專案');
+        projectId=proj;storedIncCat='';
+        name='工程款';
+      } else {
+        name=incCat;
+      }
+      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:'',staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
       db.finance.push(rec);
       save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
       closeSheet('sheet-finance');resetFinanceForm();
       if(currentPage==='finance')renderFinance();
+      if(currentPage==='detail')renderDetail(currentProjectId);
       return;
     }
     // 安盾裝修支出 或 Wallace/Mark 報帳：共用可自訂分類（含「專案」「薪資」特殊選項）
@@ -2774,7 +2793,7 @@ function saveFinance(){
       const proj=document.getElementById('f-cat-project').value;
       if(!proj)return alert('請選擇專案');
       projectId=proj;expCat='';
-      name=(db.projects.find(p=>p.id===proj)||{}).name||'專案支出';
+      name='專案支出';
     } else if(cat==='薪資'){
       staffId=document.getElementById('f-staff-sel').value;
       if(!staffId)return alert('請選擇相關人員');
