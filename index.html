@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260717A">
+<meta name="app-version" content="20260717B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -582,7 +582,9 @@ textarea.form-input{resize:none;min-height:72px;}
         <div class="seg-btn active" data-val="收入" onclick="selectSeg(this,'f-type','收入');toggleFinanceCat('收入')">收入（請款）</div>
       </div>
       <input type="hidden" id="f-type" value="收入">
+      <div id="f-reserve-hint" style="display:none;color:var(--text3);font-size:0.8125rem;margin-top:4px;">此帳戶為備用金帳：選「支出」＝報帳（需選歸屬帳戶）；選「收入」＝補款（公司撥入備用金）</div>
     </div>
+    <div class="form-group" id="f-claim-target-group" style="display:none;"><label class="form-label">歸屬帳戶 *</label><select class="form-input" id="f-claim-target" onchange="refreshFinanceCategories()"></select></div>
     <div class="form-group" id="f-expense-cat-group" style="display:none;"><label class="form-label">支出類別</label>
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
@@ -593,9 +595,6 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-income-cat" onchange="toggleFinanceStaff()"></select>
     </div>
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
-    <div class="form-group" id="f-paidby-group" style="display:none;"><label class="form-label">備用金代墊（選填）</label>
-      <select class="form-input" id="f-paidby"><option value="">直接支出（不指定）</option></select>
-    </div>
     <div class="form-group"><label class="form-label">項目名稱 *</label><input class="form-input" id="f-name" placeholder="例：第一期工程款" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
@@ -640,21 +639,6 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-staff')">取消</button>
       <button class="btn btn-primary" id="sheet-staff-save" onclick="saveStaff()">儲存</button>
-    </div>
-  </div>
-</div>
-
-<div class="sheet-overlay" id="sheet-reserve-fund">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title"><span id="rf-title">新增補款</span><button class="sheet-close" onclick="closeSheet('sheet-reserve-fund')"><i class="ti ti-x"></i></button></div>
-    <input type="hidden" id="rf-staff-id">
-    <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="rf-amount" type="number" inputmode="numeric" placeholder="0"></div>
-    <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="rf-date" type="date"></div>
-    <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="rf-note" placeholder="補充說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
-    <div class="sheet-footer">
-      <button class="btn" onclick="closeSheet('sheet-reserve-fund')">取消</button>
-      <button class="btn btn-primary" onclick="saveReserveFunding()">儲存</button>
     </div>
   </div>
 </div>
@@ -1247,6 +1231,14 @@ const FIN_DETAIL_FACTORY=['房租','水電費','其他'];
 const FIN_DETAIL_LOAN=['國泰房貸','青創貸款','玉山信貸','保單借款利息'];
 function onFinanceAccountChange(){
   const acct=document.getElementById('f-project').value;
+  const reserve=isReserveAccount(acct);
+  const hint=document.getElementById('f-reserve-hint');
+  if(hint)hint.style.display=reserve?'block':'none';
+  if(reserve)fillSel('f-claim-target',false,true);
+  toggleFinanceCat(document.getElementById('f-type').value);
+}
+function refreshFinanceCategories(){
+  const acct=categoryAccount();
   const isAndun=acct==='__andun__';
   const expSel=document.getElementById('f-expense-cat');
   const incSel=document.getElementById('f-income-cat');
@@ -1260,7 +1252,7 @@ function onFinanceAccountChange(){
   onExpenseCatChange();
 }
 function onExpenseCatChange(){
-  const acct=document.getElementById('f-project').value;
+  const acct=categoryAccount();
   const cat=document.getElementById('f-expense-cat').value;
   const grp=document.getElementById('f-expense-detail-group');
   const detSel=document.getElementById('f-expense-detail');
@@ -1276,18 +1268,22 @@ function onExpenseCatChange(){
   }
   toggleFinanceStaff();
 }
-function fillPaidBySel(){
-  const el=document.getElementById('f-paidby');if(!el)return;
-  const val=el.value;
-  el.innerHTML='<option value="">直接支出（不指定）</option>'+db.staff.filter(s=>s.hasReserve).map(s=>`<option value="${s.id}">${s.name}備用金</option>`).join('');
-  if(val)el.value=val;
-}
 function toggleFinanceCat(t){
-  document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';
-  document.getElementById('f-income-cat-group').style.display=t==='收入'?'block':'none';
-  document.getElementById('f-paidby-group').style.display=t==='支出'?'block':'none';
-  if(t==='支出'){fillPaidBySel();onExpenseCatChange();}
-  else{document.getElementById('f-expense-detail-group').style.display='none';toggleFinanceStaff();}
+  const acct=document.getElementById('f-project').value;
+  const reserve=isReserveAccount(acct);
+  if(reserve){
+    document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';
+    document.getElementById('f-income-cat-group').style.display='none';
+    document.getElementById('f-claim-target-group').style.display=t==='支出'?'block':'none';
+    if(t==='支出'){refreshFinanceCategories();}
+    else{document.getElementById('f-expense-detail-group').style.display='none';document.getElementById('f-staff-group').style.display='none';}
+  } else {
+    document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';
+    document.getElementById('f-income-cat-group').style.display=t==='收入'?'block':'none';
+    document.getElementById('f-claim-target-group').style.display='none';
+    if(t==='支出')refreshFinanceCategories();
+    else{document.getElementById('f-expense-detail-group').style.display='none';toggleFinanceStaff();}
+  }
 }
 function toggleFinanceStaff(){
   const t=document.getElementById('f-type').value;
@@ -1405,7 +1401,7 @@ function showPage(id,opts={}){
   }
   if(id==='dashboard')renderDashboard();
   if(id==='projects')renderProjects();
-  if(id==='finance'){fillFinanceFilterSel();fillSel('f-project',false,true);onFinanceAccountChange();renderFinance();}
+  if(id==='finance'){fillAccountSel('finance-filter-project',true);fillAccountSel('f-project',false);onFinanceAccountChange();renderFinance();}
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();}
   if(id==='staff')renderStaff();
   if(id==='staff-detail')renderStaffDetail(currentStaffId);
@@ -1524,10 +1520,11 @@ function fillSel(selId,addAll=false,addAndun=false){
   db.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o);});
   if(val)el.value=val;
 }
-function fillFinanceFilterSel(){
-  const el=document.getElementById('finance-filter-project');if(!el)return;
+function fillAccountSel(selId,addAll=false){
+  const el=document.getElementById(selId);if(!el)return;
   const val=el.value;
-  let html='<option value="">所有專案</option><option value="__andun__">安盾總管</option>';
+  let html=addAll?'<option value="">所有專案</option>':'';
+  html+='<option value="__andun__">安盾總管</option>';
   db.staff.filter(s=>s.hasReserve).forEach(s=>{html+=`<option value="__reserve_${s.id}__">${s.name}備用金帳</option>`;});
   db.projects.forEach(p=>{html+=`<option value="${p.id}">${p.name}</option>`;});
   el.innerHTML=html;
@@ -1544,10 +1541,24 @@ function reserveBalance(staffId){
   const claimed=db.finance.filter(f=>f.ftype==='支出'&&f.paidBy===staffId).reduce((s,f)=>s+Number(f.amount||0),0);
   return{funded,claimed,balance:funded-claimed};
 }
+function categoryAccount(){
+  const acct=document.getElementById('f-project').value;
+  if(isReserveAccount(acct)){const t=document.getElementById('f-claim-target');return t?t.value:'';}
+  return acct;
+}
 function openFinanceAddSheet(){
   const filter=document.getElementById('finance-filter-project').value;
-  if(isReserveAccount(filter))openAddReserveFunding(reserveStaffId(filter));
-  else openSheet('sheet-finance');
+  fillAccountSel('f-project',false);
+  if(filter)document.getElementById('f-project').value=filter;
+  onFinanceAccountChange();
+  openSheet('sheet-finance');
+}
+function openReserveEntry(staffId){
+  fillAccountSel('f-project',false);
+  document.getElementById('f-project').value='__reserve_'+staffId+'__';
+  setSeg('f-type','收入');
+  onFinanceAccountChange();
+  openSheet('sheet-finance');
 }
 function fillStaffSel(selId){
   const el=document.getElementById(selId);if(!el)return;
@@ -2170,8 +2181,9 @@ function setNegStep(pid,step){
 }
 
 function openFinanceForProject(pid){
-  fillSel('f-project',false,true);
+  fillAccountSel('f-project',false);
   document.getElementById('f-project').value=pid;
+  onFinanceAccountChange();
   openSheet('sheet-finance');
 }
 
@@ -2696,28 +2708,68 @@ function renderReserveLedger(staffId){
       </div>
     </div>`).join(''):'<div class="empty"><i class="ti ti-receipt-off"></i><p>尚無備用金記錄</p></div>';
 }
+function resetFinanceForm(){
+  ['f-name','f-amount','f-note','f-date'].forEach(id=>document.getElementById(id).value='');
+}
 function saveFinance(){
-  const name=document.getElementById('f-name').value.trim();
-  const amount=document.getElementById('f-amount').value;
-  if(!name||!amount)return alert('請填入項目名稱與金額');
-  const projectId=document.getElementById('f-project').value;
-  if(!projectId)return alert('請選擇所屬帳戶（公司費用請選「安盾總管」）');
+  const acct=document.getElementById('f-project').value;
+  if(!acct)return alert('請選擇所屬帳戶（公司費用請選「安盾總管」）');
   const ftype=document.getElementById('f-type').value;
+  const amount=document.getElementById('f-amount').value;
+  if(!amount||Number(amount)<=0)return alert('請輸入金額');
+  const dateVal=document.getElementById('f-date').value||today();
+  const noteVal=document.getElementById('f-note').value;
+
+  if(isReserveAccount(acct)){
+    const staffId=reserveStaffId(acct);
+    if(ftype==='收入'){
+      // 補款：公司撥入備用金
+      const rec={id:uid(),staffId,amount:Number(amount),date:dateVal,note:noteVal||document.getElementById('f-name').value};
+      db.reserveFunding.push(rec);
+      save();if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec);
+      closeSheet('sheet-finance');resetFinanceForm();
+      if(currentPage==='finance')renderFinance();
+      if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
+      return;
+    }
+    // 報帳：需選歸屬帳戶，計入該帳戶的支出，並標記由誰的備用金代墊
+    const target=document.getElementById('f-claim-target').value;
+    if(!target)return alert('請選擇歸屬帳戶');
+    const name=document.getElementById('f-name').value.trim()||'報帳';
+    const expCat=document.getElementById('f-expense-cat').value;
+    const needDetail=target==='__andun__'&&(expCat==='工廠營運'||expCat==='公司貸款');
+    const expDetail=needDetail?document.getElementById('f-expense-detail').value:'';
+    if(needDetail&&!expDetail)return alert('請選擇明細項目');
+    const needStaff=(expCat==='薪資'||expCat==='臨時性支出'||expCat==='薪資支出');
+    const staffSelId=needStaff?document.getElementById('f-staff-sel').value:'';
+    if(needStaff&&!staffSelId)return alert('請選擇相關人員');
+    const staffName=staffSelId?(db.staff.find(s=>s.id===staffSelId)||{}).name||'':'';
+    const rec={id:uid(),name,amount:Number(amount),projectId:target,ftype:'支出',expCat,incCat:'',expDetail,staffId:staffSelId,staffName,paidBy:staffId,date:dateVal,note:noteVal};
+    db.finance.push(rec);
+    save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
+    closeSheet('sheet-finance');resetFinanceForm();
+    if(currentPage==='finance')renderFinance();
+    if(currentPage==='detail')renderDetail(currentProjectId);
+    if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
+    return;
+  }
+
+  // 一般帳戶（安盾總管／專案）
+  const name=document.getElementById('f-name').value.trim();
+  if(!name)return alert('請填入項目名稱');
   const expCat=ftype==='支出'?document.getElementById('f-expense-cat').value:'';
   const incCat=ftype==='收入'?document.getElementById('f-income-cat').value:'';
-  const needDetail=ftype==='支出'&&projectId==='__andun__'&&(expCat==='工廠營運'||expCat==='公司貸款');
+  const needDetail=ftype==='支出'&&acct==='__andun__'&&(expCat==='工廠營運'||expCat==='公司貸款');
   const expDetail=needDetail?document.getElementById('f-expense-detail').value:'';
   if(needDetail&&!expDetail)return alert('請選擇明細項目');
   const needStaff=(ftype==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'||expCat==='薪資支出'))||(ftype==='收入'&&incCat==='款項還回');
   const staffId=needStaff?document.getElementById('f-staff-sel').value:'';
   if(needStaff&&!staffId)return alert('請選擇相關人員');
   const staffName=staffId?(db.staff.find(s=>s.id===staffId)||{}).name||'':'';
-  const paidBy=ftype==='支出'?document.getElementById('f-paidby').value:'';
-  const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat,incCat,expDetail,staffId,staffName,paidBy,date:document.getElementById('f-date').value||today(),note:document.getElementById('f-note').value};
+  const rec={id:uid(),name,amount:Number(amount),projectId:acct,ftype,expCat,incCat,expDetail,staffId,staffName,paidBy:'',date:dateVal,note:noteVal};
   db.finance.push(rec);
   save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
-  closeSheet('sheet-finance');
-  ['f-name','f-amount','f-note','f-date'].forEach(id=>document.getElementById(id).value='');
+  closeSheet('sheet-finance');resetFinanceForm();
   if(currentPage==='finance')renderFinance();
   if(currentPage==='detail')renderDetail(currentProjectId);
 }
@@ -2734,24 +2786,7 @@ function goToReserveFinance(staffId){
   renderFinance();
 }
 function openAddReserveFunding(staffId){
-  const s=db.staff.find(x=>x.id===staffId);if(!s)return;
-  document.getElementById('rf-title').textContent=s.name+' · 新增補款';
-  document.getElementById('rf-staff-id').value=staffId;
-  document.getElementById('rf-amount').value='';
-  document.getElementById('rf-note').value='';
-  document.getElementById('rf-date').value=today();
-  openSheet('sheet-reserve-fund');
-}
-function saveReserveFunding(){
-  const staffId=document.getElementById('rf-staff-id').value;if(!staffId)return;
-  const amount=document.getElementById('rf-amount').value;
-  if(!amount||Number(amount)<=0)return alert('請輸入補款金額');
-  const rec={id:uid(),staffId,amount:Number(amount),date:document.getElementById('rf-date').value||today(),note:document.getElementById('rf-note').value};
-  db.reserveFunding.push(rec);
-  save();if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec);
-  closeSheet('sheet-reserve-fund');
-  if(currentPage==='finance')renderFinance();
-  if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
+  openReserveEntry(staffId);
 }
 function deleteReserveFunding(id){
   if(!confirm('確定刪除這筆補款記錄？'))return;
