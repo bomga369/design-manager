@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260624C">
+<meta name="app-version" content="20260624D">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -353,6 +353,19 @@ textarea.form-input{resize:none;min-height:72px;}
           <div><div class="text-sm fw500">冷氣帽</div><div class="text-xs text-muted">計算工具</div></div>
           <i class="ti ti-external-link" style="margin-left:auto;color:var(--text3)"></i>
         </div>
+      </div>
+      <div class="section-hd" style="margin-top:1rem">行事曆</div>
+      <div onclick="handleCalCardClick(event)">
+        <div class="card" id="cal-card-wrap"><div class="card-inner">
+          <div class="flex-between" style="margin-bottom:0.75rem;">
+            <button class="btn btn-sm btn-icon" onclick="prevMonth()"><i class="ti ti-chevron-left"></i></button>
+            <span class="fw500" id="cal-month-label"></span>
+            <button class="btn btn-sm btn-icon" onclick="nextMonth()"><i class="ti ti-chevron-right"></i></button>
+          </div>
+          <div class="cal-grid" id="cal-grid"></div>
+        </div></div>
+        <div class="section-hd"><span id="cal-selected-label">近半年事務</span></div>
+        <div class="card" id="cal-events-list"></div>
       </div>
     </div>
   </div>
@@ -1873,7 +1886,7 @@ function renderDetail(pid){
     ${isCon?`<div class="info-row"><span class="info-label">密碼/鑰匙</span><span class="info-value">${p.info.key||'—'}</span></div>`:''}
     ${isCon?`<div class="info-row"><span class="info-label">車位</span><span class="info-value">${p.info.parking||'—'}</span></div>`:''}
     <div class="info-row"><span class="info-label">負責人</span><span class="info-value">${p.leader?sName(p.leader):'—'}</span></div>
-    ${p.info.paint?`<div class="info-row"><span class="info-label">油漆色號</span><span class="info-value" style="white-space:pre-wrap">${p.info.paint}</span></div>`:''}
+    <div class="info-row"><span class="info-label">油漆色號</span><span class="info-value" style="white-space:pre-wrap">${p.info.paint||'—'}</span></div>
     ${p.info.remark?`<div class="info-row"><span class="info-label">備註</span><span class="info-value" style="white-space:pre-wrap">${p.info.remark}</span></div>`:''}
   </div></div>`;
 
