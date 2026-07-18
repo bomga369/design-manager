@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718M">
+<meta name="app-version" content="20260718N">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -269,7 +269,9 @@ textarea.form-input{resize:none;min-height:72px;}
 .tool-icon:active{transform:scale(0.93);transition:transform .1s;}
 .tool-grid.reorder-mode .tool-tile{animation:tool-jiggle 0.28s infinite;}
 .tool-grid.reorder-mode .tool-tile:nth-child(even){animation-delay:-0.14s;}
-.tool-dragging{opacity:0.5;animation:none !important;}
+.tool-dragging{animation:none !important;transform:scale(1.15) !important;opacity:0.95;z-index:10;position:relative;}
+.tool-dragging .tool-icon{box-shadow:0 6px 20px rgba(0,0,0,0.35),0 0 0 3px var(--gold) !important;}
+.tool-grid.reorder-mode .tool-tile:not(.tool-dragging){transition:transform .18s ease;}
 @keyframes tool-jiggle{0%{transform:rotate(-1.2deg);}50%{transform:rotate(1.2deg);}100%{transform:rotate(-1.2deg);}}
 .tool-icon-edit{position:absolute;bottom:-4px;right:-4px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--bg2);cursor:pointer;z-index:2;}
 .tool-label{font-size:0.8125rem;color:var(--text2);text-align:center;line-height:1.2;}
@@ -2222,21 +2224,33 @@ const TOOLS=[
 ];
 let currentToolIconId=null;
 function getToolOrder(){
-  const saved=(db.toolIcons&&db.toolIcons.__order__)||[];
+  let saved=[];
+  try{saved=JSON.parse(localStorage.getItem('dmgr_tool_order')||'[]');}catch(e){}
   const ids=TOOLS.map(t=>t.id);
   const ordered=saved.filter(id=>ids.includes(id));
   ids.forEach(id=>{if(!ordered.includes(id))ordered.push(id);});
   return ordered;
 }
+function saveToolOrder(order){
+  try{localStorage.setItem('dmgr_tool_order',JSON.stringify(order));}catch(e){}
+}
 function orderedTools(){
   const order=getToolOrder();
   return order.map(id=>TOOLS.find(t=>t.id===id)).filter(Boolean);
 }
+function resetToolIconsIfNeeded(){
+  if(localStorage.getItem('dmgr_tool_reset_v1'))return;
+  localStorage.setItem('dmgr_tool_reset_v1','1');
+  db.toolIcons={};
+  save();
+  if(window.fbSaveToolIcons)window.fbSaveToolIcons(db.toolIcons);
+}
 function renderToolGrid(){
+  resetToolIconsIfNeeded();
   const el=document.getElementById('tool-grid');if(!el)return;
   const canEdit=canEditToolIcons();
   document.getElementById('tool-settings-btn').style.display=canEdit?'flex':'none';
-  document.getElementById('tool-reorder-hint').style.display=canEdit?'block':'none';
+  document.getElementById('tool-reorder-hint').style.display='block';
   el.innerHTML=orderedTools().map(t=>{
     const custom=db.toolIcons&&db.toolIcons[t.id];
     const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
@@ -2246,7 +2260,7 @@ function renderToolGrid(){
     </div>`;
   }).join('');
   attachToolIconPress();
-  if(canEdit)attachToolReorder();
+  attachToolReorder();
 }
 const TOOL_ICON_EDITOR_EMAIL='bomga369@gmail.com';
 function canEditToolIcons(){return currentUser&&currentUser.email===TOOL_ICON_EDITOR_EMAIL;}
@@ -2259,7 +2273,8 @@ function attachToolIconPress(){
     });
   });
 }
-// 長按小工具圖示：跟 iPhone 主畫面一樣，進入可拖曳排序模式
+// 長按小工具圖示：跟 iPhone 主畫面一樣，進入可拖曳排序模式。
+// 排序只存在這台裝置本機（localStorage），不會同步雲端，每個人／每台裝置各自獨立。
 function attachToolReorder(){
   const grid=document.getElementById('tool-grid');if(!grid)return;
   let longTimer=null,startX=0,startY=0,dragTile=null;
@@ -2314,12 +2329,10 @@ function attachToolReorder(){
     grid.classList.remove('reorder-mode');
     const doneBtn=document.getElementById('tool-reorder-done');
     if(doneBtn)doneBtn.style.display='none';
-    document.getElementById('tool-settings-btn').style.display='flex';
+    if(canEditToolIcons())document.getElementById('tool-settings-btn').style.display='flex';
     document.getElementById('tool-reorder-hint').textContent='長按圖示可拖曳調整排列順序';
     const newOrder=Array.from(grid.querySelectorAll('.tool-tile .tool-icon')).map(el=>el.getAttribute('data-tool'));
-    if(!db.toolIcons)db.toolIcons={};
-    db.toolIcons.__order__=newOrder;
-    save();if(window.fbSaveToolIcons)window.fbSaveToolIcons(db.toolIcons);
+    saveToolOrder(newOrder);
   }
 }
 function openTool(id){
