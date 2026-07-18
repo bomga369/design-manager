@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718G">
+<meta name="app-version" content="20260718H">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -261,7 +261,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .mat-chip-add-row input{flex:1;}
 .tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 10px;margin-bottom:0.5rem;}
 .tool-tile{display:flex;flex-direction:column;align-items:center;gap:6px;}
-.tool-icon{width:72px;height:72px;border-radius:20px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);-webkit-user-select:none;user-select:none;}
+.tool-icon{width:72px;height:72px;border-radius:20px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
 .tool-icon.pressing{transform:scale(0.93);transition:transform .15s;}
 .tool-label{font-size:0.8125rem;color:var(--text2);text-align:center;line-height:1.2;}
 </style>
@@ -621,7 +621,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project" onchange="onCatProjectChange()"></select></div>
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group" id="f-expense-detail-group" style="display:none;">
-      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-expense-detail-label">明細項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-expense-cat').value)">管理項目</span></label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-expense-detail-label">支出項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-expense-cat').value)">管理項目</span></label>
       <select class="form-input" id="f-expense-detail"></select>
     </div>
     <div class="form-group" id="f-income-cat-group" style="display:block;">
@@ -1304,7 +1304,7 @@ const CITY_DISTRICTS={
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
   cats:['專案','薪資'],
   incCats:['專案'],
-  sub:{}
+  sub:{'專案':['材料五金','薪資']}
 }};
 window.fbDebugLog=function(){};
 let currentPage='dashboard';
@@ -1328,7 +1328,7 @@ function load(){
   const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);
   if(!db.punchGcalIds)db.punchGcalIds={};
   if(!db.reserveFunding)db.reserveFunding=[];
-  if(!db.financeCats)db.financeCats={cats:['專案','薪資'],incCats:['專案'],sub:{}};
+  if(!db.financeCats)db.financeCats={cats:['專案','薪資'],incCats:['專案'],sub:{'專案':['材料五金','薪資']}};
   if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
   if(!db.financeCats.sub)db.financeCats.sub={};
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
@@ -1621,14 +1621,15 @@ function renderCatManageList(){
   document.getElementById('cat-manage-list').innerHTML=cats.length?cats.map(c=>{
     const isProj=c==='專案';
     const subCount=andunSubcats(c).length;
-    const meta=isProj?'選擇 App 內施作中專案':(subCount?subCount+' 個明細項目':'無明細項目');
+    const itemWord=catManageMode==='inc'?'收入項目':'支出項目';
+    const meta=isProj?'選擇 App 內施作中專案':(subCount?subCount+' 個'+itemWord:'無'+itemWord);
     return `<div class="mat-item-wrap" data-key="${c}">
       <div class="mat-swipe-actions">
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceCat('${c}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
       <div class="mat-item-card" style="cursor:default;">
         <div style="flex:1;min-width:0;"><div class="fw500">${c}</div><div style="font-size:0.8125rem;color:var(--text3);margin-top:2px;">${meta}</div></div>
-        <button class="btn btn-sm" onclick="openSubcatManage('${c}','${catManageMode}')">${catManageMode==='inc'?'收入項目':'明細'}</button>
+        <button class="btn btn-sm" onclick="openSubcatManage('${c}','${catManageMode}')">${catManageMode==='inc'?'收入項目':'支出項目'}</button>
       </div>
     </div>`;
   }).join(''):'<div class="empty"><p>尚無分類，新增一個開始使用</p></div>';
@@ -1656,7 +1657,7 @@ let currentEditingCat=null,currentEditingCatMode='exp';
 function openSubcatManage(cat,mode){
   currentEditingCat=cat;
   currentEditingCatMode=mode||'exp';
-  document.getElementById('subcat-title').textContent=cat+(currentEditingCatMode==='inc'?' · 收入項目':' · 明細項目');
+  document.getElementById('subcat-title').textContent=cat+(currentEditingCatMode==='inc'?' · 收入項目':' · 支出項目');
   renderSubcatManageList();
   openSheet('sheet-subcat-manage');
 }
@@ -1761,7 +1762,7 @@ function updateCatDependentUI(){
   if(subs.length){
     detGrp.style.display='block';
     const label=document.getElementById(t==='支出'?'f-expense-detail-label':'f-income-detail-label');
-    label.textContent=t==='支出'?'明細項目':'收入項目';
+    label.textContent=t==='支出'?'支出項目':'收入項目';
     const sel=document.getElementById(t==='支出'?'f-expense-detail':'f-income-detail');
     const val=sel.value;
     sel.innerHTML=subs.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -1946,9 +1947,9 @@ function attachToolIconPress(){
       icon.addEventListener('click',()=>openTool(id));
       return;
     }
-    let timer=null,longPressed=false,touchUsed=false;
-    function start(){
-      longPressed=false;
+    let timer=null,longPressed=false,touchUsed=false,startX=0,startY=0;
+    function start(x,y){
+      longPressed=false;startX=x;startY=y;
       icon.classList.add('pressing');
       timer=setTimeout(()=>{
         longPressed=true;
@@ -1957,14 +1958,19 @@ function attachToolIconPress(){
         pickToolIcon(id);
       },550);
     }
+    function moveCheck(x,y){
+      if(Math.abs(x-startX)>12||Math.abs(y-startY)>12)cancel();
+    }
     function cancel(){
       clearTimeout(timer);
       icon.classList.remove('pressing');
     }
-    icon.addEventListener('touchstart',()=>{touchUsed=true;start();},{passive:true});
+    icon.addEventListener('touchstart',e=>{touchUsed=true;const t=e.touches[0];start(t.clientX,t.clientY);},{passive:true});
     icon.addEventListener('touchend',()=>{cancel();if(!longPressed)openTool(id);});
-    icon.addEventListener('touchmove',cancel,{passive:true});
-    icon.addEventListener('mousedown',()=>{if(touchUsed)return;start();});
+    icon.addEventListener('touchmove',e=>{const t=e.touches[0];moveCheck(t.clientX,t.clientY);},{passive:true});
+    icon.addEventListener('touchcancel',cancel,{passive:true});
+    icon.addEventListener('contextmenu',e=>e.preventDefault());
+    icon.addEventListener('mousedown',e=>{if(touchUsed)return;start(e.clientX,e.clientY);});
     icon.addEventListener('mouseup',()=>{if(touchUsed)return;cancel();if(!longPressed)openTool(id);});
     icon.addEventListener('mouseleave',()=>{if(touchUsed)return;cancel();});
   });
