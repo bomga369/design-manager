@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718J">
+<meta name="app-version" content="20260718K">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -249,6 +249,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .mat-sw-btn{border:none;cursor:pointer;font-size:0.75rem;font-weight:600;padding:0 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:64px;color:#fff;}
 .mat-sw-btn i{font-size:1.1rem;}
 .mat-sw-copy{background:var(--blue);}
+.mat-sw-edit{background:var(--gold);color:var(--bg);}
 .mat-sw-del{background:var(--red);}
 .mat-item-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:0.75rem;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;position:relative;z-index:1;transition:transform .2s ease;will-change:transform;}
 .mat-item-card:active{background:var(--bg3);}
@@ -263,6 +264,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .tool-tile{display:flex;flex-direction:column;align-items:center;gap:6px;}
 .tool-icon{width:72px;height:72px;border-radius:20px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
 .tool-icon:active{transform:scale(0.93);transition:transform .1s;}
+.tool-icon-edit{position:absolute;bottom:-4px;right:-4px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--bg2);cursor:pointer;z-index:2;}
 .tool-label{font-size:0.8125rem;color:var(--text2);text-align:center;line-height:1.2;}
 </style>
 </head>
@@ -625,8 +627,8 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-expense-detail" onchange="onExpenseDetailChange()"></select>
     </div>
     <div class="form-group" id="f-expense-content-group" style="display:none;">
-      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-expense-detail').value)">管理內容</span></label>
-      <select class="form-input" id="f-expense-content"></select>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-expense-detail').value,'exp',document.getElementById('f-expense-cat').value)">管理內容</span></label>
+      <select class="form-input" id="f-expense-content" onchange="updateStaffNeed()"></select>
     </div>
     <div class="form-group" id="f-income-cat-group" style="display:block;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入類別<span id="f-inc-cat-manage-link" style="display:none;color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage('inc')">管理分類</span></label>
@@ -637,7 +639,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-income-detail" onchange="onIncomeDetailChange()"></select>
     </div>
     <div class="form-group" id="f-income-content-group" style="display:none;">
-      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-income-detail').value,'inc')">管理內容</span></label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-income-detail').value,'inc',document.getElementById('f-income-cat').value)">管理內容</span></label>
       <select class="form-input" id="f-income-content"></select>
     </div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
@@ -1665,6 +1667,7 @@ function renderCatManageList(){
     const meta=(isProj?'選擇 App 內施作中專案 · ':'')+(subCount?subCount+' 個'+itemWord:'無'+itemWord);
     return `<div class="mat-item-wrap" data-key="${c}">
       <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();editFinanceCat('${c}')"><i class="ti ti-pencil"></i>編輯</button>
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceCat('${c}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
       <div class="mat-item-card" style="cursor:default;">
@@ -1691,6 +1694,29 @@ function addFinanceCat(){
   saveFinanceCatsConfig();
   renderCatManageList();
 }
+function renameCatKey(oldName,newName){
+  // 分類重新命名時，把它自己底下的支出項目清單也一併搬到新名字底下
+  if(oldName===newName)return;
+  if(db.financeCats.sub[oldName]){
+    db.financeCats.sub[newName]=db.financeCats.sub[oldName];
+    delete db.financeCats.sub[oldName];
+  }
+}
+function editFinanceCat(name){
+  if(name==='專案'||name==='薪資')return alert('「專案」與「薪資」是系統辨識用的固定分類，無法改名');
+  const newName=prompt('修改分類名稱',name);
+  if(newName===null)return;
+  const trimmed=newName.trim();
+  if(!trimmed||trimmed===name)return;
+  const key=catManageMode==='inc'?'incCats':'cats';
+  const arr=db.financeCats[key]||[];
+  if(arr.includes(trimmed))return alert('已經有相同名稱的分類了');
+  const idx=arr.indexOf(name);
+  if(idx>=0)arr[idx]=trimmed;
+  renameCatKey(name,trimmed);
+  saveFinanceCatsConfig();
+  renderCatManageList();
+}
 function deleteFinanceCat(name){
   if(!confirm(`確定刪除分類「${name}」？`))return;
   const key=catManageMode==='inc'?'incCats':'cats';
@@ -1713,11 +1739,12 @@ function renderSubcatManageList(){
     const subCount=andunSubcats(s).length;
     return `<div class="mat-item-wrap" data-key="${s}">
       <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();editFinanceSubcat('${s}')"><i class="ti ti-pencil"></i>編輯</button>
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceSubcat('${s}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
       <div class="mat-item-card" style="cursor:default;">
         <div style="flex:1;min-width:0;"><div class="fw500">${s}</div><div style="font-size:0.8125rem;color:var(--text3);margin-top:2px;">${subCount?subCount+' 個'+contentWord:'無'+contentWord}</div></div>
-        <button class="btn btn-sm" onclick="openSubSubcatManage('${s}','${currentEditingCatMode}')">${contentWord}</button>
+        <button class="btn btn-sm" onclick="openSubSubcatManage('${s}','${currentEditingCatMode}','${currentEditingCat}')">${contentWord}</button>
       </div>
     </div>`;
   }).join(''):'<div class="empty"><p>尚無項目</p></div>';
@@ -1738,6 +1765,20 @@ function addFinanceSubcat(){
   renderSubcatManageList();
   renderCatManageList();
 }
+function editFinanceSubcat(name){
+  const newName=prompt('修改項目名稱',name);
+  if(newName===null)return;
+  const trimmed=newName.trim();
+  if(!trimmed||trimmed===name)return;
+  const arr=db.financeCats.sub[currentEditingCat]||[];
+  if(arr.includes(trimmed))return alert('已經有相同名稱的項目了');
+  const idx=arr.indexOf(name);
+  if(idx>=0)arr[idx]=trimmed;
+  renameCatKey(name,trimmed);
+  saveFinanceCatsConfig();
+  renderSubcatManageList();
+  renderCatManageList();
+}
 function deleteFinanceSubcat(name){
   if(!currentEditingCat)return;
   if(!confirm(`確定刪除「${name}」？`))return;
@@ -1747,11 +1788,13 @@ function deleteFinanceSubcat(name){
   renderSubcatManageList();
   renderCatManageList();
 }
-let currentEditingItem=null,currentEditingItemMode='exp';
-function openSubSubcatManage(item,mode){
+let currentEditingItem=null,currentEditingItemMode='exp',currentEditingItemParent='';
+function openSubSubcatManage(item,mode,parentCat){
   currentEditingItem=item;
   currentEditingItemMode=mode||'exp';
-  document.getElementById('subsubcat-title').textContent=item+(currentEditingItemMode==='inc'?' · 收入內容':' · 支出內容');
+  currentEditingItemParent=parentCat!==undefined?parentCat:currentEditingCat;
+  const crumb=currentEditingItemParent?(currentEditingItemParent+'．'+item):item;
+  document.getElementById('subsubcat-title').textContent=crumb+(currentEditingItemMode==='inc'?'．收入內容':'．支出內容');
   renderSubSubcatManageList();
   openSheet('sheet-subsubcat-manage');
 }
@@ -1760,6 +1803,7 @@ function renderSubSubcatManageList(){
   document.getElementById('subsubcat-manage-list').innerHTML=contents.length?contents.map(s=>`
     <div class="mat-item-wrap" data-key="${s}">
       <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();editFinanceSubSubcat('${s}')"><i class="ti ti-pencil"></i>編輯</button>
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceSubSubcat('${s}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
       <div class="mat-item-card" style="cursor:default;">
@@ -1779,6 +1823,19 @@ function addFinanceSubSubcat(){
   if(!db.financeCats.sub[currentEditingItem])db.financeCats.sub[currentEditingItem]=[];
   if(!db.financeCats.sub[currentEditingItem].includes(name))db.financeCats.sub[currentEditingItem].push(name);
   input.value='';
+  saveFinanceCatsConfig();
+  renderSubSubcatManageList();
+  renderSubcatManageList();
+}
+function editFinanceSubSubcat(name){
+  const newName=prompt('修改內容名稱',name);
+  if(newName===null)return;
+  const trimmed=newName.trim();
+  if(!trimmed||trimmed===name)return;
+  const arr=db.financeCats.sub[currentEditingItem]||[];
+  if(arr.includes(trimmed))return alert('已經有相同名稱的內容了');
+  const idx=arr.indexOf(name);
+  if(idx>=0)arr[idx]=trimmed;
   saveFinanceCatsConfig();
   renderSubSubcatManageList();
   renderSubcatManageList();
@@ -1849,15 +1906,11 @@ function updateCatDependentUI(){
 
   const cat=t==='支出'?document.getElementById('f-expense-cat').value:document.getElementById('f-income-cat').value;
   const needProject=cat==='專案';
-  const needStaff=t==='支出'&&cat==='薪資';
 
   projGrp.style.display=needProject?'block':'none';
   if(needProject)fillProjectSel('f-cat-project');
 
-  staffGrp.style.display=needStaff?'block':'none';
-  if(needStaff)fillStaffSel('f-staff-sel','請選擇人員');
-
-  const subs=(cat&&!needStaff)?andunSubcats(cat):[];
+  const subs=cat?andunSubcats(cat):[];
   const detGrp=t==='支出'?expDetGrp:incDetGrp;
   const otherDetGrp=t==='支出'?incDetGrp:expDetGrp;
   otherDetGrp.style.display='none';
@@ -1877,6 +1930,31 @@ function updateCatDependentUI(){
     detGrp.style.display='none';
     contGrp.style.display='none';
   }
+  updateStaffNeed();
+}
+// 不論「薪資」出現在支出類別／支出項目／支出內容哪一層，都會觸發人員選單，
+// 這樣專案裡誰做了多少人事成本才看得清楚。可以跟專案選單同時顯示。
+function updateStaffNeed(){
+  const t=document.getElementById('f-type').value;
+  const staffGrp=document.getElementById('f-staff-group');
+  if(t!=='支出'){staffGrp.style.display='none';return;}
+  const acct=document.getElementById('f-project').value;
+  const reserve=isReserveAccount(acct);
+  const isAndunLike=reserve||acct==='__andun__';
+  let needStaff=false;
+  if(isAndunLike){
+    const cat=document.getElementById('f-expense-cat').value;
+    const detGrp=document.getElementById('f-expense-detail-group');
+    const det=detGrp.style.display!=='none'?document.getElementById('f-expense-detail').value:'';
+    const contGrp=document.getElementById('f-expense-content-group');
+    const cont=contGrp.style.display!=='none'?document.getElementById('f-expense-content').value:'';
+    needStaff=(cat==='薪資')||(det==='薪資')||(cont==='薪資');
+  } else {
+    const expCat=document.getElementById('f-expense-cat').value;
+    needStaff=(expCat==='薪資'||expCat==='臨時性支出');
+  }
+  staffGrp.style.display=needStaff?'block':'none';
+  if(needStaff)fillStaffSel('f-staff-sel','請選擇人員');
 }
 function onExpenseDetailChange(){
   const item=document.getElementById('f-expense-detail').value;
@@ -1891,6 +1969,7 @@ function onExpenseDetailChange(){
   } else {
     grp.style.display='none';
   }
+  updateStaffNeed();
 }
 function onIncomeDetailChange(){
   const item=document.getElementById('f-income-detail').value;
@@ -2062,11 +2141,14 @@ const TOOLS=[
 let currentToolIconId=null;
 function renderToolGrid(){
   const el=document.getElementById('tool-grid');if(!el)return;
+  const canEdit=canEditToolIcons();
   el.innerHTML=TOOLS.map(t=>{
     const custom=db.toolIcons&&db.toolIcons[t.id];
     const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
     return `<div class="tool-tile">
-      <div class="tool-icon" data-tool="${t.id}"${iconStyle}>${custom?'':t.emoji}</div>
+      <div class="tool-icon" data-tool="${t.id}"${iconStyle}>${custom?'':t.emoji}
+        ${canEdit?`<div class="tool-icon-edit" onclick="event.stopPropagation();pickToolIcon('${t.id}')"><i class="ti ti-camera"></i></div>`:''}
+      </div>
       <div class="tool-label">${t.name}</div>
     </div>`;
   }).join('');
@@ -2075,17 +2157,9 @@ function renderToolGrid(){
 const TOOL_ICON_EDITOR_EMAIL='bomga369@gmail.com';
 function canEditToolIcons(){return currentUser&&currentUser.email===TOOL_ICON_EDITOR_EMAIL;}
 function attachToolIconPress(){
-  const canEdit=canEditToolIcons();
   document.querySelectorAll('.tool-icon').forEach(icon=>{
     const id=icon.getAttribute('data-tool');
     icon.addEventListener('click',()=>openTool(id));
-    if(!canEdit)return;
-    // 用瀏覽器原生的 contextmenu（手機長按／桌機右鍵）觸發，
-    // 這是瀏覽器自己判定的手勢，才能可靠地在裡面同步跳出檔案選擇視窗。
-    icon.addEventListener('contextmenu',e=>{
-      e.preventDefault();
-      pickToolIcon(id);
-    });
   });
 }
 function openTool(id){
@@ -3504,11 +3578,23 @@ function saveFinance(){
         expDetail=document.getElementById('f-expense-detail').value;
         if(!expDetail)return alert('請選擇支出項目');
         name+=' · '+expDetail;
+        if(expDetail==='薪資'){
+          staffId=document.getElementById('f-staff-sel').value;
+          if(!staffId)return alert('請選擇相關人員');
+          staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
+          name+=' · '+staffName;
+        }
         const contents=andunSubcats(expDetail);
         if(contents.length){
           expContent=document.getElementById('f-expense-content').value;
           if(!expContent)return alert('請選擇支出內容');
           name+=' · '+expContent;
+          if(expContent==='薪資'){
+            staffId=document.getElementById('f-staff-sel').value;
+            if(!staffId)return alert('請選擇相關人員');
+            staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
+            name+=' · '+staffName;
+          }
         }
       }
     }
