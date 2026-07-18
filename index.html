@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260717H">
+<meta name="app-version" content="20260718B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -239,7 +239,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .flex-between{display:flex;align-items:center;justify-content:space-between;}
 .mt1{margin-top:0.4rem;}.mt2{margin-top:0.875rem;}.mt3{margin-top:1.25rem;}
 .text-sm{font-size:0.9062rem;}.text-xs{font-size:0.8125rem;}.text-muted{color:var(--text2);}
-.text-green{color:var(--green);}.text-red{color:var(--red);}.fw500{font-weight:500;}
+.text-green{color:var(--green);}.text-red{color:var(--red);}.text-gold{color:var(--gold);}.fw500{font-weight:500;}
 </style>
 </head>
 <body>
@@ -353,6 +353,13 @@ textarea.form-input{resize:none;min-height:72px;}
           <i class="ti ti-external-link" style="margin-left:auto;color:var(--text3)"></i>
         </div>
       </div>
+      <div class="card" style="margin-top:0.75rem">
+        <div class="card-inner" onclick="openMaterialsPage()" style="cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🪵</div>
+          <div><div class="text-sm fw500">材料成本查詢</div><div class="text-xs text-muted">廠商進貨價</div></div>
+          <i class="ti ti-chevron-right" style="margin-left:auto;color:var(--text3)"></i>
+        </div>
+      </div>
       <div class="section-hd" style="margin-top:1rem">行事曆</div>
       <div onclick="handleCalCardClick(event)">
         <div class="card" id="cal-card-wrap"><div class="card-inner">
@@ -366,6 +373,23 @@ textarea.form-input{resize:none;min-height:72px;}
         <div class="section-hd"><span id="cal-selected-label">近半年事務</span></div>
         <div class="card" id="cal-events-list"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- 材料成本表 -->
+  <div id="page-materials" class="page">
+    <div class="content">
+      <input class="form-input" id="mat-search" placeholder="搜尋品名／規格／備註" oninput="renderMaterials()" style="margin-bottom:0.5rem;" autocomplete="off">
+      <div class="flex-between" style="margin-bottom:0.5rem;gap:0.5rem;">
+        <select class="form-input" id="mat-cat-filter" onchange="renderMaterials()" style="flex:1;"></select>
+        <select class="form-input" id="mat-vendor-filter" onchange="renderMaterials()" style="flex:1;"></select>
+      </div>
+      <div class="flex-between" style="margin-bottom:0.75rem;gap:0.5rem;color:var(--text3);font-size:0.8125rem;">
+        <span>稅率設定</span>
+        <input class="form-input" id="mat-tax-rate" type="number" inputmode="numeric" style="width:70px;text-align:center;" onchange="onMaterialTaxRateChange()">
+        <span>%</span>
+      </div>
+      <div id="materials-list"></div>
     </div>
   </div>
 
@@ -605,6 +629,31 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="sheet-overlay" id="sheet-material">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="sheet-material-title">新增材料</span><button class="sheet-close" onclick="closeSheet('sheet-material')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">品名 *</label><input class="form-input" id="mat-name" placeholder="例：麻六甲木芯板" autocomplete="off"></div>
+    <div class="form-group"><label class="form-label">廠商 *</label><input class="form-input" id="mat-vendor" list="mat-vendor-list" placeholder="例：金鼎" autocomplete="off"><datalist id="mat-vendor-list"></datalist></div>
+    <div class="form-group"><label class="form-label">分類</label><input class="form-input" id="mat-cat" list="mat-cat-list" placeholder="例：木料／五金／工具" autocomplete="off"><datalist id="mat-cat-list"></datalist></div>
+    <div class="form-group"><label class="form-label">規格</label><input class="form-input" id="mat-spec" placeholder="例：3尺＊6尺" autocomplete="off"></div>
+    <div class="form-group"><label class="form-label">價格（元）*</label><input class="form-input" id="mat-price" type="number" inputmode="decimal" placeholder="0" oninput="updateMatTaxPreview()"></div>
+    <div class="form-group"><label class="form-label">稅別</label>
+      <div class="segmented">
+        <div class="seg-btn active" data-val="exc" onclick="selectSeg(this,'mat-tax-type','exc');updateMatTaxPreview()">未稅</div>
+        <div class="seg-btn" data-val="inc" onclick="selectSeg(this,'mat-tax-type','inc');updateMatTaxPreview()">含稅</div>
+      </div>
+      <input type="hidden" id="mat-tax-type" value="exc">
+      <div id="mat-tax-preview" style="color:var(--text3);font-size:0.8125rem;margin-top:4px;"></div>
+    </div>
+    <div class="form-group"><label class="form-label">單位</label><input class="form-input" id="mat-unit" list="mat-unit-list" placeholder="例：片／支／組" autocomplete="off"><datalist id="mat-unit-list"></datalist></div>
+    <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="mat-note" placeholder="補充說明" autocomplete="off"></div>
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-material')">取消</button>
+      <button class="btn btn-primary" id="sheet-material-save" onclick="saveMaterial()">儲存</button>
+    </div>
+  </div>
+</div>
 
 <div class="sheet-overlay" id="sheet-note">
   <div class="sheet">
@@ -694,6 +743,15 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="migrate-banner-actions">
     <button class="btn" onclick="dismissMigrateBannerProjects()">先不要</button>
     <button class="btn btn-primary" id="migrate-confirm-btn-projects" onclick="runProjectMigration()">上傳這台的資料</button>
+  </div>
+</div>
+
+<div class="migrate-banner migrate-banner-upper" id="migrate-banner-materials" style="display:none">
+  <div class="migrate-banner-title">偵測到雲端材料成本資料庫是空的</div>
+  <div class="migrate-banner-sub">要把整理好的材料成本表（廠商進貨價），上傳成為雲端的起始資料嗎？Wallace／Mark 登入也會看到同一份，都可以編輯。</div>
+  <div class="migrate-banner-actions">
+    <button class="btn" onclick="dismissMigrateBannerMaterials()">先不要</button>
+    <button class="btn btn-primary" id="migrate-confirm-btn-materials" onclick="runMaterialsMigration()">上傳這批資料</button>
   </div>
 </div>
 
@@ -910,6 +968,13 @@ window.onFirebaseReady=function(){
   if(window.fbStartFinanceCatsListener){
     window.fbStartFinanceCatsListener(onFinanceCatsSynced,onFinanceCatsSyncError);
   }
+  if(window.fbStartMaterialsListeners){
+    window.fbStartMaterialsListeners(onMaterialsSynced,onMaterialsSyncError);
+    checkMaterialsMigration();
+  }
+  if(window.fbStartMaterialConfigListener){
+    window.fbStartMaterialConfigListener(onMaterialConfigSynced,onMaterialConfigSyncError);
+  }
 };
 let punchSyncErrorShown=false;
 function onPunchSyncError(){
@@ -1061,6 +1126,15 @@ function onFinanceCatsSynced(cfg){
   const sheet=document.getElementById('sheet-finance');
   if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
 }
+let materialsSyncErrorShown=false;
+function onMaterialsSyncError(){if(materialsSyncErrorShown)return;materialsSyncErrorShown=true;alert('材料成本資料雲端同步權限不足，請聯絡管理者');}
+function onMaterialsSynced(arr){db.materials=arr;save();if(currentPage==='materials')renderMaterials();}
+function onMaterialConfigSyncError(){console.error('材料設定雲端同步權限不足');}
+function onMaterialConfigSynced(cfg){
+  if(!cfg)return;
+  db.materialConfig=cfg;save();
+  if(currentPage==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
+}
 async function checkFinanceMigration(){
   if(!window.fbCheckFinanceEmpty)return;
   try{
@@ -1171,7 +1245,7 @@ const CITY_DISTRICTS={
 '其他':['其他']
 };
 
-let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],financeCats:{
+let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},financeCats:{
   cats:['公司貸款','工廠營運','材料五金','薪資','專案','其他'],
   sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}
 }};
@@ -1191,6 +1265,7 @@ let localProjectsAtStartup=null;
 let localStaffAtStartup=null;
 let localFinanceAtStartup=null;
 let localEventsAtStartup=null;
+let localMaterialsAtStartup=null;
 function save(){localStorage.setItem('dmgr_v6',JSON.stringify(db));}
 function load(){
   const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);
@@ -1198,11 +1273,18 @@ function load(){
   if(!db.reserveFunding)db.reserveFunding=[];
   if(!db.financeCats)db.financeCats={cats:['公司貸款','工廠營運','材料五金','薪資','專案','其他'],sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}};
   if(!db.financeCats.sub)db.financeCats.sub={};
+  if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
+  if(!db.materials||!db.materials.length){
+    db.materials=MATERIAL_SEED_DATA.map(m=>({id:uid(),...m}));
+    db.materialConfig.vendors=[...new Set(db.materials.map(m=>m.vendor))].sort();
+    db.materialConfig.units=[...new Set(db.materials.map(m=>m.unit).filter(Boolean))].sort();
+  }
   localPunchesAtStartup=db.punches?[...db.punches]:[];
   localProjectsAtStartup=db.projects?JSON.parse(JSON.stringify(db.projects)):[];
   localStaffAtStartup=db.staff?JSON.parse(JSON.stringify(db.staff)):[];
   localFinanceAtStartup=db.finance?JSON.parse(JSON.stringify(db.finance)):[];
   localEventsAtStartup=db.events?JSON.parse(JSON.stringify(db.events)):[];
+  localMaterialsAtStartup=db.materials?JSON.parse(JSON.stringify(db.materials)):[];
   autoCompleteMeasureSteps();
 }
 function autoCompleteMeasureSteps(){
@@ -1238,6 +1320,116 @@ function setSeg(hidId,val){
   const wrap=hid.previousElementSibling;
   if(wrap&&wrap.classList.contains('segmented'))wrap.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===String(val)));
 }
+const MATERIAL_SEED_DATA=[
+{vendor:'金鼎',name:'永新集塵材(反向)',cat:'',spec:'80*12*10',price:53,unit:'支',taxType:'exc',note:'1把10隻/反向角材',order:0},
+{vendor:'金鼎',name:'永新F1角材/防蟲防水 /寸8',cat:'',spec:'80*18*10',price:72,unit:'支',taxType:'exc',note:'1把5隻',order:1},
+{vendor:'金鼎',name:'永新F1角材/防蟲防水',cat:'',spec:'80*12*10',price:48,unit:'支',taxType:'exc',note:'1把10隻',order:2},
+{vendor:'金鼎',name:'永新F3角材',cat:'',spec:'80*12*10',price:41,unit:'支',taxType:'exc',note:'1把10隻',order:3},
+{vendor:'金鼎',name:'美耐板/霧灰',cat:'',spec:'4尺＊8尺',price:759,unit:'片',taxType:'exc',note:'安勝貴族系列/0961m',order:4},
+{vendor:'金鼎',name:'美耐麗XD-17705藝術塗料米色',cat:'',spec:'4尺＊8尺',price:1000,unit:'片',taxType:'exc',note:'定製品/微笑森林',order:5},
+{vendor:'金鼎',name:'美耐麗軟片XD-17705藝術塗料米色',cat:'',spec:'2尺＊8尺',price:80,unit:'尺',taxType:'exc',note:'貼皮/定製品/微笑森林',order:6},
+{vendor:'金鼎',name:'1/4圓線板/人造白橡',cat:'',spec:'8尺＊2寸',price:1560,unit:'支',taxType:'exc',note:'r角',order:7},
+{vendor:'金鼎',name:'1/4圓線板/人造白橡 3206',cat:'',spec:'8尺＊2寸',price:348,unit:'支',taxType:'exc',note:'r角',order:8},
+{vendor:'金鼎',name:'1/4圓線板/人造白橡 3106 (1)',cat:'',spec:'8尺＊1寸',price:348,unit:'支',taxType:'exc',note:'r角',order:9},
+{vendor:'金鼎',name:'6m/日本麗仕矽酸鈣板',cat:'',spec:'3尺＊6尺',price:364,unit:'片',taxType:'exc',note:'NA LUX',order:10},
+{vendor:'金鼎',name:'6m/日本淺也矽酸蓋板',cat:'',spec:'3尺＊6尺',price:364,unit:'片',taxType:'exc',note:'',order:11},
+{vendor:'金鼎',name:'6m/台灣麗仕矽酸鈣板',cat:'',spec:'3尺＊6尺',price:274,unit:'片',taxType:'exc',note:'',order:12},
+{vendor:'金鼎',name:'門斗保護套（藍色）',cat:'',spec:'300CM*內徑80*外徑1',price:190,unit:'支',taxType:'exc',note:'藍色門斗保護',order:13},
+{vendor:'金鼎',name:'PE保護板',cat:'',spec:'3尺＊6尺',price:16.5,unit:'片',taxType:'exc',note:'保護板/1包25片',order:14},
+{vendor:'金鼎',name:'1.8m/夾板',cat:'',spec:'3尺＊6尺',price:42,unit:'片',taxType:'exc',note:'大陸板/保護板',order:15},
+{vendor:'金鼎',name:'分2/Ｆ3進口夾板',cat:'',spec:'3尺＊6尺',price:142,unit:'片',taxType:'exc',note:'{2.7mm}1分夾板',order:16},
+{vendor:'金鼎',name:'2分/Ｆ3進口夾板',cat:'',spec:'3尺＊7尺',price:200,unit:'片',taxType:'exc',note:'',order:17},
+{vendor:'金鼎',name:'2分/4mm/Ｆ3進口夾板',cat:'',spec:'4尺＊8尺',price:469,unit:'片',taxType:'exc',note:'',order:18},
+{vendor:'金鼎',name:'3分/7m/Ｆ3進口夾板',cat:'',spec:'2尺＊8尺',price:218,unit:'片',taxType:'exc',note:'2片一組/不可退貨',order:19},
+{vendor:'金鼎',name:'6分/Ｆ3進口夾板',cat:'',spec:'3尺＊6尺',price:638,unit:'片',taxType:'exc',note:'',order:20},
+{vendor:'金鼎',name:'6分/18mm/Ｆ3進口夾板',cat:'',spec:'2尺＊8尺',price:534,unit:'片',taxType:'exc',note:'2片一組/不可退貨',order:21},
+{vendor:'金鼎',name:'麻六甲木芯板',cat:'',spec:'3尺＊6尺',price:500,unit:'片',taxType:'exc',note:'',order:22},
+{vendor:'金鼎',name:'麻六甲F3木芯板',cat:'',spec:'4尺＊8尺',price:645,unit:'片',taxType:'exc',note:'',order:23},
+{vendor:'金鼎',name:'麻六甲低甲醛木芯板',cat:'',spec:'2尺＊8尺',price:328,unit:'片',taxType:'exc',note:'2片一組/不可退貨',order:24},
+{vendor:'金鼎',name:'中性白色夕利康',cat:'',spec:'＃800',price:54,unit:'支',taxType:'exc',note:'',order:25},
+{vendor:'金鼎',name:'鋼釘ST45',cat:'',spec:'1.5寸＊1000支',price:99,unit:'盒',taxType:'exc',note:'',order:26},
+{vendor:'金鼎',name:'鋼釘ST32',cat:'',spec:'1寸＊2000支',price:134,unit:'盒',taxType:'exc',note:'',order:27},
+{vendor:'金鼎',name:'單針F50不鏽鋼(大拇指)',cat:'',spec:'1.7寸＊5000支',price:340,unit:'盒',taxType:'exc',note:'台製',order:28},
+{vendor:'金鼎',name:'單針F40不鏽鋼(大拇指)',cat:'',spec:'1.2寸＊5000支',price:279,unit:'盒',taxType:'exc',note:'台製',order:29},
+{vendor:'金鼎',name:'單針F30不鏽鋼(大拇指)',cat:'',spec:'1寸＊5000支',price:219,unit:'盒',taxType:'exc',note:'台製',order:30},
+{vendor:'金鼎',name:'雙針416不鏽鋼(大拇指)',cat:'',spec:'4mm＊16mm',price:138,unit:'盒',taxType:'exc',note:'台製/上次登記145元',order:31},
+{vendor:'金鼎',name:'無頭蚊針15mm(大拇指)',cat:'',spec:'10000支',price:77,unit:'盒',taxType:'exc',note:'',order:32},
+{vendor:'金鼎',name:'無頭蚊針18mm(大拇指)',cat:'',spec:'10000支',price:87,unit:'盒',taxType:'exc',note:'',order:33},
+{vendor:'金鼎',name:'佑洋養生膠帶',cat:'',spec:'3300mm＊25尺',price:113,unit:'卷',taxType:'exc',note:'',order:34},
+{vendor:'金鼎',name:'地球環保膠帶',cat:'',spec:'5000mm＊700g',price:24,unit:'卷',taxType:'exc',note:'上次18元/1封6個',order:35},
+{vendor:'金鼎',name:'地球環保膠帶 (白)',cat:'',spec:'46mm＊27米',price:54,unit:'卷',taxType:'exc',note:'',order:36},
+{vendor:'金鼎',name:'美紋紙膠帶',cat:'',spec:'50mm＊27米',price:24,unit:'個',taxType:'exc',note:'『5個1卷』',order:37},
+{vendor:'金鼎',name:'強力膠',cat:'',spec:'1加崙',price:497,unit:'罐',taxType:'exc',note:'',order:38},
+{vendor:'金鼎',name:'L型鋁條3米',cat:'',spec:'10尺＊4分＊4分',price:92,unit:'支',taxType:'exc',note:'',order:39},
+{vendor:'金鼎',name:'封邊皮浮雕版',cat:'',spec:'8分＊100尺',price:245,unit:'卷',taxType:'exc',note:'826西卡蒙梧桐',order:40},
+{vendor:'金鼎',name:'皆大歡喜封邊條',cat:'',spec:'寸2',price:624,unit:'卷',taxType:'exc',note:'E4007',order:41},
+{vendor:'金鼎',name:'修邊刀/單培林',cat:'',spec:'3分',price:108,unit:'支',taxType:'exc',note:'',order:42},
+{vendor:'金鼎',name:'後紐刀/2刃/單培林',cat:'',spec:'7mm',price:69,unit:'個',taxType:'exc',note:'',order:43},
+{vendor:'金鼎',name:'後紐刀/2刃/單培林',cat:'',spec:'12mm',price:76,unit:'個',taxType:'exc',note:'',order:44},
+{vendor:'金鼎',name:'瞬間接著劑(大)/快乾',cat:'',spec:'50g',price:76,unit:'罐',taxType:'exc',note:'',order:45},
+{vendor:'金鼎',name:'中性白色夕利康',cat:'',spec:'',price:54,unit:'支',taxType:'exc',note:'',order:46},
+{vendor:'金鼎',name:'水性夕利康',cat:'',spec:'',price:48,unit:'支',taxType:'exc',note:'',order:47},
+{vendor:'金鼎',name:'白膠3761南寶',cat:'',spec:'1kg',price:65,unit:'包',taxType:'exc',note:'原56元',order:48},
+{vendor:'金鼎',name:'南寶 188萬用膠',cat:'',spec:'1公升',price:90,unit:'支',taxType:'exc',note:'',order:49},
+{vendor:'金鼎',name:'壁畫掉輪',cat:'',spec:'3米',price:84,unit:'支',taxType:'exc',note:'掛勾',order:50},
+{vendor:'金鼎',name:'壁畫軌道',cat:'',spec:'10尺',price:240,unit:'條',taxType:'exc',note:'寬2cm＊1.5CM',order:51},
+{vendor:'金鼎',name:'木梯5尺',cat:'',spec:'',price:615,unit:'支',taxType:'exc',note:'掛勾',order:52},
+{vendor:'金鼎',name:'白鐵調整腳',cat:'',spec:'',price:26,unit:'個',taxType:'exc',note:'萬向',order:53},
+{vendor:'金鼎',name:'1寸6黑螺絲',cat:'',spec:'',price:170,unit:'個',taxType:'exc',note:'500支/包',order:54},
+{vendor:'金鼎',name:'1寸黑螺絲',cat:'',spec:'',price:150,unit:'個',taxType:'exc',note:'500支/包',order:55},
+{vendor:'金鼎',name:'8分黑螺絲',cat:'',spec:'',price:137,unit:'個',taxType:'exc',note:'500支/包',order:56},
+{vendor:'金鼎',name:'L鐵片',cat:'',spec:'4cm*7cm',price:299,unit:'包',taxType:'exc',note:'',order:57},
+{vendor:'金鼎',name:'正方管十通黑色',cat:'',spec:'',price:182,unit:'個',taxType:'exc',note:'',order:58},
+{vendor:'金鼎',name:'彎型三通正方黑色',cat:'',spec:'',price:156,unit:'個',taxType:'exc',note:'',order:59},
+{vendor:'金鼎',name:'鋁軌無縫超重型6046',cat:'',spec:'寬33.6*高358',price:84,unit:'尺',taxType:'exc',note:'厚3mm',order:60},
+{vendor:'金鼎',name:'通用型那大雙向緩衝100KG',cat:'',spec:'',price:1500,unit:'組',taxType:'exc',note:'',order:61},
+{vendor:'金鼎',name:'單軌用L型側檔灰色',cat:'',spec:'120號',price:63,unit:'個',taxType:'exc',note:'土地公',order:62},
+{vendor:'金鼎',name:'單軌L可調側檔',cat:'',spec:'土地公',price:96,unit:'組',taxType:'exc',note:'土地公',order:63},
+{vendor:'金鼎',name:'單軌用下檔黑色',cat:'',spec:'土地公',price:96,unit:'組',taxType:'exc',note:'26',order:64},
+{vendor:'金鼎',name:'新巨鉅台',cat:'',spec:'6尺',price:6610,unit:'個',taxType:'exc',note:'',order:65},
+{vendor:'金鼎',name:'新巨易操輪',cat:'',spec:'',price:1200,unit:'組',taxType:'exc',note:'',order:66},
+{vendor:'金鼎',name:'檔料器伸縮',cat:'',spec:'4尺～7尺使用',price:1260,unit:'個',taxType:'exc',note:'',order:67},
+{vendor:'金鼎',name:'力山集塵切溝機',cat:'',spec:'GC1950',price:6600,unit:'個',taxType:'exc',note:'電鋸',order:68},
+{vendor:'玖品五金',name:'門片鉸鏈（厚）',cat:'',spec:'4寸',price:336,unit:'組',taxType:'exc',note:'拉門五金/有緩衝',order:69},
+{vendor:'壢昌',name:'鋼釘/ST-18',cat:'',spec:'',price:155,unit:'盒',taxType:'exc',note:'',order:70},
+{vendor:'壢昌',name:'鋼釘/ST-25',cat:'',spec:'',price:170,unit:'盒',taxType:'exc',note:'',order:71},
+{vendor:'壢昌',name:'白鐵單釘-50mm',cat:'',spec:'',price:385,unit:'盒',taxType:'exc',note:'',order:72},
+{vendor:'壢昌',name:'白鐵單釘-40mm',cat:'',spec:'',price:360,unit:'盒',taxType:'exc',note:'金龍',order:73},
+{vendor:'壢昌',name:'白鐵單釘-30mm',cat:'',spec:'',price:260,unit:'盒',taxType:'exc',note:'',order:74},
+{vendor:'壢昌',name:'木心板(麻)',cat:'',spec:'4*8',price:680,unit:'片',taxType:'exc',note:'',order:75},
+{vendor:'壢昌',name:'528風化梧桐木(麻單)',cat:'',spec:'4*8',price:1055,unit:'片',taxType:'exc',note:'',order:76},
+{vendor:'壢昌',name:'528風化梧桐木(麻雙)',cat:'',spec:'4*8',price:1300,unit:'片',taxType:'exc',note:'',order:77},
+{vendor:'壢昌',name:'528風化梧桐木皮',cat:'',spec:'2尺',price:432,unit:'片',taxType:'exc',note:'8尺',order:78},
+{vendor:'壢昌',name:'523淺棕胡桃木',cat:'',spec:'4*8',price:570,unit:'片',taxType:'exc',note:'1.2分',order:79},
+{vendor:'壢昌',name:'523淺棕胡桃木 封邊',cat:'',spec:'1.2寸',price:410,unit:'卷',taxType:'exc',note:'',order:80},
+{vendor:'壢昌',name:'503黑梣',cat:'',spec:'4*8',price:570,unit:'片',taxType:'exc',note:'1.2分',order:81},
+{vendor:'壢昌',name:'503黑梣 皮',cat:'',spec:'2尺',price:432,unit:'片',taxType:'exc',note:'8尺',order:82},
+{vendor:'壢昌',name:'1842米白布紋',cat:'',spec:'4*8',price:570,unit:'片',taxType:'exc',note:'1.2分',order:83},
+{vendor:'壢昌',name:'1842米白布紋封邊',cat:'',spec:'8分',price:260,unit:'卷',taxType:'exc',note:'',order:84},
+{vendor:'壢昌',name:'528風化梧桐木封邊',cat:'',spec:'8分',price:260,unit:'卷',taxType:'exc',note:'',order:85},
+{vendor:'壢昌',name:'南寶105(加侖)',cat:'',spec:'1加侖',price:570,unit:'桶',taxType:'exc',note:'',order:86},
+{vendor:'壢昌',name:'南寶105(加侖)',cat:'',spec:'5加侖',price:2300,unit:'桶',taxType:'exc',note:'',order:87},
+{vendor:'壢昌',name:'南寶白膠3761',cat:'',spec:'1KG',price:77,unit:'包',taxType:'exc',note:'',order:88},
+{vendor:'壢昌',name:'南寶188萬用膠',cat:'',spec:'',price:85,unit:'包',taxType:'exc',note:'',order:89},
+{vendor:'壢昌',name:'三秒膠(大)',cat:'',spec:'CA-155',price:83,unit:'個',taxType:'exc',note:'50g',order:90},
+{vendor:'壢昌',name:'緩衝三段式軌道(湖)',cat:'',spec:'45公分',price:287,unit:'組',taxType:'exc',note:'附螺絲',order:91},
+{vendor:'壢昌',name:'緩衝三段式軌道(湖)',cat:'',spec:'50公分',price:298,unit:'組',taxType:'exc',note:'附螺絲',order:92},
+{vendor:'壢昌',name:'湖林(油壓)丁雙寸35',cat:'',spec:'6分',price:78,unit:'個',taxType:'exc',note:'',order:93},
+{vendor:'壢昌',name:'六角銅電白(母)',cat:'',spec:'',price:0.9,unit:'個',taxType:'exc',note:'母珠',order:94},
+{vendor:'壢昌',name:'六角銅電白(公)',cat:'',spec:'',price:1.7,unit:'個',taxType:'exc',note:'公珠',order:95},
+{vendor:'壢昌',name:'黑螺絲寸6',cat:'',spec:'500隻',price:150,unit:'包',taxType:'exc',note:'',order:96},
+{vendor:'壢昌',name:'黑螺絲1寸',cat:'',spec:'500隻',price:100,unit:'包',taxType:'exc',note:'',order:97},
+{vendor:'壢昌',name:'黑螺0.8',cat:'',spec:'500隻',price:117,unit:'包',taxType:'exc',note:'',order:98},
+{vendor:'壢昌',name:'中建批土103',cat:'',spec:'',price:273,unit:'罐',taxType:'exc',note:'',order:99},
+{vendor:'壢昌',name:'黑色鋁製正方形管',cat:'',spec:'1.8*1.8*10尺',price:540,unit:'支',taxType:'exc',note:'',order:100},
+{vendor:'壢昌',name:'正方管4孔目玉黑色',cat:'',spec:'',price:65,unit:'個',taxType:'exc',note:'',order:101},
+{vendor:'壢昌',name:'3166白木(佳)(48mm)',cat:'',spec:'',price:464,unit:'支',taxType:'exc',note:'',order:102},
+{vendor:'永成工具行',name:'F50槍',cat:'',spec:'',price:1800,unit:'支',taxType:'exc',note:'',order:103},
+{vendor:'金萬統五金行',name:'耐熱膠帶(布紋紙膠帶)',cat:'',spec:'36mm',price:65,unit:'個',taxType:'exc',note:'',order:104},
+{vendor:'金萬統五金行',name:'米袋',cat:'',spec:'大',price:6,unit:'個',taxType:'exc',note:'',order:105},
+{vendor:'金萬統五金行',name:'J416雙針',cat:'',spec:'5000隻',price:200,unit:'盒',taxType:'exc',note:'',order:106},
+{vendor:'IKEA',name:'黑色馬桶刷',cat:'',spec:'',price:39,unit:'支',taxType:'exc',note:'',order:107}
+];
 const FIN_EXP_CATS_PROJECT=['午餐','晚餐','材料五金','薪資','臨時性支出','其他'];
 const FIN_INC_CATS_PROJECT=['工程款01期','工程款02期','工程款03期','尾款','款項還回','其他'];
 const FIN_INC_CATS_ANDUN=['專案','其他'];
@@ -1418,6 +1610,9 @@ function showPage(id,opts={}){
   } else if(id==='finance'){
     titleEl.textContent=titles[id];
     tr.innerHTML=`<button class="topbar-btn-add" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></button>`;
+  } else if(id==='materials'){
+    titleEl.innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>材料成本表`;
+    tr.innerHTML=`<button class="topbar-btn-add" onclick="openAddMaterial()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='calendar'){
     titleEl.textContent=titles[id];
     tr.innerHTML='';
@@ -1428,9 +1623,14 @@ function showPage(id,opts={}){
   if(id==='projects')renderProjects();
   if(id==='finance'){fillAccountSel('finance-filter-project',true);fillAccountSel('f-project',false,false);onFinanceAccountChange();renderFinance();}
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();}
+  if(id==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
   if(id==='staff')renderStaff();
   if(id==='staff-detail')renderStaffDetail(currentStaffId);
   if(id==='detail'&&currentProjectId)renderDetail(currentProjectId);
+}
+function openMaterialsPage(){
+  prevPage='calendar';
+  showPage('materials');
 }
 function goBack(){showPage(prevPage);}
 function handleAdd(){
@@ -2838,6 +3038,167 @@ function deleteFinance(id){
   if(window.fbDeleteFinance)window.fbDeleteFinance(id).catch(err=>console.error('刪除收支失敗',err));
   renderFinance();
 }
+function calcTaxPrices(price,taxType){
+  const r=db.materialConfig.taxRate/100;
+  if(taxType==='inc')return{exc:price/(1+r),inc:price};
+  return{exc:price,inc:price*(1+r)};
+}
+function updateMatTaxPreview(){
+  const price=parseFloat(document.getElementById('mat-price').value);
+  const taxType=document.getElementById('mat-tax-type').value;
+  const el=document.getElementById('mat-tax-preview');
+  if(isNaN(price)||price<=0){el.textContent='';return;}
+  const p=calcTaxPrices(price,taxType);
+  el.textContent=taxType==='exc'?`→ 含稅價：約 $${fMoney(Math.round(p.inc))}（稅率${db.materialConfig.taxRate}%）`:`→ 未稅價：約 $${fMoney(Math.round(p.exc))}（稅率${db.materialConfig.taxRate}%）`;
+}
+function onMaterialTaxRateChange(){
+  const v=Number(document.getElementById('mat-tax-rate').value);
+  if(isNaN(v)||v<0||v>99)return;
+  db.materialConfig.taxRate=v;
+  save();if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+  renderMaterials();
+}
+function fillMaterialFilters(){
+  const catEl=document.getElementById('mat-cat-filter');
+  const vendorEl=document.getElementById('mat-vendor-filter');
+  const catVal=catEl.value,vendorVal=vendorEl.value;
+  const cats=[...new Set(db.materials.map(m=>m.cat).filter(Boolean))].sort();
+  const vendors=[...new Set(db.materials.map(m=>m.vendor))].sort();
+  catEl.innerHTML='<option value="">全部分類</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  vendorEl.innerHTML='<option value="">全部廠商</option>'+vendors.map(v=>`<option value="${v}">${v}</option>`).join('');
+  if(catVal)catEl.value=catVal;
+  if(vendorVal)vendorEl.value=vendorVal;
+}
+function fillMaterialDatalists(){
+  document.getElementById('mat-vendor-list').innerHTML=(db.materialConfig.vendors||[]).map(v=>`<option value="${v}">`).join('');
+  document.getElementById('mat-cat-list').innerHTML=(db.materialConfig.cats||[]).map(c=>`<option value="${c}">`).join('');
+  document.getElementById('mat-unit-list').innerHTML=(db.materialConfig.units||[]).map(u=>`<option value="${u}">`).join('');
+}
+function renderMaterials(){
+  fillMaterialFilters();
+  const q=(document.getElementById('mat-search').value||'').trim().toLowerCase();
+  const catFilter=document.getElementById('mat-cat-filter').value;
+  const vendorFilter=document.getElementById('mat-vendor-filter').value;
+  let items=[...db.materials];
+  if(catFilter)items=items.filter(m=>m.cat===catFilter);
+  if(vendorFilter)items=items.filter(m=>m.vendor===vendorFilter);
+  if(q)items=items.filter(m=>(m.name+m.spec+m.note+m.vendor+m.cat).toLowerCase().includes(q));
+  const grouped={};
+  items.forEach(m=>{const c=m.cat||'未分類';(grouped[c]=grouped[c]||[]).push(m);});
+  Object.values(grouped).forEach(arr=>arr.sort((a,b)=>(a.order||0)-(b.order||0)||a.name.localeCompare(b.name)));
+  const catNames=Object.keys(grouped).sort((a,b)=>a==='未分類'?1:b==='未分類'?-1:a.localeCompare(b));
+  document.getElementById('materials-list').innerHTML=catNames.length?catNames.map(cat=>`
+    <div class="section-hd" style="margin-top:0.75rem">${cat} <span style="color:var(--text3);font-weight:400">${grouped[cat].length}件</span></div>
+    <div class="card">${grouped[cat].map(m=>{
+      const tax=m.taxType==='inc'?'含稅':'未稅';
+      return `<div class="finance-item" onclick="openEditMaterial('${m.id}')" style="cursor:pointer;">
+        <div class="finance-body">
+          <div class="finance-name">${m.name}</div>
+          <div class="finance-meta">${m.vendor}${m.spec?' · '+m.spec:''}${m.note?' · '+m.note:''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
+          <span class="fw500 text-gold">$${fMoney(m.price)}<span style="font-size:10px;color:var(--text3);margin-left:4px;">${tax}${m.unit?'／'+m.unit:''}</span></span>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="event.stopPropagation();deleteMaterial('${m.id}')"><i class="ti ti-trash"></i></button>
+        </div>
+      </div>`;
+    }).join('')}</div>`).join(''):'<div class="empty"><i class="ti ti-search-off"></i><p>找不到符合的材料</p></div>';
+}
+let editingMaterialId=null;
+function openAddMaterial(){
+  editingMaterialId=null;
+  document.getElementById('sheet-material-title').textContent='新增材料';
+  document.getElementById('sheet-material-save').textContent='儲存';
+  ['mat-name','mat-vendor','mat-cat','mat-spec','mat-price','mat-unit','mat-note'].forEach(id=>document.getElementById(id).value='');
+  setSeg('mat-tax-type','exc');
+  document.getElementById('mat-tax-preview').textContent='';
+  fillMaterialDatalists();
+  openSheet('sheet-material');
+}
+function openEditMaterial(id){
+  const m=db.materials.find(x=>x.id===id);if(!m)return;
+  editingMaterialId=id;
+  document.getElementById('sheet-material-title').textContent='編輯材料';
+  document.getElementById('sheet-material-save').textContent='儲存修改';
+  document.getElementById('mat-name').value=m.name||'';
+  document.getElementById('mat-vendor').value=m.vendor||'';
+  document.getElementById('mat-cat').value=m.cat||'';
+  document.getElementById('mat-spec').value=m.spec||'';
+  document.getElementById('mat-price').value=m.price||'';
+  document.getElementById('mat-unit').value=m.unit||'';
+  document.getElementById('mat-note').value=m.note||'';
+  setSeg('mat-tax-type',m.taxType||'exc');
+  fillMaterialDatalists();
+  updateMatTaxPreview();
+  openSheet('sheet-material');
+}
+function saveMaterial(){
+  const name=document.getElementById('mat-name').value.trim();
+  const vendor=document.getElementById('mat-vendor').value.trim();
+  const price=document.getElementById('mat-price').value;
+  if(!name||!vendor)return alert('請填入品名與廠商');
+  if(!price||Number(price)<0)return alert('請輸入價格');
+  const cat=document.getElementById('mat-cat').value.trim();
+  const unit=document.getElementById('mat-unit').value.trim();
+  // 新的廠商/分類/單位自動加入管理清單
+  if(vendor&&!db.materialConfig.vendors.includes(vendor))db.materialConfig.vendors.push(vendor);
+  if(cat&&!db.materialConfig.cats.includes(cat))db.materialConfig.cats.push(cat);
+  if(unit&&!db.materialConfig.units.includes(unit))db.materialConfig.units.push(unit);
+  const data={
+    name,vendor,cat,
+    spec:document.getElementById('mat-spec').value.trim(),
+    price:Number(price),
+    unit,
+    taxType:document.getElementById('mat-tax-type').value,
+    note:document.getElementById('mat-note').value.trim()
+  };
+  if(editingMaterialId){
+    const m=db.materials.find(x=>x.id===editingMaterialId);if(!m)return;
+    Object.assign(m,data);
+    save();if(window.fbSaveMaterial)window.fbSaveMaterial(m);if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+  } else {
+    const maxOrder=db.materials.filter(x=>x.cat===cat).reduce((mx,x)=>Math.max(mx,x.order||0),0);
+    const rec={id:uid(),...data,order:maxOrder+1};
+    db.materials.push(rec);
+    save();if(window.fbSaveMaterial)window.fbSaveMaterial(rec);if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+  }
+  closeSheet('sheet-material');
+  renderMaterials();
+}
+function deleteMaterial(id){
+  if(!confirm('確定刪除這筆材料資料？'))return;
+  db.materials=db.materials.filter(m=>m.id!==id);save();
+  if(window.fbDeleteMaterial)window.fbDeleteMaterial(id).catch(err=>console.error('刪除材料失敗',err));
+  renderMaterials();
+}
+function dismissMigrateBannerMaterials(){
+  document.getElementById('migrate-banner-materials').style.display='none';
+}
+async function runMaterialsMigration(){
+  if(!localMaterialsAtStartup||!localMaterialsAtStartup.length)return dismissMigrateBannerMaterials();
+  const btn=document.getElementById('migrate-confirm-btn-materials');
+  btn.disabled=true;btn.textContent='上傳中...';
+  try{
+    await window.fbMigrateMaterials(localMaterialsAtStartup);
+    if(window.fbSaveMaterialConfig)await window.fbSaveMaterialConfig(db.materialConfig);
+    dismissMigrateBannerMaterials();
+    alert('已成功把材料成本表上傳為雲端起始資料！');
+  }catch(err){
+    console.error('上傳材料成本起始資料失敗',err);
+    alert('上傳失敗，請檢查網路連線後再試一次');
+    btn.disabled=false;btn.textContent='上傳這批資料';
+  }
+}
+async function checkMaterialsMigration(){
+  if(!window.fbCheckMaterialsEmpty)return;
+  try{
+    const empty=await window.fbCheckMaterialsEmpty();
+    if(empty&&localMaterialsAtStartup&&localMaterialsAtStartup.length){
+      document.getElementById('migrate-banner-materials').style.display='block';
+    }
+  }catch(err){
+    console.error('檢查雲端材料資料是否為空時發生錯誤',err);
+  }
+}
 function goToReserveFinance(staffId){
   prevPage='staff-detail';
   showPage('finance');
@@ -3397,7 +3758,7 @@ try{
   window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
 }
 
-let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null;
 
 if (fbAuth) {
   onAuthStateChanged(fbAuth, (user) => {
@@ -3413,6 +3774,8 @@ if (fbAuth) {
       if (eventsUnsub) { eventsUnsub(); eventsUnsub = null; }
       if (reserveFundingUnsub) { reserveFundingUnsub(); reserveFundingUnsub = null; }
       if (financeCatsUnsub) { financeCatsUnsub(); financeCatsUnsub = null; }
+      if (materialsUnsub) { materialsUnsub(); materialsUnsub = null; }
+      if (materialConfigUnsub) { materialConfigUnsub(); materialConfigUnsub = null; }
       if (window.onFirebaseSignedOut) window.onFirebaseSignedOut();
     }
   });
@@ -3566,6 +3929,33 @@ window.fbStartFinanceCatsListener = function (onData, onError) {
   }, (err) => { console.error('分類設定同步失敗', err); if (onError) onError(err); });
 };
 window.fbSaveFinanceCats = function (cfg) { return setDoc(doc(fbDb, 'settings', 'financeCats'), cfg); };
+
+// ── Materials（材料成本表）──
+window.fbStartMaterialsListeners = function (onData, onError) {
+  materialsUnsub = onSnapshot(collection(fbDb, 'materials'), (snap) => {
+    const arr = []; snap.forEach(d => arr.push(d.data())); onData(arr);
+  }, (err) => { console.error('材料成本同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveMaterial = function (m) { return setDoc(doc(fbDb, 'materials', m.id), m); };
+window.fbDeleteMaterial = function (id) { return deleteDoc(doc(fbDb, 'materials', id)); };
+window.fbCheckMaterialsEmpty = async function () {
+  const snap = await getDocs(collection(fbDb, 'materials'));
+  return snap.empty;
+};
+window.fbMigrateMaterials = async function (localMaterials) {
+  const batch = writeBatch(fbDb);
+  localMaterials.forEach(m => batch.set(doc(fbDb, 'materials', m.id), m));
+  await batch.commit();
+};
+
+// ── Material Config（材料成本設定：稅率／廠商／分類／單位，單一文件）──
+window.fbStartMaterialConfigListener = function (onData, onError) {
+  materialConfigUnsub = onSnapshot(doc(fbDb, 'settings', 'materialConfig'), (snap) => {
+    if (snap.exists()) onData(snap.data());
+  }, (err) => { console.error('材料設定同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveMaterialConfig = function (cfg) { return setDoc(doc(fbDb, 'settings', 'materialConfig'), cfg); };
+
 window.fbMigrateEvents = async function (arr) {
   const batch = writeBatch(fbDb);
   arr.forEach(e => batch.set(doc(fbDb, 'events', e.id), e));
