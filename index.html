@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718F">
+<meta name="app-version" content="20260718G">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -615,29 +615,23 @@ textarea.form-input{resize:none;min-height:72px;}
       <div id="f-reserve-hint" style="display:none;color:var(--text3);font-size:0.8125rem;margin-top:4px;">此帳戶為備用金帳：選「支出」＝報帳；選「收入」＝補款（公司撥入備用金）</div>
     </div>
     <div class="form-group" id="f-expense-cat-group" style="display:none;">
-      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出類別<span id="f-cat-manage-link" style="display:none;color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage()">管理分類</span></label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出類別<span id="f-cat-manage-link" style="display:none;color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage('exp')">管理分類</span></label>
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
-    <div class="form-group" id="f-expense-detail-group" style="display:none;"><label class="form-label" id="f-expense-detail-label">明細項目</label>
+    <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project" onchange="onCatProjectChange()"></select></div>
+    <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
+    <div class="form-group" id="f-expense-detail-group" style="display:none;">
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-expense-detail-label">明細項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-expense-cat').value)">管理項目</span></label>
       <select class="form-input" id="f-expense-detail"></select>
     </div>
-    <div class="form-group" id="f-income-cat-group" style="display:block;"><label class="form-label">收入類別</label>
+    <div class="form-group" id="f-income-cat-group" style="display:block;">
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入類別<span id="f-inc-cat-manage-link" style="display:none;color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage('inc')">管理分類</span></label>
       <select class="form-input" id="f-income-cat" onchange="onIncomeCatChange()"></select>
     </div>
-    <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project"></select></div>
-    <div class="form-group" id="f-cat-projtype-group" style="display:none;"><label class="form-label">費用類型 *</label>
-      <div class="segmented">
-        <div class="seg-btn active" data-val="材料五金" onclick="selectSeg(this,'f-cat-projtype','材料五金');onProjTypeChange()">材料五金</div>
-        <div class="seg-btn" data-val="薪資" onclick="selectSeg(this,'f-cat-projtype','薪資');onProjTypeChange()">薪資</div>
-        <div class="seg-btn" data-val="其他" onclick="selectSeg(this,'f-cat-projtype','其他');onProjTypeChange()">其他</div>
-      </div>
-      <input type="hidden" id="f-cat-projtype" value="材料五金">
+    <div class="form-group" id="f-income-detail-group" style="display:none;">
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-income-detail-label">收入項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-income-cat').value,'inc')">管理項目</span></label>
+      <select class="form-input" id="f-income-detail"></select>
     </div>
-    <div class="form-group" id="f-cat-mat5-group" style="display:none;">
-      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">材料五金項目<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage('材料五金')">管理項目</span></label>
-      <select class="form-input" id="f-cat-mat5-item"></select>
-    </div>
-    <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
     <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="f-note" placeholder="補充說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
@@ -651,7 +645,7 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-cat-manage">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">管理支出分類<button class="sheet-close" onclick="closeSheet('sheet-cat-manage')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title"><span id="cat-manage-title">管理支出分類</span><button class="sheet-close" onclick="closeSheet('sheet-cat-manage')"><i class="ti ti-x"></i></button></div>
     <div id="cat-manage-list"></div>
     <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
       <div style="flex:1"><label class="form-label">新增分類</label><input class="form-input" id="cat-new-name" placeholder="例：油漆工錢" autocomplete="off"></div>
@@ -1308,8 +1302,9 @@ const CITY_DISTRICTS={
 };
 
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
-  cats:['公司貸款','工廠營運','其他'],
-  sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}
+  cats:['專案','薪資'],
+  incCats:['專案'],
+  sub:{}
 }};
 window.fbDebugLog=function(){};
 let currentPage='dashboard';
@@ -1333,7 +1328,8 @@ function load(){
   const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);
   if(!db.punchGcalIds)db.punchGcalIds={};
   if(!db.reserveFunding)db.reserveFunding=[];
-  if(!db.financeCats)db.financeCats={cats:['公司貸款','工廠營運','其他'],sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}};
+  if(!db.financeCats)db.financeCats={cats:['專案','薪資'],incCats:['專案'],sub:{}};
+  if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
   if(!db.financeCats.sub)db.financeCats.sub={};
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.toolIcons)db.toolIcons={};
@@ -1604,12 +1600,8 @@ const MATERIAL_CAT_LOOKUP=[
 ];
 const FIN_EXP_CATS_PROJECT=['午餐','晚餐','材料五金','薪資','臨時性支出','其他'];
 const FIN_INC_CATS_PROJECT=['工程款01期','工程款02期','工程款03期','尾款','款項還回','其他'];
-const FIN_INC_CATS_ANDUN=['專案','其他'];
-function andunCats(){
-  const cats=(db.financeCats&&db.financeCats.cats)||[];
-  // 「專案」固定排在第一位，不論儲存的順序為何
-  return['專案',...cats.filter(c=>c!=='專案')];
-}
+function andunCats(){return(db.financeCats&&db.financeCats.cats)||[];}
+function andunIncCats(){return(db.financeCats&&db.financeCats.incCats)||[];}
 function andunSubcats(cat){return(db.financeCats&&db.financeCats.sub&&db.financeCats.sub[cat])||[];}
 function saveFinanceCatsConfig(){
   save();
@@ -1617,53 +1609,69 @@ function saveFinanceCatsConfig(){
   const sheet=document.getElementById('sheet-finance');
   if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
 }
-function openCatManage(){renderCatManageList();openSheet('sheet-cat-manage');}
+let catManageMode='exp';
+function openCatManage(mode){
+  catManageMode=mode||'exp';
+  document.getElementById('cat-manage-title').textContent=catManageMode==='inc'?'管理收入分類':'管理支出分類';
+  renderCatManageList();
+  openSheet('sheet-cat-manage');
+}
 function renderCatManageList(){
-  const cats=andunCats();
-  const rows=cats.map(c=>({key:c,name:c,special:(c==='專案'||c==='其他'),hasSubmenu:(c!=='專案'&&c!=='其他')}));
-  rows.splice(1,0,{key:'材料五金',name:'材料五金（專案項下）',special:true,hasSubmenu:true});
-  document.getElementById('cat-manage-list').innerHTML=rows.length?rows.map(r=>{
-    const subCount=r.hasSubmenu?andunSubcats(r.key).length:0;
-    const meta=r.key==='專案'?'選擇專案，並分材料五金／薪資／其他':(r.hasSubmenu?(subCount?subCount+' 個明細項目':'無明細項目'):'無明細');
-    return `<div class="finance-item">
-      <div class="finance-body"><div class="finance-name">${r.name}</div><div class="finance-meta">${meta}</div></div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        ${r.hasSubmenu?`<button class="btn btn-sm" onclick="openSubcatManage('${r.key}')">明細</button>`:''}
-        ${r.special?'':`<button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinanceCat('${r.key}')"><i class="ti ti-trash"></i></button>`}
+  const cats=catManageMode==='inc'?andunIncCats():andunCats();
+  document.getElementById('cat-manage-list').innerHTML=cats.length?cats.map(c=>{
+    const isProj=c==='專案';
+    const subCount=andunSubcats(c).length;
+    const meta=isProj?'選擇 App 內施作中專案':(subCount?subCount+' 個明細項目':'無明細項目');
+    return `<div class="mat-item-wrap" data-key="${c}">
+      <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceCat('${c}')"><i class="ti ti-trash"></i>刪除</button>
+      </div>
+      <div class="mat-item-card" style="cursor:default;">
+        <div style="flex:1;min-width:0;"><div class="fw500">${c}</div><div style="font-size:0.8125rem;color:var(--text3);margin-top:2px;">${meta}</div></div>
+        <button class="btn btn-sm" onclick="openSubcatManage('${c}','${catManageMode}')">${catManageMode==='inc'?'收入項目':'明細'}</button>
       </div>
     </div>`;
-  }).join(''):'<div class="empty"><p>尚無分類</p></div>';
+  }).join(''):'<div class="empty"><p>尚無分類，新增一個開始使用</p></div>';
+  attachMatSwipe(document.getElementById('cat-manage-list'));
 }
 function addFinanceCat(){
   const input=document.getElementById('cat-new-name');
   const name=input.value.trim();
   if(!name)return;
-  if(!db.financeCats.cats.includes(name))db.financeCats.cats.push(name);
+  const key=catManageMode==='inc'?'incCats':'cats';
+  if(!db.financeCats[key])db.financeCats[key]=[];
+  if(!db.financeCats[key].includes(name))db.financeCats[key].push(name);
   input.value='';
   saveFinanceCatsConfig();
   renderCatManageList();
 }
 function deleteFinanceCat(name){
   if(!confirm(`確定刪除分類「${name}」？`))return;
-  db.financeCats.cats=db.financeCats.cats.filter(c=>c!==name);
-  delete db.financeCats.sub[name];
+  const key=catManageMode==='inc'?'incCats':'cats';
+  db.financeCats[key]=(db.financeCats[key]||[]).filter(c=>c!==name);
   saveFinanceCatsConfig();
   renderCatManageList();
 }
-let currentEditingCat=null;
-function openSubcatManage(cat){
+let currentEditingCat=null,currentEditingCatMode='exp';
+function openSubcatManage(cat,mode){
   currentEditingCat=cat;
-  document.getElementById('subcat-title').textContent=cat+' · 明細項目';
+  currentEditingCatMode=mode||'exp';
+  document.getElementById('subcat-title').textContent=cat+(currentEditingCatMode==='inc'?' · 收入項目':' · 明細項目');
   renderSubcatManageList();
   openSheet('sheet-subcat-manage');
 }
 function renderSubcatManageList(){
   const subs=andunSubcats(currentEditingCat);
   document.getElementById('subcat-manage-list').innerHTML=subs.length?subs.map(s=>`
-    <div class="finance-item">
-      <div class="finance-body"><div class="finance-name">${s}</div></div>
-      <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinanceSubcat('${s}')"><i class="ti ti-trash"></i></button>
-    </div>`).join(''):'<div class="empty"><p>尚無明細項目</p></div>';
+    <div class="mat-item-wrap" data-key="${s}">
+      <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceSubcat('${s}')"><i class="ti ti-trash"></i>刪除</button>
+      </div>
+      <div class="mat-item-card" style="cursor:default;">
+        <div class="fw500">${s}</div>
+      </div>
+    </div>`).join(''):'<div class="empty"><p>尚無項目</p></div>';
+  attachMatSwipe(document.getElementById('subcat-manage-list'));
 }
 function addFinanceSubcat(){
   const input=document.getElementById('subcat-new-name');
@@ -1674,14 +1682,15 @@ function addFinanceSubcat(){
   input.value='';
   saveFinanceCatsConfig();
   renderSubcatManageList();
-  if(currentEditingCat==='材料五金')onProjTypeChange();
+  renderCatManageList();
 }
 function deleteFinanceSubcat(name){
   if(!currentEditingCat)return;
+  if(!confirm(`確定刪除「${name}」？`))return;
   db.financeCats.sub[currentEditingCat]=(db.financeCats.sub[currentEditingCat]||[]).filter(s=>s!==name);
   saveFinanceCatsConfig();
   renderSubcatManageList();
-  if(currentEditingCat==='材料五金')onProjTypeChange();
+  renderCatManageList();
 }
 function onFinanceAccountChange(){
   const acct=document.getElementById('f-project').value;
@@ -1690,17 +1699,26 @@ function onFinanceAccountChange(){
   if(hint)hint.style.display=reserve?'block':'none';
   toggleFinanceCat(document.getElementById('f-type').value);
 }
+function fillProjectSel(selId){
+  const el=document.getElementById(selId);if(!el)return;
+  const val=el.value;
+  const projects=db.projects.filter(p=>p.type==='施作中');
+  el.innerHTML=projects.length?projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''):'<option value="">目前無施作中專案</option>';
+  if(val&&projects.some(p=>p.id===val))el.value=val;
+}
 function refreshFinanceCategories(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
   const useCustomCats=reserve||acct==='__andun__';
   const mgLink=document.getElementById('f-cat-manage-link');
   if(mgLink)mgLink.style.display=useCustomCats?'inline':'none';
+  const incMgLink=document.getElementById('f-inc-cat-manage-link');
+  if(incMgLink)incMgLink.style.display=(!reserve&&acct==='__andun__')?'inline':'none';
   const expSel=document.getElementById('f-expense-cat');
   const incSel=document.getElementById('f-income-cat');
   const expVal=expSel.value,incVal=incSel.value;
   const expCats=useCustomCats?andunCats():FIN_EXP_CATS_PROJECT;
-  const incCats=reserve?[]:(acct==='__andun__'?FIN_INC_CATS_ANDUN:FIN_INC_CATS_PROJECT);
+  const incCats=reserve?[]:(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
   expSel.innerHTML=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   incSel.innerHTML=incCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   if(expCats.includes(expVal))expSel.value=expVal;
@@ -1712,60 +1730,47 @@ function updateCatDependentUI(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
   const isAndunLike=reserve||acct==='__andun__';
-  const cat=t==='支出'?document.getElementById('f-expense-cat').value:document.getElementById('f-income-cat').value;
-  const detGrp=document.getElementById('f-expense-detail-group');
-  const detSel=document.getElementById('f-expense-detail');
   const projGrp=document.getElementById('f-cat-project-group');
-  const projTypeGrp=document.getElementById('f-cat-projtype-group');
-  if(isAndunLike&&cat==='專案'){
-    projGrp.style.display='block';
-    fillSel('f-cat-project',false,false);
-    detGrp.style.display='none';detSel.innerHTML='';
-    if(t==='支出'){
-      projTypeGrp.style.display='block';
-      onProjTypeChange();
-    } else {
-      projTypeGrp.style.display='none';
-      document.getElementById('f-staff-group').style.display='none';
-    }
-  } else {
-    projGrp.style.display='none';
-    projTypeGrp.style.display='none';
-    const subs=(t==='支出'&&isAndunLike)?andunSubcats(cat):[];
-    if(subs.length){
-      detGrp.style.display='block';
-      document.getElementById('f-expense-detail-label').textContent=cat+'項目';
-      detSel.innerHTML=subs.map(c=>`<option value="${c}">${c}</option>`).join('');
-    } else {
-      detGrp.style.display='none';detSel.innerHTML='';
-    }
-    toggleFinanceStaff();
-  }
-}
-function onProjTypeChange(){
-  const pt=document.getElementById('f-cat-projtype').value;
   const staffGrp=document.getElementById('f-staff-group');
-  const mat5Grp=document.getElementById('f-cat-mat5-group');
-  if(pt==='薪資'){
-    staffGrp.style.display='block';fillStaffSel('f-staff-sel');
-    mat5Grp.style.display='none';
-  } else if(pt==='材料五金'){
-    staffGrp.style.display='none';
-    const items=andunSubcats('材料五金');
-    if(items.length){
-      mat5Grp.style.display='block';
-      const sel=document.getElementById('f-cat-mat5-item');
-      const val=sel.value;
-      sel.innerHTML=items.map(c=>`<option value="${c}">${c}</option>`).join('');
-      if(items.includes(val))sel.value=val;
-    } else {
-      mat5Grp.style.display='none';
-    }
+  const expDetGrp=document.getElementById('f-expense-detail-group');
+  const incDetGrp=document.getElementById('f-income-detail-group');
+
+  if(!isAndunLike){
+    // 真實專案自己的收支：維持固定分類，不需要專案選單／明細
+    projGrp.style.display='none';
+    expDetGrp.style.display='none';
+    incDetGrp.style.display='none';
+    toggleFinanceStaff();
+    return;
+  }
+
+  const cat=t==='支出'?document.getElementById('f-expense-cat').value:document.getElementById('f-income-cat').value;
+  const needProject=cat==='專案';
+  const needStaff=t==='支出'&&cat==='薪資';
+
+  projGrp.style.display=needProject?'block':'none';
+  if(needProject)fillProjectSel('f-cat-project');
+
+  staffGrp.style.display=needStaff?'block':'none';
+  if(needStaff)fillStaffSel('f-staff-sel','請選擇人員');
+
+  const subs=(cat&&!needStaff)?andunSubcats(cat):[];
+  const detGrp=t==='支出'?expDetGrp:incDetGrp;
+  const otherDetGrp=t==='支出'?incDetGrp:expDetGrp;
+  otherDetGrp.style.display='none';
+  if(subs.length){
+    detGrp.style.display='block';
+    const label=document.getElementById(t==='支出'?'f-expense-detail-label':'f-income-detail-label');
+    label.textContent=t==='支出'?'明細項目':'收入項目';
+    const sel=document.getElementById(t==='支出'?'f-expense-detail':'f-income-detail');
+    const val=sel.value;
+    sel.innerHTML=subs.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if(subs.includes(val))sel.value=val;
   } else {
-    staffGrp.style.display='none';
-    mat5Grp.style.display='none';
+    detGrp.style.display='none';
   }
 }
+function onCatProjectChange(){/* 目前選擇的專案本身不影響其他欄位，保留供未來擴充 */}
 function onExpenseCatChange(){updateCatDependentUI();}
 function onIncomeCatChange(){updateCatDependentUI();}
 function toggleFinanceCat(t){
@@ -1777,6 +1782,7 @@ function toggleFinanceCat(t){
   else{
     // 備用金帳的收入＝補款，無分類
     document.getElementById('f-expense-detail-group').style.display='none';
+    document.getElementById('f-income-detail-group').style.display='none';
     document.getElementById('f-cat-project-group').style.display='none';
     document.getElementById('f-staff-group').style.display='none';
   }
@@ -1788,7 +1794,7 @@ function toggleFinanceStaff(){
   const needStaff=(t==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'))||(t==='收入'&&incCat==='款項還回');
   const grp=document.getElementById('f-staff-group');
   grp.style.display=needStaff?'block':'none';
-  if(needStaff)fillStaffSel('f-staff-sel');
+  if(needStaff)fillStaffSel('f-staff-sel','請選擇人員');
 }
 function openSheet(id){document.getElementById(id).classList.add('open');}
 function closeSheet(id){document.getElementById(id).classList.remove('open');}
@@ -2143,9 +2149,9 @@ function openReserveEntry(staffId){
   onFinanceAccountChange();
   openSheet('sheet-finance');
 }
-function fillStaffSel(selId){
+function fillStaffSel(selId,placeholder){
   const el=document.getElementById(selId);if(!el)return;
-  el.innerHTML='<option value="">請選擇負責人</option>';
+  el.innerHTML=`<option value="">${placeholder||'請選擇負責人'}</option>`;
   db.staff.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name+(s.stitle?' · '+s.stitle:'');el.appendChild(o);});
 }
 function sBadge(s){
@@ -3326,19 +3332,30 @@ function saveFinance(){
 
   if(reserve||acct==='__andun__'){
     if(ftype!=='支出'){
-      // 安盾-中國信託收入：可選「專案」直接算進該專案的進項，或「其他」算公司自身收入
+      // 安盾-中國信託收入：可選「專案」直接算進該專案的進項（可再選收入項目），或其他自訂分類
       const incCat=document.getElementById('f-income-cat').value;
       if(!incCat)return alert('請選擇收入類別');
-      let projectId=acct,storedIncCat=incCat,name='收入';
+      let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='';
       if(incCat==='專案'){
         const proj=document.getElementById('f-cat-project').value;
         if(!proj)return alert('請選擇專案');
-        projectId=proj;storedIncCat='';
+        projectId=proj;storedIncCat='專案';
         name='工程款';
+        const subs=andunSubcats('專案');
+        if(subs.length){
+          incDetail=document.getElementById('f-income-detail').value;
+          if(!incDetail)return alert('請選擇收入項目');
+          name='工程款 · '+incDetail;
+        }
       } else {
-        name=incCat;
+        const subs=andunSubcats(incCat);
+        if(subs.length){
+          incDetail=document.getElementById('f-income-detail').value;
+          if(!incDetail)return alert('請選擇收入項目');
+          name=incCat+' · '+incDetail;
+        }
       }
-      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:'',staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
+      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
       db.finance.push(rec);
       save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
       closeSheet('sheet-finance');resetFinanceForm();
@@ -3346,34 +3363,27 @@ function saveFinance(){
       if(currentPage==='detail')renderDetail(currentProjectId);
       return;
     }
-    // 安盾-中國信託支出 或 Wallace/Mark 報帳：共用可自訂分類（含「專案」「薪資」特殊選項）
+    // 安盾-中國信託支出 或 Wallace/Mark 報帳：完全由使用者自訂的分類清單（專案／薪資為系統辨識的關鍵字）
     const cat=document.getElementById('f-expense-cat').value;
-    if(!cat)return alert('請選擇支出類別');
+    if(!cat)return alert('請選擇支出類別，若清單是空的，請先點「管理分類」新增');
     let projectId='__andun__',staffId='',staffName='',expDetail='',expCat=cat,name=cat;
     if(cat==='專案'){
       const proj=document.getElementById('f-cat-project').value;
       if(!proj)return alert('請選擇專案');
       projectId=proj;
-      const projType=document.getElementById('f-cat-projtype').value;
-      if(!projType)return alert('請選擇費用類型');
-      expCat=projType;
-      if(projType==='薪資'){
-        staffId=document.getElementById('f-staff-sel').value;
-        if(!staffId)return alert('請選擇相關人員');
-        staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
-        name='薪資 · '+staffName;
-      } else if(projType==='材料五金'){
-        const mat5subs=andunSubcats('材料五金');
-        if(mat5subs.length){
-          expDetail=document.getElementById('f-cat-mat5-item').value;
-          if(!expDetail)return alert('請選擇材料五金項目');
-          name='材料五金 · '+expDetail;
-        } else {
-          name='材料五金';
-        }
+      const subs=andunSubcats('專案');
+      if(subs.length){
+        expDetail=document.getElementById('f-expense-detail').value;
+        if(!expDetail)return alert('請選擇明細項目');
+        name='專案支出 · '+expDetail;
       } else {
-        name='其他';
+        name='專案支出';
       }
+    } else if(cat==='薪資'){
+      staffId=document.getElementById('f-staff-sel').value;
+      if(!staffId)return alert('請選擇相關人員');
+      staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
+      name='薪資 · '+staffName;
     } else {
       const subs=andunSubcats(cat);
       if(subs.length){
@@ -3533,7 +3543,7 @@ function renderMaterials(){
         </div>
       </div>`;
     }).join('')}</div>`).join(''):'<div class="empty"><i class="ti ti-search-off"></i><p>找不到符合的材料</p></div>';
-  attachMatSwipe();
+  attachMatSwipe(document.getElementById('materials-list'));
   attachMatDrag();
 }
 function openEditMaterialSwipeSafe(id,cardEl){
@@ -3541,8 +3551,8 @@ function openEditMaterialSwipeSafe(id,cardEl){
   if(wrap&&Math.abs(parseFloat(wrap._tx||0))>10)return;
   openEditMaterial(id);
 }
-function attachMatSwipe(){
-  document.querySelectorAll('.mat-item-wrap').forEach(wrap=>{
+function attachMatSwipe(root){
+  (root||document).querySelectorAll('.mat-item-wrap').forEach(wrap=>{
     const card=wrap.querySelector('.mat-item-card');
     const actions=wrap.querySelector('.mat-swipe-actions');
     let startX=0,startY=0,tx=0,moving=false;
