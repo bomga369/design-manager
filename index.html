@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718L">
+<meta name="app-version" content="20260718M">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -244,8 +244,10 @@ textarea.form-input{resize:none;min-height:72px;}
 .mat-toast{position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:10px;font-size:0.875rem;font-weight:600;opacity:0;transition:all .25s;pointer-events:none;z-index:200;white-space:nowrap;}
 .mat-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .mat-item-wrap{position:relative;border-radius:var(--r);overflow:hidden;touch-action:pan-y;margin-bottom:8px;}
-.mat-item-wrap.dragging{opacity:.6;}
-.mat-item-wrap.drag-over{outline:2px dashed var(--gold);outline-offset:-2px;}
+.mat-item-wrap.dragging,.mat-subitem-wrap.dragging{opacity:.6;}
+.mat-item-wrap.drag-over,.mat-subitem-wrap.drag-over{outline:2px dashed var(--gold);outline-offset:-2px;}
+.mat-subitem-wrap{position:relative;border-radius:var(--r);overflow:hidden;touch-action:pan-y;margin-bottom:6px;}
+.subcat-expand{margin:0 0 10px 1rem;padding-left:0.5rem;border-left:2px solid var(--border);}
 .mat-swipe-actions{position:absolute;right:0;top:0;bottom:0;display:flex;z-index:0;}
 .mat-sw-btn{border:none;cursor:pointer;font-size:0.75rem;font-weight:600;padding:0 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:64px;color:#fff;}
 .mat-sw-btn i{font-size:1.1rem;}
@@ -265,6 +267,10 @@ textarea.form-input{resize:none;min-height:72px;}
 .tool-tile{display:flex;flex-direction:column;align-items:center;gap:6px;}
 .tool-icon{width:72px;height:72px;border-radius:20px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
 .tool-icon:active{transform:scale(0.93);transition:transform .1s;}
+.tool-grid.reorder-mode .tool-tile{animation:tool-jiggle 0.28s infinite;}
+.tool-grid.reorder-mode .tool-tile:nth-child(even){animation-delay:-0.14s;}
+.tool-dragging{opacity:0.5;animation:none !important;}
+@keyframes tool-jiggle{0%{transform:rotate(-1.2deg);}50%{transform:rotate(1.2deg);}100%{transform:rotate(-1.2deg);}}
 .tool-icon-edit{position:absolute;bottom:-4px;right:-4px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--bg2);cursor:pointer;z-index:2;}
 .tool-label{font-size:0.8125rem;color:var(--text2);text-align:center;line-height:1.2;}
 </style>
@@ -365,7 +371,8 @@ textarea.form-input{resize:none;min-height:72px;}
   <!-- 小工具 -->
   <div id="page-calendar" class="page">
     <div class="content">
-      <div class="section-hd">小工具</div>
+      <div class="flex-between"><div class="section-hd" style="margin-bottom:0;">小工具</div><span id="tool-settings-btn" style="display:none;color:var(--gold);cursor:pointer;font-size:0.8125rem;align-items:center;gap:4px;" onclick="openToolSettings()"><i class="ti ti-settings"></i>設定</span></div>
+      <div style="color:var(--text3);font-size:0.75rem;margin:2px 0 10px;" id="tool-reorder-hint">長按圖示可拖曳調整排列順序</div>
       <div class="tool-grid" id="tool-grid"></div>
       <input type="file" id="tool-icon-input" accept="image/*" style="display:none" onchange="onToolIconPicked(event)">
       <div class="section-hd" style="margin-top:1rem">行事曆</div>
@@ -723,6 +730,18 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-material')">取消</button>
       <button class="btn btn-primary" id="sheet-material-save" onclick="saveMaterial()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-tool-settings">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">小工具設定<button class="sheet-close" onclick="closeSheet('sheet-tool-settings')"><i class="ti ti-x"></i></button></div>
+    <div style="color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">點圖示更換照片</div>
+    <div class="tool-grid" id="tool-settings-grid"></div>
+    <div class="sheet-footer">
+      <button class="btn btn-primary" onclick="closeSheet('sheet-tool-settings')">完成</button>
     </div>
   </div>
 </div>
@@ -1726,34 +1745,94 @@ function deleteFinanceCat(name){
   renderCatManageList();
 }
 let currentEditingCat=null,currentEditingCatMode='exp';
+let expandedSubcatItem=null;
 function openSubcatManage(cat,mode){
   currentEditingCat=cat;
   currentEditingCatMode=mode||'exp';
+  expandedSubcatItem=null;
   document.getElementById('subcat-title').textContent=cat+(currentEditingCatMode==='inc'?' · 收入項目':' · 支出項目');
   renderSubcatManageList();
   openSheet('sheet-subcat-manage');
+}
+function toggleSubcatExpand(item){
+  expandedSubcatItem=(expandedSubcatItem===item)?null:item;
+  renderSubcatManageList();
 }
 function renderSubcatManageList(){
   const subs=andunSubcats(currentEditingCat);
   const contentWord=currentEditingCatMode==='inc'?'收入內容':'支出內容';
   document.getElementById('subcat-manage-list').innerHTML=subs.length?subs.map(s=>{
-    const subCount=andunSubcats(s).length;
+    const contents=andunSubcats(s);
+    const isOpen=expandedSubcatItem===s;
     return `<div class="mat-item-wrap" data-key="${s}">
       <div class="mat-swipe-actions">
         <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();editFinanceSubcat('${s}')"><i class="ti ti-pencil"></i>編輯</button>
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceSubcat('${s}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
-      <div class="mat-item-card" style="cursor:default;">
-        <div style="flex:1;min-width:0;"><div class="fw500">${s}</div><div style="font-size:0.8125rem;color:var(--text3);margin-top:2px;">${subCount?subCount+' 個'+contentWord:'無'+contentWord}</div></div>
-        <button class="btn btn-sm" onclick="openSubSubcatManage('${s}','${currentEditingCatMode}','${currentEditingCat}')">${contentWord}</button>
+      <div class="mat-item-card" onclick="toggleSubcatExpand('${s}')">
+        <div style="flex:1;min-width:0;"><div class="fw500">${s}</div><div style="font-size:0.8125rem;color:var(--text3);margin-top:2px;">${contents.length?contents.length+' 個'+contentWord:'無'+contentWord}</div></div>
+        <i class="ti ti-chevron-${isOpen?'up':'down'}" style="color:var(--text3);font-size:1.1rem;"></i>
       </div>
-    </div>`;
+    </div>
+    ${isOpen?`<div class="subcat-expand" id="subcat-expand-${s}">
+      ${contents.length?contents.map(c=>`
+      <div class="mat-subitem-wrap" data-key="${c}">
+        <div class="mat-swipe-actions">
+          <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();editFinanceContentInline('${s}','${c}')"><i class="ti ti-pencil"></i>編輯</button>
+          <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceContentInline('${s}','${c}')"><i class="ti ti-trash"></i>刪除</button>
+        </div>
+        <div class="mat-item-card" style="cursor:default;padding:0.625rem 0.75rem;">
+          <div class="fw500" style="font-size:0.875rem;">${c}</div>
+        </div>
+      </div>`).join(''):`<div style="color:var(--text3);font-size:0.8125rem;padding:0.5rem 0;">尚無${contentWord}</div>`}
+      <div class="mat-chip-add-row" style="padding:0.25rem 0 0.5rem;">
+        <input class="form-input" id="inline-content-input" placeholder="新增${contentWord}" autocomplete="off">
+        <button class="btn btn-sm btn-primary" onclick="addFinanceContentInline('${s}')">新增</button>
+      </div>
+    </div>`:''}`;
   }).join(''):'<div class="empty"><p>尚無項目</p></div>';
-  attachMatSwipe(document.getElementById('subcat-manage-list'));
+  attachMatSwipe(document.getElementById('subcat-manage-list'),'.mat-item-wrap');
   attachArrayDrag('subcat-manage-list',newOrder=>{
     db.financeCats.sub[currentEditingCat]=newOrder;
     saveFinanceCatsConfig();
-  });
+  },'.mat-item-wrap');
+  if(expandedSubcatItem){
+    const expandEl=document.getElementById('subcat-expand-'+expandedSubcatItem);
+    if(expandEl){
+      attachMatSwipe(expandEl,'.mat-subitem-wrap');
+      attachArrayDrag('subcat-expand-'+expandedSubcatItem,newOrder=>{
+        db.financeCats.sub[expandedSubcatItem]=newOrder;
+        saveFinanceCatsConfig();
+      },'.mat-subitem-wrap');
+    }
+  }
+}
+function addFinanceContentInline(item){
+  const input=document.getElementById('inline-content-input');
+  const name=input.value.trim();
+  if(!name)return;
+  if(!db.financeCats.sub[item])db.financeCats.sub[item]=[];
+  if(!db.financeCats.sub[item].includes(name))db.financeCats.sub[item].push(name);
+  saveFinanceCatsConfig();
+  renderSubcatManageList();
+}
+function editFinanceContentInline(item,name){
+  const newName=prompt('修改內容名稱',name);
+  if(newName===null)return;
+  const trimmed=newName.trim();
+  if(!trimmed||trimmed===name)return;
+  const arr=db.financeCats.sub[item]||[];
+  if(arr.includes(trimmed))return alert('已經有相同名稱的內容了');
+  const idx=arr.indexOf(name);
+  if(idx>=0)arr[idx]=trimmed;
+  saveFinanceCatsConfig();
+  renderSubcatManageList();
+}
+function deleteFinanceContentInline(item,name){
+  if(!confirm(`確定刪除「${name}」？`))return;
+  db.financeCats.sub[item]=(db.financeCats.sub[item]||[]).filter(s=>s!==name);
+  saveFinanceCatsConfig();
+  renderSubcatManageList();
 }
 function addFinanceSubcat(){
   const input=document.getElementById('subcat-new-name');
@@ -1776,6 +1855,7 @@ function editFinanceSubcat(name){
   const idx=arr.indexOf(name);
   if(idx>=0)arr[idx]=trimmed;
   renameCatKey(name,trimmed);
+  if(expandedSubcatItem===name)expandedSubcatItem=trimmed;
   saveFinanceCatsConfig();
   renderSubcatManageList();
   renderCatManageList();
@@ -1785,6 +1865,7 @@ function deleteFinanceSubcat(name){
   if(!confirm(`確定刪除「${name}」？`))return;
   db.financeCats.sub[currentEditingCat]=(db.financeCats.sub[currentEditingCat]||[]).filter(s=>s!==name);
   delete db.financeCats.sub[name];
+  if(expandedSubcatItem===name)expandedSubcatItem=null;
   saveFinanceCatsConfig();
   renderSubcatManageList();
   renderCatManageList();
@@ -2140,32 +2221,125 @@ const TOOLS=[
   {id:'material',name:'材料成本查詢',url:'https://candid-belekoy-8230c8.netlify.app',emoji:'🪵'}
 ];
 let currentToolIconId=null;
+function getToolOrder(){
+  const saved=(db.toolIcons&&db.toolIcons.__order__)||[];
+  const ids=TOOLS.map(t=>t.id);
+  const ordered=saved.filter(id=>ids.includes(id));
+  ids.forEach(id=>{if(!ordered.includes(id))ordered.push(id);});
+  return ordered;
+}
+function orderedTools(){
+  const order=getToolOrder();
+  return order.map(id=>TOOLS.find(t=>t.id===id)).filter(Boolean);
+}
 function renderToolGrid(){
   const el=document.getElementById('tool-grid');if(!el)return;
   const canEdit=canEditToolIcons();
-  el.innerHTML=TOOLS.map(t=>{
+  document.getElementById('tool-settings-btn').style.display=canEdit?'flex':'none';
+  document.getElementById('tool-reorder-hint').style.display=canEdit?'block':'none';
+  el.innerHTML=orderedTools().map(t=>{
     const custom=db.toolIcons&&db.toolIcons[t.id];
     const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
     return `<div class="tool-tile">
-      <div class="tool-icon" data-tool="${t.id}"${iconStyle}>${custom?'':t.emoji}
-        ${canEdit?`<div class="tool-icon-edit" onclick="event.stopPropagation();pickToolIcon('${t.id}')"><i class="ti ti-camera"></i></div>`:''}
-      </div>
+      <div class="tool-icon" data-tool="${t.id}"${iconStyle}>${custom?'':t.emoji}</div>
       <div class="tool-label">${t.name}</div>
     </div>`;
   }).join('');
   attachToolIconPress();
+  if(canEdit)attachToolReorder();
 }
 const TOOL_ICON_EDITOR_EMAIL='bomga369@gmail.com';
 function canEditToolIcons(){return currentUser&&currentUser.email===TOOL_ICON_EDITOR_EMAIL;}
 function attachToolIconPress(){
-  document.querySelectorAll('.tool-icon').forEach(icon=>{
+  document.querySelectorAll('#tool-grid .tool-icon').forEach(icon=>{
     const id=icon.getAttribute('data-tool');
-    icon.addEventListener('click',()=>openTool(id));
+    icon.addEventListener('click',()=>{
+      if(icon.closest('.tool-grid').classList.contains('reorder-mode'))return;
+      openTool(id);
+    });
   });
+}
+// 長按小工具圖示：跟 iPhone 主畫面一樣，進入可拖曳排序模式
+function attachToolReorder(){
+  const grid=document.getElementById('tool-grid');if(!grid)return;
+  let longTimer=null,startX=0,startY=0,dragTile=null;
+  grid.querySelectorAll('.tool-tile').forEach(tile=>{
+    const icon=tile.querySelector('.tool-icon');
+    icon.addEventListener('touchstart',e=>{
+      const t=e.touches[0];startX=t.clientX;startY=t.clientY;
+      longTimer=setTimeout(()=>{
+        if(navigator.vibrate)navigator.vibrate(40);
+        enterToolReorderMode();
+      },500);
+    },{passive:true});
+    icon.addEventListener('touchmove',e=>{
+      const t=e.touches[0];
+      if(Math.abs(t.clientX-startX)>12||Math.abs(t.clientY-startY)>12)clearTimeout(longTimer);
+      if(grid.classList.contains('reorder-mode')&&dragTile){
+        const el=document.elementFromPoint(t.clientX,t.clientY);
+        const target=el&&el.closest('.tool-tile');
+        if(target&&target!==dragTile&&grid.contains(target)){
+          const tiles=Array.from(grid.querySelectorAll('.tool-tile'));
+          const srcIdx=tiles.indexOf(dragTile);
+          const tgtIdx=tiles.indexOf(target);
+          if(srcIdx<tgtIdx)grid.insertBefore(dragTile,target.nextSibling);
+          else grid.insertBefore(dragTile,target);
+        }
+      }
+    },{passive:true});
+    icon.addEventListener('touchend',()=>{
+      clearTimeout(longTimer);
+      if(dragTile){dragTile.classList.remove('tool-dragging');dragTile=null;}
+    });
+    tile.addEventListener('touchstart',()=>{
+      if(grid.classList.contains('reorder-mode')){dragTile=tile;tile.classList.add('tool-dragging');}
+    },{passive:true});
+  });
+  function enterToolReorderMode(){
+    grid.classList.add('reorder-mode');
+    document.getElementById('tool-reorder-hint').textContent='拖曳圖示調整順序，完成後點旁邊「完成」';
+    let doneBtn=document.getElementById('tool-reorder-done');
+    if(!doneBtn){
+      doneBtn=document.createElement('span');
+      doneBtn.id='tool-reorder-done';
+      doneBtn.style.cssText='color:var(--gold);cursor:pointer;font-size:0.8125rem;font-weight:600;';
+      doneBtn.textContent='完成';
+      doneBtn.onclick=exitToolReorderMode;
+      document.getElementById('tool-settings-btn').insertAdjacentElement('afterend',doneBtn);
+    }
+    doneBtn.style.display='inline';
+    document.getElementById('tool-settings-btn').style.display='none';
+  }
+  function exitToolReorderMode(){
+    grid.classList.remove('reorder-mode');
+    const doneBtn=document.getElementById('tool-reorder-done');
+    if(doneBtn)doneBtn.style.display='none';
+    document.getElementById('tool-settings-btn').style.display='flex';
+    document.getElementById('tool-reorder-hint').textContent='長按圖示可拖曳調整排列順序';
+    const newOrder=Array.from(grid.querySelectorAll('.tool-tile .tool-icon')).map(el=>el.getAttribute('data-tool'));
+    if(!db.toolIcons)db.toolIcons={};
+    db.toolIcons.__order__=newOrder;
+    save();if(window.fbSaveToolIcons)window.fbSaveToolIcons(db.toolIcons);
+  }
 }
 function openTool(id){
   const t=TOOLS.find(x=>x.id===id);if(!t)return;
   window.open(t.url,'_blank');
+}
+function openToolSettings(){
+  renderToolSettingsGrid();
+  openSheet('sheet-tool-settings');
+}
+function renderToolSettingsGrid(){
+  const el=document.getElementById('tool-settings-grid');if(!el)return;
+  el.innerHTML=orderedTools().map(t=>{
+    const custom=db.toolIcons&&db.toolIcons[t.id];
+    const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
+    return `<div class="tool-tile">
+      <div class="tool-icon" onclick="pickToolIcon('${t.id}')"${iconStyle}>${custom?'':t.emoji}</div>
+      <div class="tool-label">${t.name}</div>
+    </div>`;
+  }).join('');
 }
 function pickToolIcon(id){
   currentToolIconId=id;
@@ -2188,6 +2362,7 @@ function onToolIconPicked(e){
       db.toolIcons[currentToolIconId]=dataUrl;
       save();if(window.fbSaveToolIcons)window.fbSaveToolIcons(db.toolIcons);
       renderToolGrid();
+      renderToolSettingsGrid();
     };
     img.src=ev.target.result;
   };
@@ -3760,10 +3935,11 @@ function openEditMaterialSwipeSafe(id,cardEl){
   if(wrap&&Math.abs(parseFloat(wrap._tx||0))>10)return;
   openEditMaterial(id);
 }
-function attachArrayDrag(containerId,onReorder){
+function attachArrayDrag(containerId,onReorder,selector){
+  selector=selector||'.mat-item-wrap';
   const list=document.getElementById(containerId);if(!list)return;
   let dragSrc=null,didReorder=false;
-  list.querySelectorAll('.mat-item-wrap').forEach(wrap=>{
+  list.querySelectorAll(selector).forEach(wrap=>{
     const card=wrap.querySelector('.mat-item-card');
     let longTimer=null;
     card.addEventListener('touchstart',()=>{
@@ -3776,7 +3952,7 @@ function attachArrayDrag(containerId,onReorder){
       clearTimeout(longTimer);
       if(!dragSrc)return;
       const t=e.touches[0];
-      const els=Array.from(list.querySelectorAll('.mat-item-wrap'));
+      const els=Array.from(list.querySelectorAll(selector));
       const target=els.find(el=>{
         if(el===dragSrc)return false;
         const r=el.getBoundingClientRect();
@@ -3785,7 +3961,7 @@ function attachArrayDrag(containerId,onReorder){
       if(target){
         els.forEach(el=>el.classList.remove('drag-over'));
         target.classList.add('drag-over');
-        const allWraps=Array.from(list.querySelectorAll('.mat-item-wrap'));
+        const allWraps=Array.from(list.querySelectorAll(selector));
         const srcIdx=allWraps.indexOf(dragSrc);
         const tgtIdx=allWraps.indexOf(target);
         if(srcIdx<tgtIdx)list.insertBefore(dragSrc,target.nextSibling);
@@ -3796,17 +3972,18 @@ function attachArrayDrag(containerId,onReorder){
     },{passive:true});
     card.addEventListener('touchend',()=>{
       clearTimeout(longTimer);
-      list.querySelectorAll('.mat-item-wrap').forEach(el=>el.classList.remove('drag-over','dragging'));
+      list.querySelectorAll(selector).forEach(el=>el.classList.remove('drag-over','dragging'));
       if(dragSrc===wrap&&didReorder){
-        const newOrder=Array.from(list.querySelectorAll('.mat-item-wrap')).map(el=>el.getAttribute('data-key'));
+        const newOrder=Array.from(list.querySelectorAll(selector)).map(el=>el.getAttribute('data-key'));
         onReorder(newOrder);
       }
       dragSrc=null;didReorder=false;
     });
   });
 }
-function attachMatSwipe(root){
-  (root||document).querySelectorAll('.mat-item-wrap').forEach(wrap=>{
+function attachMatSwipe(root,selector){
+  selector=selector||'.mat-item-wrap';
+  (root||document).querySelectorAll(selector).forEach(wrap=>{
     const card=wrap.querySelector('.mat-item-card');
     const actions=wrap.querySelector('.mat-swipe-actions');
     let startX=0,startY=0,tx=0,moving=false;
