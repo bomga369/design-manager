@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718B">
+<meta name="app-version" content="20260718C">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -240,6 +240,25 @@ textarea.form-input{resize:none;min-height:72px;}
 .mt1{margin-top:0.4rem;}.mt2{margin-top:0.875rem;}.mt3{margin-top:1.25rem;}
 .text-sm{font-size:0.9062rem;}.text-xs{font-size:0.8125rem;}.text-muted{color:var(--text2);}
 .text-green{color:var(--green);}.text-red{color:var(--red);}.text-gold{color:var(--gold);}.fw500{font-weight:500;}
+.mat-toast{position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:10px;font-size:0.875rem;font-weight:600;opacity:0;transition:all .25s;pointer-events:none;z-index:200;white-space:nowrap;}
+.mat-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.mat-item-wrap{position:relative;border-radius:var(--r);overflow:hidden;touch-action:pan-y;margin-bottom:8px;}
+.mat-item-wrap.dragging{opacity:.6;}
+.mat-item-wrap.drag-over{outline:2px dashed var(--gold);outline-offset:-2px;}
+.mat-swipe-actions{position:absolute;right:0;top:0;bottom:0;display:flex;z-index:0;}
+.mat-sw-btn{border:none;cursor:pointer;font-size:0.75rem;font-weight:600;padding:0 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:64px;color:#fff;}
+.mat-sw-btn i{font-size:1.1rem;}
+.mat-sw-copy{background:var(--blue);}
+.mat-sw-del{background:var(--red);}
+.mat-item-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:0.75rem;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;position:relative;z-index:1;transition:transform .2s ease;will-change:transform;}
+.mat-item-card:active{background:var(--bg3);}
+.vendor-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;color:#fff;white-space:nowrap;}
+.mat-chip{padding:7px 13px;border-radius:20px;border:1.5px solid var(--border);background:var(--bg3);font-size:0.8438rem;font-weight:500;color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:4px;user-select:none;-webkit-user-select:none;}
+.mat-chip.selected{background:var(--text);color:var(--bg);border-color:var(--text);}
+.mat-chip.dragging{opacity:.5;}
+.mat-chips-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.mat-chip-add-row{display:flex;gap:6px;}
+.mat-chip-add-row input{flex:1;}
 </style>
 </head>
 <body>
@@ -388,10 +407,12 @@ textarea.form-input{resize:none;min-height:72px;}
         <span>稅率設定</span>
         <input class="form-input" id="mat-tax-rate" type="number" inputmode="numeric" style="width:70px;text-align:center;" onchange="onMaterialTaxRateChange()">
         <span>%</span>
+        <span style="margin-left:auto;color:var(--gold);cursor:pointer;text-decoration:underline;" onclick="applyMaterialCatUpgrade()">補齊分類</span>
       </div>
       <div id="materials-list"></div>
     </div>
   </div>
+  <div class="mat-toast" id="mat-toast"></div>
 
   <!-- 人事 -->
   <div id="page-staff" class="page">
@@ -634,8 +655,8 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="sheet-material-title">新增材料</span><button class="sheet-close" onclick="closeSheet('sheet-material')"><i class="ti ti-x"></i></button></div>
     <div class="form-group"><label class="form-label">品名 *</label><input class="form-input" id="mat-name" placeholder="例：麻六甲木芯板" autocomplete="off"></div>
-    <div class="form-group"><label class="form-label">廠商 *</label><input class="form-input" id="mat-vendor" list="mat-vendor-list" placeholder="例：金鼎" autocomplete="off"><datalist id="mat-vendor-list"></datalist></div>
-    <div class="form-group"><label class="form-label">分類</label><input class="form-input" id="mat-cat" list="mat-cat-list" placeholder="例：木料／五金／工具" autocomplete="off"><datalist id="mat-cat-list"></datalist></div>
+    <div class="form-group"><label class="form-label">廠商 * <span style="color:var(--text3);font-weight:400;font-size:11px">（長按可刪除／拖曳排序）</span></label><div id="mat-vendor-chips"></div></div>
+    <div class="form-group"><label class="form-label">分類 <span style="color:var(--text3);font-weight:400;font-size:11px">（長按可刪除／拖曳排序）</span></label><div id="mat-cat-chips"></div></div>
     <div class="form-group"><label class="form-label">規格</label><input class="form-input" id="mat-spec" placeholder="例：3尺＊6尺" autocomplete="off"></div>
     <div class="form-group"><label class="form-label">價格（元）*</label><input class="form-input" id="mat-price" type="number" inputmode="decimal" placeholder="0" oninput="updateMatTaxPreview()"></div>
     <div class="form-group"><label class="form-label">稅別</label>
@@ -646,7 +667,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <input type="hidden" id="mat-tax-type" value="exc">
       <div id="mat-tax-preview" style="color:var(--text3);font-size:0.8125rem;margin-top:4px;"></div>
     </div>
-    <div class="form-group"><label class="form-label">單位</label><input class="form-input" id="mat-unit" list="mat-unit-list" placeholder="例：片／支／組" autocomplete="off"><datalist id="mat-unit-list"></datalist></div>
+    <div class="form-group"><label class="form-label">單位 <span style="color:var(--text3);font-weight:400;font-size:11px">（長按可刪除／拖曳排序）</span></label><div id="mat-unit-chips"></div></div>
     <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="mat-note" placeholder="補充說明" autocomplete="off"></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-material')">取消</button>
@@ -1429,6 +1450,115 @@ const MATERIAL_SEED_DATA=[
 {vendor:'金萬統五金行',name:'米袋',cat:'',spec:'大',price:6,unit:'個',taxType:'exc',note:'',order:105},
 {vendor:'金萬統五金行',name:'J416雙針',cat:'',spec:'5000隻',price:200,unit:'盒',taxType:'exc',note:'',order:106},
 {vendor:'IKEA',name:'黑色馬桶刷',cat:'',spec:'',price:39,unit:'支',taxType:'exc',note:'',order:107}
+];
+const MATERIAL_CAT_LOOKUP=[
+{v:'金鼎',n:'永新集塵材(反向)',cat:'角材'},
+{v:'金鼎',n:'永新F1角材 防蟲防水 寸8',cat:'角材'},
+{v:'金鼎',n:'永新F1角材 防蟲防水',cat:'角材'},
+{v:'金鼎',n:'永新F3角材',cat:'角材'},
+{v:'金鼎',n:'美耐板 霧灰',cat:'面材'},
+{v:'金鼎',n:'美耐麗XD-17705藝術塗料米色',cat:'面材'},
+{v:'金鼎',n:'美耐麗軟片XD-17705藝術塗料米色',cat:'面材'},
+{v:'金鼎',n:'1 4圓線板 人造白橡',cat:'線板'},
+{v:'金鼎',n:'1 4圓線板 人造白橡 3206',cat:'線板'},
+{v:'金鼎',n:'1 4圓線板 人造白橡 3106',cat:'線板'},
+{v:'金鼎',n:'6m 日本麗仕矽酸鈣板',cat:'矽酸鈣板'},
+{v:'金鼎',n:'6m 日本淺也矽酸蓋板',cat:'矽酸鈣板'},
+{v:'金鼎',n:'6m 台灣麗仕矽酸鈣板',cat:'矽酸鈣板'},
+{v:'金鼎',n:'門斗保護套（藍色）',cat:'保護材'},
+{v:'金鼎',n:'PE保護板',cat:'保護材'},
+{v:'金鼎',n:'1.8m 夾板',cat:'夾板'},
+{v:'金鼎',n:'分2 F3進口夾板',cat:'夾板'},
+{v:'金鼎',n:'2分 F3進口夾板',cat:'夾板'},
+{v:'金鼎',n:'2分 4mm F3進口夾板',cat:'夾板'},
+{v:'金鼎',n:'3分 7m F3進口夾板',cat:'夾板'},
+{v:'金鼎',n:'6分 F3進口夾板',cat:'夾板'},
+{v:'金鼎',n:'6分 18mm F3進口夾板',cat:'夾板'},
+{v:'金鼎',n:'麻六甲木芯板',cat:'木芯板'},
+{v:'金鼎',n:'麻六甲F3木芯板',cat:'木芯板'},
+{v:'金鼎',n:'麻六甲低甲醛木芯板',cat:'木芯板'},
+{v:'金鼎',n:'中性白色矽利康',cat:'接著劑'},
+{v:'金鼎',n:'水性矽利康',cat:'接著劑'},
+{v:'金鼎',n:'強力膠',cat:'接著劑'},
+{v:'金鼎',n:'白膠3761南寶',cat:'接著劑'},
+{v:'金鼎',n:'南寶188萬用膠',cat:'接著劑'},
+{v:'金鼎',n:'瞬間接著劑(大) 快乾',cat:'接著劑'},
+{v:'金鼎',n:'鋼釘ST45',cat:'釘類'},
+{v:'金鼎',n:'鋼釘ST32',cat:'釘類'},
+{v:'金鼎',n:'單針F50不鏽鋼',cat:'釘類'},
+{v:'金鼎',n:'單針F40不鏽鋼',cat:'釘類'},
+{v:'金鼎',n:'單針F30不鏽鋼',cat:'釘類'},
+{v:'金鼎',n:'雙針416不鏽鋼',cat:'釘類'},
+{v:'金鼎',n:'無頭蚊針15mm',cat:'釘類'},
+{v:'金鼎',n:'無頭蚊針18mm',cat:'釘類'},
+{v:'金鼎',n:'1寸6黑螺絲',cat:'釘類'},
+{v:'金鼎',n:'1寸黑螺絲',cat:'釘類'},
+{v:'金鼎',n:'8分黑螺絲',cat:'釘類'},
+{v:'金鼎',n:'佑洋養生膠帶',cat:'膠帶'},
+{v:'金鼎',n:'地球環保膠帶',cat:'膠帶'},
+{v:'金鼎',n:'地球環保膠帶(白)',cat:'膠帶'},
+{v:'金鼎',n:'美紋紙膠帶',cat:'膠帶'},
+{v:'金鼎',n:'L型鋁條3米',cat:'五金'},
+{v:'金鼎',n:'封邊皮浮雕版',cat:'封邊'},
+{v:'金鼎',n:'皆大歡喜封邊條',cat:'封邊'},
+{v:'金鼎',n:'修邊刀 單培林',cat:'刀具'},
+{v:'金鼎',n:'後紐刀 7mm',cat:'刀具'},
+{v:'金鼎',n:'後紐刀 12mm',cat:'刀具'},
+{v:'金鼎',n:'壁畫掉輪',cat:'五金'},
+{v:'金鼎',n:'壁畫軌道',cat:'五金'},
+{v:'金鼎',n:'木梯5尺',cat:'工具'},
+{v:'金鼎',n:'白鐵調整腳',cat:'五金'},
+{v:'金鼎',n:'L鐵片',cat:'五金'},
+{v:'金鼎',n:'正方管十通黑色',cat:'五金'},
+{v:'金鼎',n:'彎型三通正方黑色',cat:'五金'},
+{v:'金鼎',n:'鋁軌無縫超重型6046',cat:'五金'},
+{v:'金鼎',n:'通用型那大雙向緩衝',cat:'五金'},
+{v:'金鼎',n:'單軌用L型側檔灰色',cat:'五金'},
+{v:'金鼎',n:'單軌L可調側檔',cat:'五金'},
+{v:'金鼎',n:'單軌用下檔黑色',cat:'五金'},
+{v:'金鼎',n:'新巨鉅台',cat:'工具'},
+{v:'金鼎',n:'新巨易操輪',cat:'工具'},
+{v:'金鼎',n:'檔料器伸縮',cat:'工具'},
+{v:'金鼎',n:'力山集塵切溝機GC1950',cat:'工具'},
+{v:'玖品五金',n:'門片鉸鏈（厚）',cat:'五金'},
+{v:'壢昌',n:'鋼釘 ST-18',cat:'釘類'},
+{v:'壢昌',n:'鋼釘 ST-25',cat:'釘類'},
+{v:'壢昌',n:'白鐵單釘-50mm',cat:'釘類'},
+{v:'壢昌',n:'白鐵單釘-40mm',cat:'釘類'},
+{v:'壢昌',n:'白鐵單釘-30mm',cat:'釘類'},
+{v:'壢昌',n:'黑螺絲寸6',cat:'釘類'},
+{v:'壢昌',n:'黑螺絲1寸',cat:'釘類'},
+{v:'壢昌',n:'黑螺0.8',cat:'釘類'},
+{v:'壢昌',n:'木心板(麻)',cat:'木芯板'},
+{v:'壢昌',n:'528風化梧桐木(麻單)',cat:'面材'},
+{v:'壢昌',n:'528風化梧桐木(麻雙)',cat:'面材'},
+{v:'壢昌',n:'528風化梧桐木皮',cat:'面材'},
+{v:'壢昌',n:'523淺棕胡桃木',cat:'面材'},
+{v:'壢昌',n:'523淺棕胡桃木封邊',cat:'封邊'},
+{v:'壢昌',n:'503黑梣',cat:'面材'},
+{v:'壢昌',n:'503黑梣皮',cat:'面材'},
+{v:'壢昌',n:'1842米白布紋',cat:'面材'},
+{v:'壢昌',n:'1842米白布紋封邊',cat:'封邊'},
+{v:'壢昌',n:'528風化梧桐木封邊',cat:'封邊'},
+{v:'壢昌',n:'南寶105(1加侖)',cat:'接著劑'},
+{v:'壢昌',n:'南寶105(5加侖)',cat:'接著劑'},
+{v:'壢昌',n:'南寶白膠3761',cat:'接著劑'},
+{v:'壢昌',n:'南寶188萬用膠',cat:'接著劑'},
+{v:'壢昌',n:'三秒膠(大)',cat:'接著劑'},
+{v:'壢昌',n:'緩衝三段式軌道 45cm',cat:'五金'},
+{v:'壢昌',n:'緩衝三段式軌道 50cm',cat:'五金'},
+{v:'壢昌',n:'湖林(油壓)丁雙寸35',cat:'五金'},
+{v:'壢昌',n:'六角銅電白(母)',cat:'五金'},
+{v:'壢昌',n:'六角銅電白(公)',cat:'五金'},
+{v:'壢昌',n:'中建批土103',cat:'塗料'},
+{v:'壢昌',n:'黑色鋁製正方形管',cat:'五金'},
+{v:'壢昌',n:'正方管4孔目玉黑色',cat:'五金'},
+{v:'壢昌',n:'3166白木(佳)(48mm)',cat:'線板'},
+{v:'永成工具行',n:'F50槍',cat:'工具'},
+{v:'金萬統五金行',n:'耐熱膠帶(布紋紙膠帶)',cat:'膠帶'},
+{v:'金萬統五金行',n:'米袋',cat:'耗材'},
+{v:'金萬統五金行',n:'J416雙針',cat:'釘類'},
+{v:'IKEA',n:'黑色馬桶刷',cat:'耗材'}
 ];
 const FIN_EXP_CATS_PROJECT=['午餐','晚餐','材料五金','薪資','臨時性支出','其他'];
 const FIN_INC_CATS_PROJECT=['工程款01期','工程款02期','工程款03期','尾款','款項還回','其他'];
@@ -3069,10 +3199,54 @@ function fillMaterialFilters(){
   if(catVal)catEl.value=catVal;
   if(vendorVal)vendorEl.value=vendorVal;
 }
-function fillMaterialDatalists(){
-  document.getElementById('mat-vendor-list').innerHTML=(db.materialConfig.vendors||[]).map(v=>`<option value="${v}">`).join('');
-  document.getElementById('mat-cat-list').innerHTML=(db.materialConfig.cats||[]).map(c=>`<option value="${c}">`).join('');
-  document.getElementById('mat-unit-list').innerHTML=(db.materialConfig.units||[]).map(u=>`<option value="${u}">`).join('');
+function normMatName(s){
+  s=(s||'').replace(/＊/g,'×').replace(/\*/g,'×').replace(/Ｆ/g,'F');
+  s=s.replace(/\s*\(\d+\)\s*$/,'');
+  s=s.replace(/[\s/]+/g,' ').trim();
+  s=s.replace('夕利康','矽利康').replace('(大拇指)','').trim();
+  return s;
+}
+function applyMaterialCatUpgrade(){
+  if(!confirm('要幫現有材料資料補上分類嗎？只會補齊分類欄位，不會更動價格等其他資料。'))return;
+  let matched=0;
+  db.materials.forEach(m=>{
+    if(m.cat)return;
+    const nn=normMatName(m.name);
+    const hit=MATERIAL_CAT_LOOKUP.find(x=>x.v===m.vendor&&x.n===nn);
+    if(hit){
+      m.cat=hit.cat;
+      if(!db.materialConfig.cats.includes(hit.cat))db.materialConfig.cats.push(hit.cat);
+      matched++;
+      if(window.fbSaveMaterial)window.fbSaveMaterial(m);
+    }
+  });
+  save();if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+  renderMaterials();
+  alert(`已補齊 ${matched} 筆分類`);
+}
+/* ── 廠商顏色標籤 ── */
+const VENDOR_COLORS=['#c0392b','#2874a6','#1e8449','#ca6f1e','#7d3c98','#148f77','#b7950b','#a04000','#5d6d7e','#884ea0'];
+let VENDOR_COLOR_MAP={};
+function vendorColor(name){
+  if(VENDOR_COLOR_MAP[name])return VENDOR_COLOR_MAP[name];
+  const used=Object.values(VENDOR_COLOR_MAP);
+  const avail=VENDOR_COLORS.filter(c=>!used.includes(c));
+  const pool=avail.length?avail:VENDOR_COLORS;
+  let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;
+  VENDOR_COLOR_MAP[name]=pool[h%pool.length];
+  return VENDOR_COLOR_MAP[name];
+}
+/* ── 提示訊息 ── */
+let matToastTimer;
+function matToast(msg){
+  const t=document.getElementById('mat-toast');if(!t)return;
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(matToastTimer);
+  matToastTimer=setTimeout(()=>t.classList.remove('show'),1800);
+}
+let matSwipedEl=null;
+function closeMatSwipe(){
+  if(matSwipedEl){matSwipedEl.style.transform='';matSwipedEl=null;}
 }
 function renderMaterials(){
   fillMaterialFilters();
@@ -3089,29 +3263,224 @@ function renderMaterials(){
   const catNames=Object.keys(grouped).sort((a,b)=>a==='未分類'?1:b==='未分類'?-1:a.localeCompare(b));
   document.getElementById('materials-list').innerHTML=catNames.length?catNames.map(cat=>`
     <div class="section-hd" style="margin-top:0.75rem">${cat} <span style="color:var(--text3);font-weight:400">${grouped[cat].length}件</span></div>
-    <div class="card">${grouped[cat].map(m=>{
+    <div class="mat-cat-group" data-cat="${cat}">${grouped[cat].map(m=>{
       const tax=m.taxType==='inc'?'含稅':'未稅';
-      return `<div class="finance-item" onclick="openEditMaterial('${m.id}')" style="cursor:pointer;">
-        <div class="finance-body">
-          <div class="finance-name">${m.name}</div>
-          <div class="finance-meta">${m.vendor}${m.spec?' · '+m.spec:''}${m.note?' · '+m.note:''}</div>
+      const vcol=vendorColor(m.vendor);
+      return `<div class="mat-item-wrap" data-id="${m.id}">
+        <div class="mat-swipe-actions">
+          <button class="mat-sw-btn mat-sw-copy" onclick="event.stopPropagation();copyMaterial('${m.id}')"><i class="ti ti-copy"></i>複製</button>
+          <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteMaterial('${m.id}')"><i class="ti ti-trash"></i>刪除</button>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
-          <span class="fw500 text-gold">$${fMoney(m.price)}<span style="font-size:10px;color:var(--text3);margin-left:4px;">${tax}${m.unit?'／'+m.unit:''}</span></span>
-          <button class="btn btn-danger btn-sm btn-icon" onclick="event.stopPropagation();deleteMaterial('${m.id}')"><i class="ti ti-trash"></i></button>
+        <div class="mat-item-card" onclick="openEditMaterialSwipeSafe('${m.id}',this)">
+          <div style="flex:1;min-width:0;">
+            <div class="fw500" style="font-size:0.9375rem;">${m.name}</div>
+            <div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:5px 8px;align-items:center;">
+              <span class="vendor-badge" style="background:${vcol}">${m.vendor}</span>
+              ${m.spec?`<span style="font-size:0.8125rem;color:var(--text3)">${m.spec}</span>`:''}
+            </div>
+            ${m.note?`<div style="font-size:12px;color:var(--text3);margin-top:3px;font-style:italic;">${m.note}</div>`:''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;">
+            <span class="fw500 text-gold" style="font-size:1.0625rem;">$${fMoney(m.price)}</span>
+            <span style="font-size:10px;color:var(--text3);">${tax}${m.unit?'／'+m.unit:''}</span>
+          </div>
         </div>
       </div>`;
     }).join('')}</div>`).join(''):'<div class="empty"><i class="ti ti-search-off"></i><p>找不到符合的材料</p></div>';
+  attachMatSwipe();
+  attachMatDrag();
+}
+function openEditMaterialSwipeSafe(id,cardEl){
+  const wrap=cardEl.closest('.mat-item-wrap');
+  if(wrap&&Math.abs(parseFloat(wrap._tx||0))>10)return;
+  openEditMaterial(id);
+}
+function attachMatSwipe(){
+  document.querySelectorAll('.mat-item-wrap').forEach(wrap=>{
+    const card=wrap.querySelector('.mat-item-card');
+    const actions=wrap.querySelector('.mat-swipe-actions');
+    let startX=0,startY=0,tx=0,moving=false;
+    wrap._tx=0;
+    function start(x,y){startX=x;startY=y;moving=false;}
+    function move(x,y){
+      const dx=x-startX,dy=y-startY;
+      if(!moving&&Math.abs(dx)<6&&Math.abs(dy)<6)return;
+      moving=true;
+      if(Math.abs(dy)>Math.abs(dx)*1.2)return;
+      const aw=actions?actions.offsetWidth:128;
+      tx=Math.max(-aw,Math.min(0,dx+(matSwipedEl===card?-aw:0)));
+      card.style.transform='translateX('+tx+'px)';
+    }
+    function end(){
+      if(!moving)return;
+      const aw=actions?actions.offsetWidth:128;
+      if(tx<-40){
+        tx=-aw;card.style.transform='translateX('+tx+'px)';
+        if(matSwipedEl&&matSwipedEl!==card){matSwipedEl.style.transform='';}
+        matSwipedEl=card;
+      } else {
+        tx=0;card.style.transform='';
+        if(matSwipedEl===card)matSwipedEl=null;
+      }
+      wrap._tx=tx;
+    }
+    card.addEventListener('touchstart',e=>{const t=e.touches[0];start(t.clientX,t.clientY);},{passive:true});
+    card.addEventListener('touchmove',e=>{const t=e.touches[0];move(t.clientX,t.clientY);},{passive:true});
+    card.addEventListener('touchend',end);
+  });
+}
+function attachMatDrag(){
+  document.querySelectorAll('.mat-cat-group').forEach(list=>{
+    let dragSrc=null;
+    list.querySelectorAll('.mat-item-wrap').forEach(wrap=>{
+      const card=wrap.querySelector('.mat-item-card');
+      let longTimer=null;
+      card.addEventListener('touchstart',()=>{
+        longTimer=setTimeout(()=>{
+          if(navigator.vibrate)navigator.vibrate(30);
+          dragSrc=wrap;wrap.classList.add('dragging');
+        },500);
+      },{passive:true});
+      card.addEventListener('touchend',()=>{
+        clearTimeout(longTimer);
+        if(dragSrc===wrap){wrap.classList.remove('dragging');dragSrc=null;}
+      });
+      card.addEventListener('touchmove',e=>{
+        clearTimeout(longTimer);
+        if(!dragSrc)return;
+        const t=e.touches[0];
+        const els=Array.from(list.querySelectorAll('.mat-item-wrap'));
+        const target=els.find(el=>{
+          if(el===dragSrc)return false;
+          const r=el.getBoundingClientRect();
+          return t.clientY>=r.top&&t.clientY<=r.bottom;
+        });
+        if(target){
+          els.forEach(el=>el.classList.remove('drag-over'));
+          target.classList.add('drag-over');
+          const allWraps=Array.from(list.querySelectorAll('.mat-item-wrap'));
+          const srcIdx=allWraps.indexOf(dragSrc);
+          const tgtIdx=allWraps.indexOf(target);
+          if(srcIdx<tgtIdx)list.insertBefore(dragSrc,target.nextSibling);
+          else list.insertBefore(dragSrc,target);
+          Array.from(list.querySelectorAll('.mat-item-wrap')).forEach((el,i)=>{
+            const id=el.getAttribute('data-id');
+            const d=db.materials.find(x=>x.id===id);
+            if(d){d.order=i;if(window.fbSaveMaterial)window.fbSaveMaterial(d);}
+          });
+          save();
+        }
+      },{passive:true});
+      card.addEventListener('touchend',()=>{
+        list.querySelectorAll('.mat-item-wrap').forEach(el=>el.classList.remove('drag-over','dragging'));
+        dragSrc=null;
+      });
+    });
+  });
+}
+function copyMaterial(id){
+  const d=db.materials.find(x=>x.id===id);if(!d)return;
+  const base=d.name.replace(/-\d+$/,'');
+  const count=db.materials.filter(x=>x.name.startsWith(base)).length;
+  const suffix='-'+String(count).padStart(2,'0');
+  const maxOrder=db.materials.filter(x=>x.cat===d.cat).reduce((mx,x)=>Math.max(mx,x.order||0),0);
+  const copy={...d,id:uid(),name:base+suffix,order:maxOrder+1};
+  db.materials.push(copy);
+  save();if(window.fbSaveMaterial)window.fbSaveMaterial(copy);
+  closeMatSwipe();renderMaterials();matToast('已複製為 '+copy.name);
+}
+/* ── 可管理選項晶片（廠商／分類／單位）── */
+let fMatVendor='',fMatCat='',fMatUnit='';
+function buildMatChips(containerId,configKey,selected,onSelect){
+  const el=document.getElementById(containerId);
+  let opts=(db.materialConfig[configKey]||[]).slice();
+  let sel=selected;
+  function draw(){
+    el.innerHTML='<div class="mat-chips-wrap">'+opts.map((o,i)=>
+      `<span class="mat-chip${o===sel?' selected':''}" data-v="${o}" data-i="${i}">${o}</span>`
+    ).join('')+'</div>'
+    +'<div class="mat-chip-add-row"><input class="form-input" id="'+containerId+'_inp" placeholder="輸入新選項…" autocomplete="off"><button class="btn" id="'+containerId+'_add">新增</button></div>';
+    el.querySelectorAll('.mat-chip').forEach(chip=>{
+      const v=chip.getAttribute('data-v');
+      chip.addEventListener('click',()=>{sel=v;onSelect(v);draw();});
+      let lt=null;
+      chip.addEventListener('touchstart',()=>{
+        lt=setTimeout(()=>{
+          if(navigator.vibrate)navigator.vibrate(40);
+          if(confirm('確定要刪除選項「'+v+'」？')){
+            opts=opts.filter(o=>o!==v);
+            if(sel===v){sel='';onSelect('');}
+            db.materialConfig[configKey]=opts;save();if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+            draw();
+          }
+        },600);
+      },{passive:true});
+      chip.addEventListener('touchend',()=>clearTimeout(lt));
+      chip.addEventListener('touchmove',()=>clearTimeout(lt));
+    });
+    let dragChip=null,dragIdx=-1;
+    el.querySelectorAll('.mat-chip').forEach(chip=>{
+      let lt2=null;
+      chip.addEventListener('touchstart',()=>{
+        const idx=parseInt(chip.getAttribute('data-i'));
+        lt2=setTimeout(()=>{
+          if(navigator.vibrate)navigator.vibrate(30);
+          dragChip=chip;dragIdx=idx;chip.classList.add('dragging');
+        },500);
+      },{passive:true});
+      chip.addEventListener('touchmove',e=>{
+        clearTimeout(lt2);
+        if(!dragChip)return;
+        const t=e.touches[0];
+        const all=Array.from(el.querySelectorAll('.mat-chip'));
+        const target=all.find(c=>{
+          if(c===dragChip)return false;
+          const r=c.getBoundingClientRect();
+          return t.clientX>=r.left&&t.clientX<=r.right&&t.clientY>=r.top&&t.clientY<=r.bottom;
+        });
+        if(target){
+          const ti=parseInt(target.getAttribute('data-i'));
+          const moved=opts.splice(dragIdx,1)[0];
+          opts.splice(ti,0,moved);
+          dragIdx=ti;
+          db.materialConfig[configKey]=opts;save();if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+          draw();
+          dragChip=el.querySelectorAll('.mat-chip')[ti];
+          if(dragChip)dragChip.classList.add('dragging');
+        }
+      },{passive:true});
+      chip.addEventListener('touchend',()=>{
+        clearTimeout(lt2);
+        if(dragChip)dragChip.classList.remove('dragging');
+        dragChip=null;dragIdx=-1;
+      });
+    });
+    document.getElementById(containerId+'_add').addEventListener('click',()=>{
+      const inp=document.getElementById(containerId+'_inp');
+      const v=inp.value.trim();
+      if(!v||opts.includes(v)){inp.value='';return;}
+      opts.push(v);
+      db.materialConfig[configKey]=opts;save();if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+      sel=v;onSelect(v);inp.value='';draw();
+    });
+    document.getElementById(containerId+'_inp').addEventListener('keydown',e=>{
+      if(e.key==='Enter')document.getElementById(containerId+'_add').click();
+    });
+  }
+  draw();
 }
 let editingMaterialId=null;
 function openAddMaterial(){
   editingMaterialId=null;
   document.getElementById('sheet-material-title').textContent='新增材料';
   document.getElementById('sheet-material-save').textContent='儲存';
-  ['mat-name','mat-vendor','mat-cat','mat-spec','mat-price','mat-unit','mat-note'].forEach(id=>document.getElementById(id).value='');
+  ['mat-name','mat-spec','mat-price','mat-note'].forEach(id=>document.getElementById(id).value='');
   setSeg('mat-tax-type','exc');
   document.getElementById('mat-tax-preview').textContent='';
-  fillMaterialDatalists();
+  fMatVendor='';fMatCat='';fMatUnit='';
+  buildMatChips('mat-vendor-chips','vendors',fMatVendor,v=>fMatVendor=v);
+  buildMatChips('mat-cat-chips','cats',fMatCat,v=>fMatCat=v);
+  buildMatChips('mat-unit-chips','units',fMatUnit,v=>fMatUnit=v);
   openSheet('sheet-material');
 }
 function openEditMaterial(id){
@@ -3120,55 +3489,55 @@ function openEditMaterial(id){
   document.getElementById('sheet-material-title').textContent='編輯材料';
   document.getElementById('sheet-material-save').textContent='儲存修改';
   document.getElementById('mat-name').value=m.name||'';
-  document.getElementById('mat-vendor').value=m.vendor||'';
-  document.getElementById('mat-cat').value=m.cat||'';
   document.getElementById('mat-spec').value=m.spec||'';
   document.getElementById('mat-price').value=m.price||'';
-  document.getElementById('mat-unit').value=m.unit||'';
   document.getElementById('mat-note').value=m.note||'';
   setSeg('mat-tax-type',m.taxType||'exc');
-  fillMaterialDatalists();
+  fMatVendor=m.vendor||'';fMatCat=m.cat||'';fMatUnit=m.unit||'';
+  buildMatChips('mat-vendor-chips','vendors',fMatVendor,v=>fMatVendor=v);
+  buildMatChips('mat-cat-chips','cats',fMatCat,v=>fMatCat=v);
+  buildMatChips('mat-unit-chips','units',fMatUnit,v=>fMatUnit=v);
   updateMatTaxPreview();
   openSheet('sheet-material');
 }
 function saveMaterial(){
   const name=document.getElementById('mat-name').value.trim();
-  const vendor=document.getElementById('mat-vendor').value.trim();
   const price=document.getElementById('mat-price').value;
-  if(!name||!vendor)return alert('請填入品名與廠商');
+  if(!name)return alert('請填入品名');
+  if(!fMatVendor)return alert('請選擇廠商');
   if(!price||Number(price)<0)return alert('請輸入價格');
-  const cat=document.getElementById('mat-cat').value.trim();
-  const unit=document.getElementById('mat-unit').value.trim();
-  // 新的廠商/分類/單位自動加入管理清單
-  if(vendor&&!db.materialConfig.vendors.includes(vendor))db.materialConfig.vendors.push(vendor);
-  if(cat&&!db.materialConfig.cats.includes(cat))db.materialConfig.cats.push(cat);
-  if(unit&&!db.materialConfig.units.includes(unit))db.materialConfig.units.push(unit);
   const data={
-    name,vendor,cat,
+    name,vendor:fMatVendor,cat:fMatCat,
     spec:document.getElementById('mat-spec').value.trim(),
     price:Number(price),
-    unit,
+    unit:fMatUnit,
     taxType:document.getElementById('mat-tax-type').value,
     note:document.getElementById('mat-note').value.trim()
   };
+  let msg;
   if(editingMaterialId){
     const m=db.materials.find(x=>x.id===editingMaterialId);if(!m)return;
     Object.assign(m,data);
-    save();if(window.fbSaveMaterial)window.fbSaveMaterial(m);if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+    save();if(window.fbSaveMaterial)window.fbSaveMaterial(m);
+    msg='已更新';
   } else {
-    const maxOrder=db.materials.filter(x=>x.cat===cat).reduce((mx,x)=>Math.max(mx,x.order||0),0);
+    const maxOrder=db.materials.filter(x=>x.cat===fMatCat).reduce((mx,x)=>Math.max(mx,x.order||0),0);
     const rec={id:uid(),...data,order:maxOrder+1};
     db.materials.push(rec);
-    save();if(window.fbSaveMaterial)window.fbSaveMaterial(rec);if(window.fbSaveMaterialConfig)window.fbSaveMaterialConfig(db.materialConfig);
+    save();if(window.fbSaveMaterial)window.fbSaveMaterial(rec);
+    msg='已新增';
   }
   closeSheet('sheet-material');
   renderMaterials();
+  matToast(msg);
 }
 function deleteMaterial(id){
-  if(!confirm('確定刪除這筆材料資料？'))return;
+  const d=db.materials.find(x=>x.id===id);if(!d)return;
+  closeMatSwipe();
+  if(!confirm('確定要刪除「'+d.name+'」？'))return;
   db.materials=db.materials.filter(m=>m.id!==id);save();
   if(window.fbDeleteMaterial)window.fbDeleteMaterial(id).catch(err=>console.error('刪除材料失敗',err));
-  renderMaterials();
+  renderMaterials();matToast('已刪除');
 }
 function dismissMigrateBannerMaterials(){
   document.getElementById('migrate-banner-materials').style.display='none';
