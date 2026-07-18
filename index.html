@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718I">
+<meta name="app-version" content="20260718J">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -262,7 +262,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 10px;margin-bottom:0.5rem;}
 .tool-tile{display:flex;flex-direction:column;align-items:center;gap:6px;}
 .tool-icon{width:72px;height:72px;border-radius:20px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
-.tool-icon.pressing{transform:scale(0.93);transition:transform .15s;}
+.tool-icon:active{transform:scale(0.93);transition:transform .1s;}
 .tool-label{font-size:0.8125rem;color:var(--text2);text-align:center;line-height:1.2;}
 </style>
 </head>
@@ -1192,15 +1192,28 @@ function onReserveFundingSyncError(){if(reserveFundingSyncErrorShown)return;rese
 function onReserveFundingSynced(arr){db.reserveFunding=arr;save();if(currentPage==='finance')renderFinance();if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);}
 let financeCatsSyncErrorShown=false;
 function onFinanceCatsSyncError(){if(financeCatsSyncErrorShown)return;financeCatsSyncErrorShown=true;console.error('分類設定雲端同步權限不足');}
+function dedupeFinanceCats(cfg){
+  if(!cfg)return cfg;
+  if(Array.isArray(cfg.cats))cfg.cats=[...new Set(cfg.cats)];
+  if(Array.isArray(cfg.incCats))cfg.incCats=[...new Set(cfg.incCats)];
+  if(cfg.sub){
+    Object.keys(cfg.sub).forEach(k=>{
+      if(Array.isArray(cfg.sub[k]))cfg.sub[k]=[...new Set(cfg.sub[k])];
+    });
+  }
+  return cfg;
+}
 function onFinanceCatsSynced(cfg){
   if(!cfg||!cfg.cats)return;
-  db.financeCats=cfg;save();
+  db.financeCats=dedupeFinanceCats(cfg);save();
   const sheet=document.getElementById('sheet-finance');
   if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
   const catSheet=document.getElementById('sheet-cat-manage');
   if(catSheet&&catSheet.classList.contains('open'))renderCatManageList();
   const subSheet=document.getElementById('sheet-subcat-manage');
   if(subSheet&&subSheet.classList.contains('open'))renderSubcatManageList();
+  const subsubSheet=document.getElementById('sheet-subsubcat-manage');
+  if(subsubSheet&&subsubSheet.classList.contains('open'))renderSubSubcatManageList();
 }
 let materialsSyncErrorShown=false;
 function onMaterialsSyncError(){if(materialsSyncErrorShown)return;materialsSyncErrorShown=true;alert('材料成本資料雲端同步權限不足，請聯絡管理者');}
@@ -1356,6 +1369,7 @@ function load(){
   if(!db.reserveFunding)db.reserveFunding=[];
   if(!db.financeCats)db.financeCats={cats:['專案','薪資'],incCats:['專案'],sub:{'專案':['材料五金','薪資']}};
   if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
+  dedupeFinanceCats(db.financeCats);
   if(!db.financeCats.sub)db.financeCats.sub={};
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.toolIcons)db.toolIcons={};
@@ -2064,46 +2078,14 @@ function attachToolIconPress(){
   const canEdit=canEditToolIcons();
   document.querySelectorAll('.tool-icon').forEach(icon=>{
     const id=icon.getAttribute('data-tool');
-    if(!canEdit){
-      icon.addEventListener('click',()=>openTool(id));
-      return;
-    }
-    let timer=null,longPressed=false,touchUsed=false,startX=0,startY=0;
-    function start(x,y){
-      longPressed=false;startX=x;startY=y;
-      icon.classList.add('pressing');
-      timer=setTimeout(()=>{
-        longPressed=true;
-        if(navigator.vibrate)navigator.vibrate(40);
-        icon.classList.remove('pressing');
-        // 注意：這裡不能直接觸發檔案選擇（setTimeout 內屬於「非可信使用者手勢」，
-        // iOS Safari 會擋掉 input.click()）。只標記狀態，實際觸發放在 touchend/mouseup。
-      },550);
-    }
-    function moveCheck(x,y){
-      if(Math.abs(x-startX)>12||Math.abs(y-startY)>12)cancel();
-    }
-    function cancel(){
-      clearTimeout(timer);
-      icon.classList.remove('pressing');
-    }
-    icon.addEventListener('touchstart',e=>{touchUsed=true;const t=e.touches[0];start(t.clientX,t.clientY);},{passive:true});
-    icon.addEventListener('touchend',()=>{
-      const wasLong=longPressed;
-      cancel();
-      if(wasLong)pickToolIcon(id);else openTool(id);
+    icon.addEventListener('click',()=>openTool(id));
+    if(!canEdit)return;
+    // 用瀏覽器原生的 contextmenu（手機長按／桌機右鍵）觸發，
+    // 這是瀏覽器自己判定的手勢，才能可靠地在裡面同步跳出檔案選擇視窗。
+    icon.addEventListener('contextmenu',e=>{
+      e.preventDefault();
+      pickToolIcon(id);
     });
-    icon.addEventListener('touchmove',e=>{const t=e.touches[0];moveCheck(t.clientX,t.clientY);},{passive:true});
-    icon.addEventListener('touchcancel',cancel,{passive:true});
-    icon.addEventListener('contextmenu',e=>e.preventDefault());
-    icon.addEventListener('mousedown',e=>{if(touchUsed)return;start(e.clientX,e.clientY);});
-    icon.addEventListener('mouseup',()=>{
-      if(touchUsed)return;
-      const wasLong=longPressed;
-      cancel();
-      if(wasLong)pickToolIcon(id);else openTool(id);
-    });
-    icon.addEventListener('mouseleave',()=>{if(touchUsed)return;cancel();});
   });
 }
 function openTool(id){
@@ -3691,20 +3673,16 @@ function openEditMaterialSwipeSafe(id,cardEl){
 }
 function attachArrayDrag(containerId,onReorder){
   const list=document.getElementById(containerId);if(!list)return;
-  let dragSrc=null;
+  let dragSrc=null,didReorder=false;
   list.querySelectorAll('.mat-item-wrap').forEach(wrap=>{
     const card=wrap.querySelector('.mat-item-card');
     let longTimer=null;
     card.addEventListener('touchstart',()=>{
       longTimer=setTimeout(()=>{
         if(navigator.vibrate)navigator.vibrate(30);
-        dragSrc=wrap;wrap.classList.add('dragging');
+        dragSrc=wrap;didReorder=false;wrap.classList.add('dragging');
       },500);
     },{passive:true});
-    card.addEventListener('touchend',()=>{
-      clearTimeout(longTimer);
-      if(dragSrc===wrap){wrap.classList.remove('dragging');dragSrc=null;}
-    });
     card.addEventListener('touchmove',e=>{
       clearTimeout(longTimer);
       if(!dragSrc)return;
@@ -3723,13 +3701,18 @@ function attachArrayDrag(containerId,onReorder){
         const tgtIdx=allWraps.indexOf(target);
         if(srcIdx<tgtIdx)list.insertBefore(dragSrc,target.nextSibling);
         else list.insertBefore(dragSrc,target);
-        const newOrder=Array.from(list.querySelectorAll('.mat-item-wrap')).map(el=>el.getAttribute('data-key'));
-        onReorder(newOrder);
+        didReorder=true;
+        // 拖曳過程中只搬動畫面上的順序，不寫入/同步，避免中途觸發重繪造成閃爍與錯位
       }
     },{passive:true});
     card.addEventListener('touchend',()=>{
+      clearTimeout(longTimer);
       list.querySelectorAll('.mat-item-wrap').forEach(el=>el.classList.remove('drag-over','dragging'));
-      dragSrc=null;
+      if(dragSrc===wrap&&didReorder){
+        const newOrder=Array.from(list.querySelectorAll('.mat-item-wrap')).map(el=>el.getAttribute('data-key'));
+        onReorder(newOrder);
+      }
+      dragSrc=null;didReorder=false;
     });
   });
 }
