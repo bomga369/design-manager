@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718C">
+<meta name="app-version" content="20260718D">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -259,6 +259,11 @@ textarea.form-input{resize:none;min-height:72px;}
 .mat-chips-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
 .mat-chip-add-row{display:flex;gap:6px;}
 .mat-chip-add-row input{flex:1;}
+.tool-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px 10px;margin-bottom:0.5rem;}
+.tool-tile{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.tool-icon{width:56px;height:56px;border-radius:16px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);}
+.tool-icon-edit{position:absolute;bottom:-4px;right:-4px;width:22px;height:22px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid var(--bg2);cursor:pointer;}
+.tool-label{font-size:0.75rem;color:var(--text2);text-align:center;line-height:1.2;}
 </style>
 </head>
 <body>
@@ -358,27 +363,8 @@ textarea.form-input{resize:none;min-height:72px;}
   <div id="page-calendar" class="page">
     <div class="content">
       <div class="section-hd">小工具</div>
-      <div class="card">
-        <div class="card-inner" onclick="window.open('https://spiffy-panda-0f24c1.netlify.app','_blank')" style="cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem">
-          <div style="width:44px;height:44px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🛡️</div>
-          <div><div class="text-sm fw500">保護工程</div><div class="text-xs text-muted">計算工具</div></div>
-          <i class="ti ti-external-link" style="margin-left:auto;color:var(--text3)"></i>
-        </div>
-      </div>
-      <div class="card" style="margin-top:0.75rem">
-        <div class="card-inner" onclick="window.open('https://resilient-longma-7142ca.netlify.app','_blank')" style="cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem">
-          <div style="width:44px;height:44px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">❄️</div>
-          <div><div class="text-sm fw500">冷氣帽</div><div class="text-xs text-muted">計算工具</div></div>
-          <i class="ti ti-external-link" style="margin-left:auto;color:var(--text3)"></i>
-        </div>
-      </div>
-      <div class="card" style="margin-top:0.75rem">
-        <div class="card-inner" onclick="openMaterialsPage()" style="cursor:pointer;display:flex;align-items:center;gap:1rem;padding:1rem">
-          <div style="width:44px;height:44px;border-radius:12px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🪵</div>
-          <div><div class="text-sm fw500">材料成本查詢</div><div class="text-xs text-muted">廠商進貨價</div></div>
-          <i class="ti ti-chevron-right" style="margin-left:auto;color:var(--text3)"></i>
-        </div>
-      </div>
+      <div class="tool-grid" id="tool-grid"></div>
+      <input type="file" id="tool-icon-input" accept="image/*" style="display:none" onchange="onToolIconPicked(event)">
       <div class="section-hd" style="margin-top:1rem">行事曆</div>
       <div onclick="handleCalCardClick(event)">
         <div class="card" id="cal-card-wrap"><div class="card-inner">
@@ -639,6 +625,13 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-income-cat" onchange="onIncomeCatChange()"></select>
     </div>
     <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project"></select></div>
+    <div class="form-group" id="f-cat-projtype-group" style="display:none;"><label class="form-label">費用類型 *</label>
+      <div class="segmented">
+        <div class="seg-btn active" data-val="材料五金" onclick="selectSeg(this,'f-cat-projtype','材料五金');onProjTypeChange()">材料五金</div>
+        <div class="seg-btn" data-val="薪資" onclick="selectSeg(this,'f-cat-projtype','薪資');onProjTypeChange()">薪資</div>
+      </div>
+      <input type="hidden" id="f-cat-projtype" value="材料五金">
+    </div>
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
@@ -996,6 +989,9 @@ window.onFirebaseReady=function(){
   if(window.fbStartMaterialConfigListener){
     window.fbStartMaterialConfigListener(onMaterialConfigSynced,onMaterialConfigSyncError);
   }
+  if(window.fbStartToolIconsListener){
+    window.fbStartToolIconsListener(onToolIconsSynced,onToolIconsSyncError);
+  }
 };
 let punchSyncErrorShown=false;
 function onPunchSyncError(){
@@ -1156,6 +1152,12 @@ function onMaterialConfigSynced(cfg){
   db.materialConfig=cfg;save();
   if(currentPage==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
 }
+function onToolIconsSyncError(){console.error('小工具圖示雲端同步權限不足');}
+function onToolIconsSynced(icons){
+  if(!icons)return;
+  db.toolIcons=icons;save();
+  if(currentPage==='calendar')renderToolGrid();
+}
 async function checkFinanceMigration(){
   if(!window.fbCheckFinanceEmpty)return;
   try{
@@ -1266,9 +1268,9 @@ const CITY_DISTRICTS={
 '其他':['其他']
 };
 
-let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},financeCats:{
-  cats:['公司貸款','工廠營運','材料五金','薪資','專案','其他'],
-  sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}
+let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
+  cats:['公司貸款','工廠營運','其他'],
+  sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費']}
 }};
 window.fbDebugLog=function(){};
 let currentPage='dashboard';
@@ -1292,9 +1294,10 @@ function load(){
   const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);
   if(!db.punchGcalIds)db.punchGcalIds={};
   if(!db.reserveFunding)db.reserveFunding=[];
-  if(!db.financeCats)db.financeCats={cats:['公司貸款','工廠營運','材料五金','薪資','專案','其他'],sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}};
+  if(!db.financeCats)db.financeCats={cats:['公司貸款','工廠營運','其他'],sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費']}};
   if(!db.financeCats.sub)db.financeCats.sub={};
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
+  if(!db.toolIcons)db.toolIcons={};
   if(!db.materials||!db.materials.length){
     db.materials=MATERIAL_SEED_DATA.map(m=>({id:uid(),...m}));
     db.materialConfig.vendors=[...new Set(db.materials.map(m=>m.vendor))].sort();
@@ -1329,7 +1332,7 @@ function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
 function fDate(d){return d?d.replace(/-/g,'/'):'—';}
-function pName(id){if(id==='__andun__')return'安盾裝修';const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
+function pName(id){if(id==='__andun__')return'安盾-中國信託';const p=db.projects.find(x=>x.id===id);return p?p.name:'—';}
 function sName(id){const s=db.staff.find(x=>x.id===id);return s?s.name:'—';}
 
 function selectSeg(el,hid,val){
@@ -1600,12 +1603,21 @@ function updateCatDependentUI(){
   const detGrp=document.getElementById('f-expense-detail-group');
   const detSel=document.getElementById('f-expense-detail');
   const projGrp=document.getElementById('f-cat-project-group');
+  const projTypeGrp=document.getElementById('f-cat-projtype-group');
   if(isAndunLike&&cat==='專案'){
     projGrp.style.display='block';
     fillSel('f-cat-project',false,false);
     detGrp.style.display='none';detSel.innerHTML='';
+    if(t==='支出'){
+      projTypeGrp.style.display='block';
+      onProjTypeChange();
+    } else {
+      projTypeGrp.style.display='none';
+      document.getElementById('f-staff-group').style.display='none';
+    }
   } else {
     projGrp.style.display='none';
+    projTypeGrp.style.display='none';
     const subs=(t==='支出'&&isAndunLike)?andunSubcats(cat):[];
     if(subs.length){
       detGrp.style.display='block';
@@ -1614,8 +1626,14 @@ function updateCatDependentUI(){
     } else {
       detGrp.style.display='none';detSel.innerHTML='';
     }
+    toggleFinanceStaff();
   }
-  toggleFinanceStaff();
+}
+function onProjTypeChange(){
+  const pt=document.getElementById('f-cat-projtype').value;
+  const grp=document.getElementById('f-staff-group');
+  if(pt==='薪資'){grp.style.display='block';fillStaffSel('f-staff-sel');}
+  else grp.style.display='none';
 }
 function onExpenseCatChange(){updateCatDependentUI();}
 function onIncomeCatChange(){updateCatDependentUI();}
@@ -1752,7 +1770,7 @@ function showPage(id,opts={}){
   if(id==='dashboard')renderDashboard();
   if(id==='projects')renderProjects();
   if(id==='finance'){fillAccountSel('finance-filter-project',true);fillAccountSel('f-project',false,false);onFinanceAccountChange();renderFinance();}
-  if(id==='calendar'){fillSel('e-project',true);renderCalendar();}
+  if(id==='calendar'){fillSel('e-project',true);renderCalendar();renderToolGrid();}
   if(id==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
   if(id==='staff')renderStaff();
   if(id==='staff-detail')renderStaffDetail(currentStaffId);
@@ -1761,6 +1779,57 @@ function showPage(id,opts={}){
 function openMaterialsPage(){
   prevPage='calendar';
   showPage('materials');
+}
+/* ── 小工具圖示格 ── */
+const TOOLS=[
+  {id:'protect',name:'保護工程',url:'https://spiffy-panda-0f24c1.netlify.app',emoji:'🛡️'},
+  {id:'accap',name:'冷氣帽',url:'https://resilient-longma-7142ca.netlify.app',emoji:'❄️'},
+  {id:'material',name:'材料成本查詢',url:'https://candid-belekoy-8230c8.netlify.app',emoji:'🪵'}
+];
+let currentToolIconId=null;
+function renderToolGrid(){
+  const el=document.getElementById('tool-grid');if(!el)return;
+  el.innerHTML=TOOLS.map(t=>{
+    const custom=db.toolIcons&&db.toolIcons[t.id];
+    const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
+    return `<div class="tool-tile">
+      <div class="tool-icon"${iconStyle} onclick="openTool('${t.id}')">${custom?'':t.emoji}
+        <div class="tool-icon-edit" onclick="event.stopPropagation();pickToolIcon('${t.id}')"><i class="ti ti-camera"></i></div>
+      </div>
+      <div class="tool-label">${t.name}</div>
+    </div>`;
+  }).join('');
+}
+function openTool(id){
+  const t=TOOLS.find(x=>x.id===id);if(!t)return;
+  window.open(t.url,'_blank');
+}
+function pickToolIcon(id){
+  currentToolIconId=id;
+  document.getElementById('tool-icon-input').click();
+}
+function onToolIconPicked(e){
+  const file=e.target.files[0];if(!file||!currentToolIconId)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    const img=new Image();
+    img.onload=function(){
+      const size=160;
+      const canvas=document.createElement('canvas');
+      canvas.width=size;canvas.height=size;
+      const ctx=canvas.getContext('2d');
+      const s=Math.min(img.width,img.height);
+      ctx.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,size,size);
+      const dataUrl=canvas.toDataURL('image/jpeg',0.82);
+      if(!db.toolIcons)db.toolIcons={};
+      db.toolIcons[currentToolIconId]=dataUrl;
+      save();if(window.fbSaveToolIcons)window.fbSaveToolIcons(db.toolIcons);
+      renderToolGrid();
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
 }
 function goBack(){showPage(prevPage);}
 function handleAdd(){
@@ -1870,8 +1939,8 @@ function fillSel(selId,addAll=false,addAndun=false){
   const el=document.getElementById(selId);if(!el)return;
   const val=el.value;el.innerHTML='';
   if(addAll)el.innerHTML='<option value="">所有專案</option>';
-  if(addAll&&addAndun)el.innerHTML+='<option value="__andun__">安盾裝修</option>';
-  if(!addAll&&addAndun)el.innerHTML='<option value="__andun__">安盾裝修</option>';
+  if(addAll&&addAndun)el.innerHTML+='<option value="__andun__">安盾-中國信託</option>';
+  if(!addAll&&addAndun)el.innerHTML='<option value="__andun__">安盾-中國信託</option>';
   db.projects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;el.appendChild(o);});
   if(val)el.value=val;
 }
@@ -1879,7 +1948,7 @@ function fillAccountSel(selId,addAll=false,includeProjects=true){
   const el=document.getElementById(selId);if(!el)return;
   const val=el.value;
   let html=addAll?'<option value="">所有專案</option>':'';
-  html+='<option value="__andun__">安盾裝修</option>';
+  html+='<option value="__andun__">安盾-中國信託</option>';
   db.staff.filter(s=>s.hasReserve).forEach(s=>{html+=`<option value="__reserve_${s.id}__">${s.name}備用金帳</option>`;});
   if(includeProjects)db.projects.forEach(p=>{html+=`<option value="${p.id}">${p.name}</option>`;});
   el.innerHTML=html;
@@ -2551,9 +2620,9 @@ function cycleStep(pid,stepName){
   const next={'未開始':'進行中','進行中':'完成','完成':'未開始'};
   const newState=next[cur];
   p.conSteps[stepName]={state:newState,time:newState!=='未開始'?new Date().toISOString():''};
-  // 驗收完成 → 已完工 + 自動結算盈餘到安盾裝修 + 自動儲存PDF到Drive
+  // 驗收完成 → 已完工 + 自動結算盈餘到安盾-中國信託 + 自動儲存PDF到Drive
   if(stepName==='驗收'&&newState==='完成'){
-    if(confirm('驗收完成！是否將此專案歸類為「已完工」並結算盈餘到安盾裝修？')){
+    if(confirm('驗收完成！是否將此專案歸類為「已完工」並結算盈餘到安盾-中國信託？')){
       p.type='已完工';
       p.completedAt=new Date().toISOString(); // 記錄完工時間，供兩個月刪除使用
       settleProjectToAndun(pid,p.name);
@@ -2661,7 +2730,7 @@ function settleProjectToAndun(pid,pname){
   db.finance.push(rec);
   save();
   if(window.fbSaveFinance)window.fbSaveFinance(rec);
-  alert(`已結算「${pname}」盈餘 ${profit>=0?'+':''}$${fMoney(profit)} 至安盾裝修`);
+  alert(`已結算「${pname}」盈餘 ${profit>=0?'+':''}$${fMoney(profit)} 至安盾-中國信託`);
 }
 function openAddCustomStep(pid){
   currentProjectId=pid;
@@ -3019,7 +3088,7 @@ function renderFinance(){
     <div class="stat-card"><div class="stat-label">收入</div><div class="stat-value text-green" style="font-size:20px">$${fMoney(income)}</div></div>
     <div class="stat-card"><div class="stat-label">支出</div><div class="stat-value text-red" style="font-size:20px">$${fMoney(exp)}</div></div>
     <div class="stat-card" style="grid-column:1/-1"><div class="stat-label">淨利</div><div class="stat-value ${profit>=0?'text-green':'text-red'}" style="font-size:20px">$${fMoney(profit)}</div></div>
-    ${reserveOutflow?`<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">支出已含撥給 Wallace／Mark 的備用金</div><div class="stat-value" style="font-size:14px;color:var(--text3)">$${fMoney(reserveOutflow)}（此金額同時列在他們的備用金餘額裡，安盾裝修＋Wallace＋Mark 三者加總才等於公司實際總現金）</div></div>`:''}`;
+    ${reserveOutflow?`<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">支出已含撥給 Wallace／Mark 的備用金</div><div class="stat-value" style="font-size:14px;color:var(--text3)">$${fMoney(reserveOutflow)}（此金額同時列在他們的備用金餘額裡，安盾-中國信託＋Wallace＋Mark 三者加總才等於公司實際總現金）</div></div>`:''}`;
   document.getElementById('finance-list').innerHTML=items.length?items.map(f=>`
     <div class="finance-item">
       <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
@@ -3072,7 +3141,7 @@ function resetFinanceForm(){
 }
 function saveFinance(){
   const acct=document.getElementById('f-project').value;
-  if(!acct)return alert('請選擇所屬帳戶（公司費用請選「安盾裝修」）');
+  if(!acct)return alert('請選擇所屬帳戶（公司費用請選「安盾-中國信託」）');
   const ftype=document.getElementById('f-type').value;
   const amount=document.getElementById('f-amount').value;
   if(!amount||Number(amount)<=0)return alert('請輸入金額');
@@ -3094,7 +3163,7 @@ function saveFinance(){
 
   if(reserve||acct==='__andun__'){
     if(ftype!=='支出'){
-      // 安盾裝修收入：可選「專案」直接算進該專案的進項，或「其他」算公司自身收入
+      // 安盾-中國信託收入：可選「專案」直接算進該專案的進項，或「其他」算公司自身收入
       const incCat=document.getElementById('f-income-cat').value;
       if(!incCat)return alert('請選擇收入類別');
       let projectId=acct,storedIncCat=incCat,name='收入';
@@ -3114,20 +3183,25 @@ function saveFinance(){
       if(currentPage==='detail')renderDetail(currentProjectId);
       return;
     }
-    // 安盾裝修支出 或 Wallace/Mark 報帳：共用可自訂分類（含「專案」「薪資」特殊選項）
+    // 安盾-中國信託支出 或 Wallace/Mark 報帳：共用可自訂分類（含「專案」「薪資」特殊選項）
     const cat=document.getElementById('f-expense-cat').value;
     if(!cat)return alert('請選擇支出類別');
     let projectId='__andun__',staffId='',staffName='',expDetail='',expCat=cat,name=cat;
     if(cat==='專案'){
       const proj=document.getElementById('f-cat-project').value;
       if(!proj)return alert('請選擇專案');
-      projectId=proj;expCat='';
-      name='專案支出';
-    } else if(cat==='薪資'){
-      staffId=document.getElementById('f-staff-sel').value;
-      if(!staffId)return alert('請選擇相關人員');
-      staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
-      name=staffName?'薪資 · '+staffName:'薪資';
+      projectId=proj;
+      const projType=document.getElementById('f-cat-projtype').value;
+      if(!projType)return alert('請選擇費用類型');
+      expCat=projType;
+      if(projType==='薪資'){
+        staffId=document.getElementById('f-staff-sel').value;
+        if(!staffId)return alert('請選擇相關人員');
+        staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
+        name='薪資 · '+staffName;
+      } else {
+        name='材料五金';
+      }
     } else {
       const subs=andunSubcats(cat);
       if(subs.length){
@@ -4127,7 +4201,7 @@ try{
   window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
 }
 
-let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null;
 
 if (fbAuth) {
   onAuthStateChanged(fbAuth, (user) => {
@@ -4145,6 +4219,7 @@ if (fbAuth) {
       if (financeCatsUnsub) { financeCatsUnsub(); financeCatsUnsub = null; }
       if (materialsUnsub) { materialsUnsub(); materialsUnsub = null; }
       if (materialConfigUnsub) { materialConfigUnsub(); materialConfigUnsub = null; }
+      if (toolIconsUnsub) { toolIconsUnsub(); toolIconsUnsub = null; }
       if (window.onFirebaseSignedOut) window.onFirebaseSignedOut();
     }
   });
@@ -4324,6 +4399,14 @@ window.fbStartMaterialConfigListener = function (onData, onError) {
   }, (err) => { console.error('材料設定同步失敗', err); if (onError) onError(err); });
 };
 window.fbSaveMaterialConfig = function (cfg) { return setDoc(doc(fbDb, 'settings', 'materialConfig'), cfg); };
+
+// ── Tool Icons（小工具自訂圖示，單一文件）──
+window.fbStartToolIconsListener = function (onData, onError) {
+  toolIconsUnsub = onSnapshot(doc(fbDb, 'settings', 'toolIcons'), (snap) => {
+    if (snap.exists()) onData(snap.data());
+  }, (err) => { console.error('小工具圖示同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveToolIcons = function (icons) { return setDoc(doc(fbDb, 'settings', 'toolIcons'), icons); };
 
 window.fbMigrateEvents = async function (arr) {
   const batch = writeBatch(fbDb);
