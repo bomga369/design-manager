@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718D">
+<meta name="app-version" content="20260718F">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -259,11 +259,11 @@ textarea.form-input{resize:none;min-height:72px;}
 .mat-chips-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
 .mat-chip-add-row{display:flex;gap:6px;}
 .mat-chip-add-row input{flex:1;}
-.tool-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px 10px;margin-bottom:0.5rem;}
+.tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 10px;margin-bottom:0.5rem;}
 .tool-tile{display:flex;flex-direction:column;align-items:center;gap:6px;}
-.tool-icon{width:56px;height:56px;border-radius:16px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);}
-.tool-icon-edit{position:absolute;bottom:-4px;right:-4px;width:22px;height:22px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid var(--bg2);cursor:pointer;}
-.tool-label{font-size:0.75rem;color:var(--text2);text-align:center;line-height:1.2;}
+.tool-icon{width:72px;height:72px;border-radius:20px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:34px;overflow:hidden;background-size:cover;background-position:center;box-shadow:0 1px 3px rgba(0,0,0,0.12);position:relative;cursor:pointer;border:1px solid var(--border);-webkit-user-select:none;user-select:none;}
+.tool-icon.pressing{transform:scale(0.93);transition:transform .15s;}
+.tool-label{font-size:0.8125rem;color:var(--text2);text-align:center;line-height:1.2;}
 </style>
 </head>
 <body>
@@ -615,7 +615,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <div id="f-reserve-hint" style="display:none;color:var(--text3);font-size:0.8125rem;margin-top:4px;">此帳戶為備用金帳：選「支出」＝報帳；選「收入」＝補款（公司撥入備用金）</div>
     </div>
     <div class="form-group" id="f-expense-cat-group" style="display:none;">
-      <label class="form-label">支出類別</label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出類別<span id="f-cat-manage-link" style="display:none;color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage()">管理分類</span></label>
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
     <div class="form-group" id="f-expense-detail-group" style="display:none;"><label class="form-label" id="f-expense-detail-label">明細項目</label>
@@ -629,8 +629,13 @@ textarea.form-input{resize:none;min-height:72px;}
       <div class="segmented">
         <div class="seg-btn active" data-val="材料五金" onclick="selectSeg(this,'f-cat-projtype','材料五金');onProjTypeChange()">材料五金</div>
         <div class="seg-btn" data-val="薪資" onclick="selectSeg(this,'f-cat-projtype','薪資');onProjTypeChange()">薪資</div>
+        <div class="seg-btn" data-val="其他" onclick="selectSeg(this,'f-cat-projtype','其他');onProjTypeChange()">其他</div>
       </div>
       <input type="hidden" id="f-cat-projtype" value="材料五金">
+    </div>
+    <div class="form-group" id="f-cat-mat5-group" style="display:none;">
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">材料五金項目<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage('材料五金')">管理項目</span></label>
+      <select class="form-input" id="f-cat-mat5-item"></select>
     </div>
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
@@ -639,6 +644,36 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-finance')">取消</button>
       <button class="btn btn-primary" onclick="saveFinance()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-cat-manage">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">管理支出分類<button class="sheet-close" onclick="closeSheet('sheet-cat-manage')"><i class="ti ti-x"></i></button></div>
+    <div id="cat-manage-list"></div>
+    <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
+      <div style="flex:1"><label class="form-label">新增分類</label><input class="form-input" id="cat-new-name" placeholder="例：油漆工錢" autocomplete="off"></div>
+      <button class="btn btn-primary" onclick="addFinanceCat()">新增</button>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-primary" onclick="closeSheet('sheet-cat-manage')">完成</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-subcat-manage">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="subcat-title">明細項目</span><button class="sheet-close" onclick="closeSheet('sheet-subcat-manage')"><i class="ti ti-x"></i></button></div>
+    <div id="subcat-manage-list"></div>
+    <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
+      <div style="flex:1"><label class="form-label">新增明細項目</label><input class="form-input" id="subcat-new-name" placeholder="例：工地叫料" autocomplete="off"></div>
+      <button class="btn btn-primary" onclick="addFinanceSubcat()">新增</button>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-primary" onclick="closeSheet('sheet-subcat-manage')">完成</button>
     </div>
   </div>
 </div>
@@ -1142,6 +1177,10 @@ function onFinanceCatsSynced(cfg){
   db.financeCats=cfg;save();
   const sheet=document.getElementById('sheet-finance');
   if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
+  const catSheet=document.getElementById('sheet-cat-manage');
+  if(catSheet&&catSheet.classList.contains('open'))renderCatManageList();
+  const subSheet=document.getElementById('sheet-subcat-manage');
+  if(subSheet&&subSheet.classList.contains('open'))renderSubcatManageList();
 }
 let materialsSyncErrorShown=false;
 function onMaterialsSyncError(){if(materialsSyncErrorShown)return;materialsSyncErrorShown=true;alert('材料成本資料雲端同步權限不足，請聯絡管理者');}
@@ -1270,7 +1309,7 @@ const CITY_DISTRICTS={
 
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
   cats:['公司貸款','工廠營運','其他'],
-  sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費']}
+  sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}
 }};
 window.fbDebugLog=function(){};
 let currentPage='dashboard';
@@ -1294,7 +1333,7 @@ function load(){
   const d=localStorage.getItem('dmgr_v6');if(d)db=JSON.parse(d);
   if(!db.punchGcalIds)db.punchGcalIds={};
   if(!db.reserveFunding)db.reserveFunding=[];
-  if(!db.financeCats)db.financeCats={cats:['公司貸款','工廠營運','其他'],sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費']}};
+  if(!db.financeCats)db.financeCats={cats:['公司貸款','工廠營運','其他'],sub:{'公司貸款':['國泰房貸','青創貸款','玉山信貸','保單借款利息'],'工廠營運':['房租','工廠水電費'],'材料五金':['工地叫料','工具用品']}};
   if(!db.financeCats.sub)db.financeCats.sub={};
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.toolIcons)db.toolIcons={};
@@ -1572,6 +1611,78 @@ function andunCats(){
   return['專案',...cats.filter(c=>c!=='專案')];
 }
 function andunSubcats(cat){return(db.financeCats&&db.financeCats.sub&&db.financeCats.sub[cat])||[];}
+function saveFinanceCatsConfig(){
+  save();
+  if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);
+  const sheet=document.getElementById('sheet-finance');
+  if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
+}
+function openCatManage(){renderCatManageList();openSheet('sheet-cat-manage');}
+function renderCatManageList(){
+  const cats=andunCats();
+  const rows=cats.map(c=>({key:c,name:c,special:(c==='專案'||c==='其他'),hasSubmenu:(c!=='專案'&&c!=='其他')}));
+  rows.splice(1,0,{key:'材料五金',name:'材料五金（專案項下）',special:true,hasSubmenu:true});
+  document.getElementById('cat-manage-list').innerHTML=rows.length?rows.map(r=>{
+    const subCount=r.hasSubmenu?andunSubcats(r.key).length:0;
+    const meta=r.key==='專案'?'選擇專案，並分材料五金／薪資／其他':(r.hasSubmenu?(subCount?subCount+' 個明細項目':'無明細項目'):'無明細');
+    return `<div class="finance-item">
+      <div class="finance-body"><div class="finance-name">${r.name}</div><div class="finance-meta">${meta}</div></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${r.hasSubmenu?`<button class="btn btn-sm" onclick="openSubcatManage('${r.key}')">明細</button>`:''}
+        ${r.special?'':`<button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinanceCat('${r.key}')"><i class="ti ti-trash"></i></button>`}
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty"><p>尚無分類</p></div>';
+}
+function addFinanceCat(){
+  const input=document.getElementById('cat-new-name');
+  const name=input.value.trim();
+  if(!name)return;
+  if(!db.financeCats.cats.includes(name))db.financeCats.cats.push(name);
+  input.value='';
+  saveFinanceCatsConfig();
+  renderCatManageList();
+}
+function deleteFinanceCat(name){
+  if(!confirm(`確定刪除分類「${name}」？`))return;
+  db.financeCats.cats=db.financeCats.cats.filter(c=>c!==name);
+  delete db.financeCats.sub[name];
+  saveFinanceCatsConfig();
+  renderCatManageList();
+}
+let currentEditingCat=null;
+function openSubcatManage(cat){
+  currentEditingCat=cat;
+  document.getElementById('subcat-title').textContent=cat+' · 明細項目';
+  renderSubcatManageList();
+  openSheet('sheet-subcat-manage');
+}
+function renderSubcatManageList(){
+  const subs=andunSubcats(currentEditingCat);
+  document.getElementById('subcat-manage-list').innerHTML=subs.length?subs.map(s=>`
+    <div class="finance-item">
+      <div class="finance-body"><div class="finance-name">${s}</div></div>
+      <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinanceSubcat('${s}')"><i class="ti ti-trash"></i></button>
+    </div>`).join(''):'<div class="empty"><p>尚無明細項目</p></div>';
+}
+function addFinanceSubcat(){
+  const input=document.getElementById('subcat-new-name');
+  const name=input.value.trim();
+  if(!name||!currentEditingCat)return;
+  if(!db.financeCats.sub[currentEditingCat])db.financeCats.sub[currentEditingCat]=[];
+  if(!db.financeCats.sub[currentEditingCat].includes(name))db.financeCats.sub[currentEditingCat].push(name);
+  input.value='';
+  saveFinanceCatsConfig();
+  renderSubcatManageList();
+  if(currentEditingCat==='材料五金')onProjTypeChange();
+}
+function deleteFinanceSubcat(name){
+  if(!currentEditingCat)return;
+  db.financeCats.sub[currentEditingCat]=(db.financeCats.sub[currentEditingCat]||[]).filter(s=>s!==name);
+  saveFinanceCatsConfig();
+  renderSubcatManageList();
+  if(currentEditingCat==='材料五金')onProjTypeChange();
+}
 function onFinanceAccountChange(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
@@ -1583,6 +1694,8 @@ function refreshFinanceCategories(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
   const useCustomCats=reserve||acct==='__andun__';
+  const mgLink=document.getElementById('f-cat-manage-link');
+  if(mgLink)mgLink.style.display=useCustomCats?'inline':'none';
   const expSel=document.getElementById('f-expense-cat');
   const incSel=document.getElementById('f-income-cat');
   const expVal=expSel.value,incVal=incSel.value;
@@ -1631,9 +1744,27 @@ function updateCatDependentUI(){
 }
 function onProjTypeChange(){
   const pt=document.getElementById('f-cat-projtype').value;
-  const grp=document.getElementById('f-staff-group');
-  if(pt==='薪資'){grp.style.display='block';fillStaffSel('f-staff-sel');}
-  else grp.style.display='none';
+  const staffGrp=document.getElementById('f-staff-group');
+  const mat5Grp=document.getElementById('f-cat-mat5-group');
+  if(pt==='薪資'){
+    staffGrp.style.display='block';fillStaffSel('f-staff-sel');
+    mat5Grp.style.display='none';
+  } else if(pt==='材料五金'){
+    staffGrp.style.display='none';
+    const items=andunSubcats('材料五金');
+    if(items.length){
+      mat5Grp.style.display='block';
+      const sel=document.getElementById('f-cat-mat5-item');
+      const val=sel.value;
+      sel.innerHTML=items.map(c=>`<option value="${c}">${c}</option>`).join('');
+      if(items.includes(val))sel.value=val;
+    } else {
+      mat5Grp.style.display='none';
+    }
+  } else {
+    staffGrp.style.display='none';
+    mat5Grp.style.display='none';
+  }
 }
 function onExpenseCatChange(){updateCatDependentUI();}
 function onIncomeCatChange(){updateCatDependentUI();}
@@ -1793,12 +1924,44 @@ function renderToolGrid(){
     const custom=db.toolIcons&&db.toolIcons[t.id];
     const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
     return `<div class="tool-tile">
-      <div class="tool-icon"${iconStyle} onclick="openTool('${t.id}')">${custom?'':t.emoji}
-        <div class="tool-icon-edit" onclick="event.stopPropagation();pickToolIcon('${t.id}')"><i class="ti ti-camera"></i></div>
-      </div>
+      <div class="tool-icon" data-tool="${t.id}"${iconStyle}>${custom?'':t.emoji}</div>
       <div class="tool-label">${t.name}</div>
     </div>`;
   }).join('');
+  attachToolIconPress();
+}
+const TOOL_ICON_EDITOR_EMAIL='bomga369@gmail.com';
+function canEditToolIcons(){return currentUser&&currentUser.email===TOOL_ICON_EDITOR_EMAIL;}
+function attachToolIconPress(){
+  const canEdit=canEditToolIcons();
+  document.querySelectorAll('.tool-icon').forEach(icon=>{
+    const id=icon.getAttribute('data-tool');
+    if(!canEdit){
+      icon.addEventListener('click',()=>openTool(id));
+      return;
+    }
+    let timer=null,longPressed=false,touchUsed=false;
+    function start(){
+      longPressed=false;
+      icon.classList.add('pressing');
+      timer=setTimeout(()=>{
+        longPressed=true;
+        if(navigator.vibrate)navigator.vibrate(40);
+        icon.classList.remove('pressing');
+        pickToolIcon(id);
+      },550);
+    }
+    function cancel(){
+      clearTimeout(timer);
+      icon.classList.remove('pressing');
+    }
+    icon.addEventListener('touchstart',()=>{touchUsed=true;start();},{passive:true});
+    icon.addEventListener('touchend',()=>{cancel();if(!longPressed)openTool(id);});
+    icon.addEventListener('touchmove',cancel,{passive:true});
+    icon.addEventListener('mousedown',()=>{if(touchUsed)return;start();});
+    icon.addEventListener('mouseup',()=>{if(touchUsed)return;cancel();if(!longPressed)openTool(id);});
+    icon.addEventListener('mouseleave',()=>{if(touchUsed)return;cancel();});
+  });
 }
 function openTool(id){
   const t=TOOLS.find(x=>x.id===id);if(!t)return;
@@ -3199,8 +3362,17 @@ function saveFinance(){
         if(!staffId)return alert('請選擇相關人員');
         staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
         name='薪資 · '+staffName;
+      } else if(projType==='材料五金'){
+        const mat5subs=andunSubcats('材料五金');
+        if(mat5subs.length){
+          expDetail=document.getElementById('f-cat-mat5-item').value;
+          if(!expDetail)return alert('請選擇材料五金項目');
+          name='材料五金 · '+expDetail;
+        } else {
+          name='材料五金';
+        }
       } else {
-        name='材料五金';
+        name='其他';
       }
     } else {
       const subs=andunSubcats(cat);
