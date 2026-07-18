@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718H">
+<meta name="app-version" content="20260718I">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -622,7 +622,11 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group" id="f-staff-group" style="display:none;"><label class="form-label">相關人員 *</label><select class="form-input" id="f-staff-sel"><option value="">請選擇人員</option></select></div>
     <div class="form-group" id="f-expense-detail-group" style="display:none;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-expense-detail-label">支出項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-expense-cat').value)">管理項目</span></label>
-      <select class="form-input" id="f-expense-detail"></select>
+      <select class="form-input" id="f-expense-detail" onchange="onExpenseDetailChange()"></select>
+    </div>
+    <div class="form-group" id="f-expense-content-group" style="display:none;">
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-expense-detail').value)">管理內容</span></label>
+      <select class="form-input" id="f-expense-content"></select>
     </div>
     <div class="form-group" id="f-income-cat-group" style="display:block;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入類別<span id="f-inc-cat-manage-link" style="display:none;color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage('inc')">管理分類</span></label>
@@ -630,7 +634,11 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
     <div class="form-group" id="f-income-detail-group" style="display:none;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-income-detail-label">收入項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-income-cat').value,'inc')">管理項目</span></label>
-      <select class="form-input" id="f-income-detail"></select>
+      <select class="form-input" id="f-income-detail" onchange="onIncomeDetailChange()"></select>
+    </div>
+    <div class="form-group" id="f-income-content-group" style="display:none;">
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-income-detail').value,'inc')">管理內容</span></label>
+      <select class="form-input" id="f-income-content"></select>
     </div>
     <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
@@ -646,6 +654,7 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="cat-manage-title">管理支出分類</span><button class="sheet-close" onclick="closeSheet('sheet-cat-manage')"><i class="ti ti-x"></i></button></div>
+    <div style="color:var(--text3);font-size:0.75rem;margin-bottom:0.5rem;">左滑可刪除，長按可拖曳排序</div>
     <div id="cat-manage-list"></div>
     <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
       <div style="flex:1"><label class="form-label">新增分類</label><input class="form-input" id="cat-new-name" placeholder="例：油漆工錢" autocomplete="off"></div>
@@ -660,14 +669,31 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-subcat-manage">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title"><span id="subcat-title">明細項目</span><button class="sheet-close" onclick="closeSheet('sheet-subcat-manage')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title"><span id="subcat-title">支出項目</span><button class="sheet-close" onclick="closeSheet('sheet-subcat-manage')"><i class="ti ti-x"></i></button></div>
+    <div style="color:var(--text3);font-size:0.75rem;margin-bottom:0.5rem;">左滑可刪除，長按可拖曳排序</div>
     <div id="subcat-manage-list"></div>
     <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
-      <div style="flex:1"><label class="form-label">新增明細項目</label><input class="form-input" id="subcat-new-name" placeholder="例：工地叫料" autocomplete="off"></div>
+      <div style="flex:1"><label class="form-label">新增支出項目</label><input class="form-input" id="subcat-new-name" placeholder="例：材料五金" autocomplete="off"></div>
       <button class="btn btn-primary" onclick="addFinanceSubcat()">新增</button>
     </div>
     <div class="sheet-footer">
       <button class="btn btn-primary" onclick="closeSheet('sheet-subcat-manage')">完成</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-subsubcat-manage">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="subsubcat-title">支出內容</span><button class="sheet-close" onclick="closeSheet('sheet-subsubcat-manage')"><i class="ti ti-x"></i></button></div>
+    <div style="color:var(--text3);font-size:0.75rem;margin-bottom:0.5rem;">左滑可刪除，長按可拖曳排序</div>
+    <div id="subsubcat-manage-list"></div>
+    <div class="form-group" style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:flex-end;">
+      <div style="flex:1"><label class="form-label">新增支出內容</label><input class="form-input" id="subsubcat-new-name" placeholder="例：工地叫料" autocomplete="off"></div>
+      <button class="btn btn-primary" onclick="addFinanceSubSubcat()">新增</button>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-primary" onclick="closeSheet('sheet-subsubcat-manage')">完成</button>
     </div>
   </div>
 </div>
@@ -1618,22 +1644,27 @@ function openCatManage(mode){
 }
 function renderCatManageList(){
   const cats=catManageMode==='inc'?andunIncCats():andunCats();
+  const itemWord=catManageMode==='inc'?'收入項目':'支出項目';
   document.getElementById('cat-manage-list').innerHTML=cats.length?cats.map(c=>{
     const isProj=c==='專案';
     const subCount=andunSubcats(c).length;
-    const itemWord=catManageMode==='inc'?'收入項目':'支出項目';
-    const meta=isProj?'選擇 App 內施作中專案':(subCount?subCount+' 個'+itemWord:'無'+itemWord);
+    const meta=(isProj?'選擇 App 內施作中專案 · ':'')+(subCount?subCount+' 個'+itemWord:'無'+itemWord);
     return `<div class="mat-item-wrap" data-key="${c}">
       <div class="mat-swipe-actions">
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceCat('${c}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
       <div class="mat-item-card" style="cursor:default;">
         <div style="flex:1;min-width:0;"><div class="fw500">${c}</div><div style="font-size:0.8125rem;color:var(--text3);margin-top:2px;">${meta}</div></div>
-        <button class="btn btn-sm" onclick="openSubcatManage('${c}','${catManageMode}')">${catManageMode==='inc'?'收入項目':'支出項目'}</button>
+        <button class="btn btn-sm" onclick="openSubcatManage('${c}','${catManageMode}')">${itemWord}</button>
       </div>
     </div>`;
   }).join(''):'<div class="empty"><p>尚無分類，新增一個開始使用</p></div>';
   attachMatSwipe(document.getElementById('cat-manage-list'));
+  attachArrayDrag('cat-manage-list',newOrder=>{
+    const key=catManageMode==='inc'?'incCats':'cats';
+    db.financeCats[key]=newOrder;
+    saveFinanceCatsConfig();
+  });
 }
 function addFinanceCat(){
   const input=document.getElementById('cat-new-name');
@@ -1663,16 +1694,24 @@ function openSubcatManage(cat,mode){
 }
 function renderSubcatManageList(){
   const subs=andunSubcats(currentEditingCat);
-  document.getElementById('subcat-manage-list').innerHTML=subs.length?subs.map(s=>`
-    <div class="mat-item-wrap" data-key="${s}">
+  const contentWord=currentEditingCatMode==='inc'?'收入內容':'支出內容';
+  document.getElementById('subcat-manage-list').innerHTML=subs.length?subs.map(s=>{
+    const subCount=andunSubcats(s).length;
+    return `<div class="mat-item-wrap" data-key="${s}">
       <div class="mat-swipe-actions">
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceSubcat('${s}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
       <div class="mat-item-card" style="cursor:default;">
-        <div class="fw500">${s}</div>
+        <div style="flex:1;min-width:0;"><div class="fw500">${s}</div><div style="font-size:0.8125rem;color:var(--text3);margin-top:2px;">${subCount?subCount+' 個'+contentWord:'無'+contentWord}</div></div>
+        <button class="btn btn-sm" onclick="openSubSubcatManage('${s}','${currentEditingCatMode}')">${contentWord}</button>
       </div>
-    </div>`).join(''):'<div class="empty"><p>尚無項目</p></div>';
+    </div>`;
+  }).join(''):'<div class="empty"><p>尚無項目</p></div>';
   attachMatSwipe(document.getElementById('subcat-manage-list'));
+  attachArrayDrag('subcat-manage-list',newOrder=>{
+    db.financeCats.sub[currentEditingCat]=newOrder;
+    saveFinanceCatsConfig();
+  });
 }
 function addFinanceSubcat(){
   const input=document.getElementById('subcat-new-name');
@@ -1689,9 +1728,54 @@ function deleteFinanceSubcat(name){
   if(!currentEditingCat)return;
   if(!confirm(`確定刪除「${name}」？`))return;
   db.financeCats.sub[currentEditingCat]=(db.financeCats.sub[currentEditingCat]||[]).filter(s=>s!==name);
+  delete db.financeCats.sub[name];
   saveFinanceCatsConfig();
   renderSubcatManageList();
   renderCatManageList();
+}
+let currentEditingItem=null,currentEditingItemMode='exp';
+function openSubSubcatManage(item,mode){
+  currentEditingItem=item;
+  currentEditingItemMode=mode||'exp';
+  document.getElementById('subsubcat-title').textContent=item+(currentEditingItemMode==='inc'?' · 收入內容':' · 支出內容');
+  renderSubSubcatManageList();
+  openSheet('sheet-subsubcat-manage');
+}
+function renderSubSubcatManageList(){
+  const contents=andunSubcats(currentEditingItem);
+  document.getElementById('subsubcat-manage-list').innerHTML=contents.length?contents.map(s=>`
+    <div class="mat-item-wrap" data-key="${s}">
+      <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFinanceSubSubcat('${s}')"><i class="ti ti-trash"></i>刪除</button>
+      </div>
+      <div class="mat-item-card" style="cursor:default;">
+        <div class="fw500">${s}</div>
+      </div>
+    </div>`).join(''):'<div class="empty"><p>尚無項目</p></div>';
+  attachMatSwipe(document.getElementById('subsubcat-manage-list'));
+  attachArrayDrag('subsubcat-manage-list',newOrder=>{
+    db.financeCats.sub[currentEditingItem]=newOrder;
+    saveFinanceCatsConfig();
+  });
+}
+function addFinanceSubSubcat(){
+  const input=document.getElementById('subsubcat-new-name');
+  const name=input.value.trim();
+  if(!name||!currentEditingItem)return;
+  if(!db.financeCats.sub[currentEditingItem])db.financeCats.sub[currentEditingItem]=[];
+  if(!db.financeCats.sub[currentEditingItem].includes(name))db.financeCats.sub[currentEditingItem].push(name);
+  input.value='';
+  saveFinanceCatsConfig();
+  renderSubSubcatManageList();
+  renderSubcatManageList();
+}
+function deleteFinanceSubSubcat(name){
+  if(!currentEditingItem)return;
+  if(!confirm(`確定刪除「${name}」？`))return;
+  db.financeCats.sub[currentEditingItem]=(db.financeCats.sub[currentEditingItem]||[]).filter(s=>s!==name);
+  saveFinanceCatsConfig();
+  renderSubSubcatManageList();
+  renderSubcatManageList();
 }
 function onFinanceAccountChange(){
   const acct=document.getElementById('f-project').value;
@@ -1735,12 +1819,16 @@ function updateCatDependentUI(){
   const staffGrp=document.getElementById('f-staff-group');
   const expDetGrp=document.getElementById('f-expense-detail-group');
   const incDetGrp=document.getElementById('f-income-detail-group');
+  const expContGrp=document.getElementById('f-expense-content-group');
+  const incContGrp=document.getElementById('f-income-content-group');
 
   if(!isAndunLike){
-    // 真實專案自己的收支：維持固定分類，不需要專案選單／明細
+    // 真實專案自己的收支：維持固定分類，不需要專案選單／項目／內容
     projGrp.style.display='none';
     expDetGrp.style.display='none';
     incDetGrp.style.display='none';
+    expContGrp.style.display='none';
+    incContGrp.style.display='none';
     toggleFinanceStaff();
     return;
   }
@@ -1759,6 +1847,9 @@ function updateCatDependentUI(){
   const detGrp=t==='支出'?expDetGrp:incDetGrp;
   const otherDetGrp=t==='支出'?incDetGrp:expDetGrp;
   otherDetGrp.style.display='none';
+  const contGrp=t==='支出'?expContGrp:incContGrp;
+  const otherContGrp=t==='支出'?incContGrp:expContGrp;
+  otherContGrp.style.display='none';
   if(subs.length){
     detGrp.style.display='block';
     const label=document.getElementById(t==='支出'?'f-expense-detail-label':'f-income-detail-label');
@@ -1767,8 +1858,38 @@ function updateCatDependentUI(){
     const val=sel.value;
     sel.innerHTML=subs.map(c=>`<option value="${c}">${c}</option>`).join('');
     if(subs.includes(val))sel.value=val;
+    if(t==='支出')onExpenseDetailChange();else onIncomeDetailChange();
   } else {
     detGrp.style.display='none';
+    contGrp.style.display='none';
+  }
+}
+function onExpenseDetailChange(){
+  const item=document.getElementById('f-expense-detail').value;
+  const contents=item?andunSubcats(item):[];
+  const grp=document.getElementById('f-expense-content-group');
+  if(contents.length){
+    grp.style.display='block';
+    const sel=document.getElementById('f-expense-content');
+    const val=sel.value;
+    sel.innerHTML=contents.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if(contents.includes(val))sel.value=val;
+  } else {
+    grp.style.display='none';
+  }
+}
+function onIncomeDetailChange(){
+  const item=document.getElementById('f-income-detail').value;
+  const contents=item?andunSubcats(item):[];
+  const grp=document.getElementById('f-income-content-group');
+  if(contents.length){
+    grp.style.display='block';
+    const sel=document.getElementById('f-income-content');
+    const val=sel.value;
+    sel.innerHTML=contents.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if(contents.includes(val))sel.value=val;
+  } else {
+    grp.style.display='none';
   }
 }
 function onCatProjectChange(){/* 目前選擇的專案本身不影響其他欄位，保留供未來擴充 */}
@@ -1955,7 +2076,8 @@ function attachToolIconPress(){
         longPressed=true;
         if(navigator.vibrate)navigator.vibrate(40);
         icon.classList.remove('pressing');
-        pickToolIcon(id);
+        // 注意：這裡不能直接觸發檔案選擇（setTimeout 內屬於「非可信使用者手勢」，
+        // iOS Safari 會擋掉 input.click()）。只標記狀態，實際觸發放在 touchend/mouseup。
       },550);
     }
     function moveCheck(x,y){
@@ -1966,12 +2088,21 @@ function attachToolIconPress(){
       icon.classList.remove('pressing');
     }
     icon.addEventListener('touchstart',e=>{touchUsed=true;const t=e.touches[0];start(t.clientX,t.clientY);},{passive:true});
-    icon.addEventListener('touchend',()=>{cancel();if(!longPressed)openTool(id);});
+    icon.addEventListener('touchend',()=>{
+      const wasLong=longPressed;
+      cancel();
+      if(wasLong)pickToolIcon(id);else openTool(id);
+    });
     icon.addEventListener('touchmove',e=>{const t=e.touches[0];moveCheck(t.clientX,t.clientY);},{passive:true});
     icon.addEventListener('touchcancel',cancel,{passive:true});
     icon.addEventListener('contextmenu',e=>e.preventDefault());
     icon.addEventListener('mousedown',e=>{if(touchUsed)return;start(e.clientX,e.clientY);});
-    icon.addEventListener('mouseup',()=>{if(touchUsed)return;cancel();if(!longPressed)openTool(id);});
+    icon.addEventListener('mouseup',()=>{
+      if(touchUsed)return;
+      const wasLong=longPressed;
+      cancel();
+      if(wasLong)pickToolIcon(id);else openTool(id);
+    });
     icon.addEventListener('mouseleave',()=>{if(touchUsed)return;cancel();});
   });
 }
@@ -3269,7 +3400,7 @@ function renderFinance(){
       <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
       <div class="finance-body">
         <div class="finance-name">${f.name}${f.expCat?` <span style="color:var(--text3);font-size:11px">${f.expCat}</span>`:''}</div>
-        <div class="finance-meta">${fDate(f.date)} · ${pName(f.projectId)}${f.expCat?' · '+f.expCat:''}${f.expDetail?' · '+f.expDetail:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.paidBy?' · 由'+sName(f.paidBy)+'備用金代墊':''}${f.note?' · '+f.note:''}</div>
+        <div class="finance-meta">${fDate(f.date)} · ${pName(f.projectId)}${f.expCat?' · '+f.expCat:''}${f.expDetail?' · '+f.expDetail:''}${f.expContent?' · '+f.expContent:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.paidBy?' · 由'+sName(f.paidBy)+'備用金代墊':''}${f.note?' · '+f.note:''}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         <span class="fw500 ${f.ftype==='收入'?'text-green':'text-red'}">${f.ftype==='收入'?'+':'-'}$${fMoney(f.amount)}</span>
@@ -3303,7 +3434,7 @@ function renderReserveLedger(staffId){
       <div class="finance-dot" style="background:var(--red)"></div>
       <div class="finance-body">
         <div class="finance-name">${it.name}${it.expCat?` <span style="color:var(--text3);font-size:11px">${it.expCat}</span>`:''}</div>
-        <div class="finance-meta">${fDate(it.date)} · 報帳 · ${pName(it.projectId)}${it.expCat?' · '+it.expCat:''}${it.expDetail?' · '+it.expDetail:''}${it.staffName?' · '+it.staffName:''}${it.note?' · '+it.note:''}</div>
+        <div class="finance-meta">${fDate(it.date)} · 報帳 · ${pName(it.projectId)}${it.expCat?' · '+it.expCat:''}${it.expDetail?' · '+it.expDetail:''}${it.expContent?' · '+it.expContent:''}${it.staffName?' · '+it.staffName:''}${it.note?' · '+it.note:''}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         <span class="fw500 text-red">-$${fMoney(it.amount)}</span>
@@ -3338,30 +3469,31 @@ function saveFinance(){
 
   if(reserve||acct==='__andun__'){
     if(ftype!=='支出'){
-      // 安盾-中國信託收入：可選「專案」直接算進該專案的進項（可再選收入項目），或其他自訂分類
+      // 安盾-中國信託收入：可選「專案」直接算進該專案的進項（可再選收入項目/收入內容），或其他自訂分類
       const incCat=document.getElementById('f-income-cat').value;
       if(!incCat)return alert('請選擇收入類別');
-      let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='';
+      let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='',incContent='';
       if(incCat==='專案'){
         const proj=document.getElementById('f-cat-project').value;
         if(!proj)return alert('請選擇專案');
         projectId=proj;storedIncCat='專案';
         name='工程款';
-        const subs=andunSubcats('專案');
-        if(subs.length){
-          incDetail=document.getElementById('f-income-detail').value;
-          if(!incDetail)return alert('請選擇收入項目');
-          name='工程款 · '+incDetail;
-        }
       } else {
-        const subs=andunSubcats(incCat);
-        if(subs.length){
-          incDetail=document.getElementById('f-income-detail').value;
-          if(!incDetail)return alert('請選擇收入項目');
-          name=incCat+' · '+incDetail;
+        name=incCat;
+      }
+      const subs=andunSubcats(incCat);
+      if(subs.length){
+        incDetail=document.getElementById('f-income-detail').value;
+        if(!incDetail)return alert('請選擇收入項目');
+        name+=' · '+incDetail;
+        const contents=andunSubcats(incDetail);
+        if(contents.length){
+          incContent=document.getElementById('f-income-content').value;
+          if(!incContent)return alert('請選擇收入內容');
+          name+=' · '+incContent;
         }
       }
-      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
+      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,expContent:incContent,staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
       db.finance.push(rec);
       save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
       closeSheet('sheet-finance');resetFinanceForm();
@@ -3372,34 +3504,34 @@ function saveFinance(){
     // 安盾-中國信託支出 或 Wallace/Mark 報帳：完全由使用者自訂的分類清單（專案／薪資為系統辨識的關鍵字）
     const cat=document.getElementById('f-expense-cat').value;
     if(!cat)return alert('請選擇支出類別，若清單是空的，請先點「管理分類」新增');
-    let projectId='__andun__',staffId='',staffName='',expDetail='',expCat=cat,name=cat;
+    let projectId='__andun__',staffId='',staffName='',expDetail='',expContent='',expCat=cat,name=cat;
     if(cat==='專案'){
       const proj=document.getElementById('f-cat-project').value;
       if(!proj)return alert('請選擇專案');
       projectId=proj;
-      const subs=andunSubcats('專案');
-      if(subs.length){
-        expDetail=document.getElementById('f-expense-detail').value;
-        if(!expDetail)return alert('請選擇明細項目');
-        name='專案支出 · '+expDetail;
-      } else {
-        name='專案支出';
-      }
+      name='專案支出';
     } else if(cat==='薪資'){
       staffId=document.getElementById('f-staff-sel').value;
       if(!staffId)return alert('請選擇相關人員');
       staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
       name='薪資 · '+staffName;
-    } else {
+    }
+    if(cat!=='薪資'){
       const subs=andunSubcats(cat);
       if(subs.length){
         expDetail=document.getElementById('f-expense-detail').value;
-        if(!expDetail)return alert('請選擇明細項目');
-        name=cat+' · '+expDetail;
+        if(!expDetail)return alert('請選擇支出項目');
+        name+=' · '+expDetail;
+        const contents=andunSubcats(expDetail);
+        if(contents.length){
+          expContent=document.getElementById('f-expense-content').value;
+          if(!expContent)return alert('請選擇支出內容');
+          name+=' · '+expContent;
+        }
       }
     }
     const paidBy=reserve?reserveStaffId(acct):'';
-    const rec={id:uid(),name,amount:Number(amount),projectId,ftype:'支出',expCat,incCat:'',expDetail,staffId,staffName,paidBy,date:dateVal,note:noteVal};
+    const rec={id:uid(),name,amount:Number(amount),projectId,ftype:'支出',expCat,incCat:'',expDetail,expContent,staffId,staffName,paidBy,date:dateVal,note:noteVal};
     db.finance.push(rec);
     save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
     closeSheet('sheet-finance');resetFinanceForm();
@@ -3556,6 +3688,50 @@ function openEditMaterialSwipeSafe(id,cardEl){
   const wrap=cardEl.closest('.mat-item-wrap');
   if(wrap&&Math.abs(parseFloat(wrap._tx||0))>10)return;
   openEditMaterial(id);
+}
+function attachArrayDrag(containerId,onReorder){
+  const list=document.getElementById(containerId);if(!list)return;
+  let dragSrc=null;
+  list.querySelectorAll('.mat-item-wrap').forEach(wrap=>{
+    const card=wrap.querySelector('.mat-item-card');
+    let longTimer=null;
+    card.addEventListener('touchstart',()=>{
+      longTimer=setTimeout(()=>{
+        if(navigator.vibrate)navigator.vibrate(30);
+        dragSrc=wrap;wrap.classList.add('dragging');
+      },500);
+    },{passive:true});
+    card.addEventListener('touchend',()=>{
+      clearTimeout(longTimer);
+      if(dragSrc===wrap){wrap.classList.remove('dragging');dragSrc=null;}
+    });
+    card.addEventListener('touchmove',e=>{
+      clearTimeout(longTimer);
+      if(!dragSrc)return;
+      const t=e.touches[0];
+      const els=Array.from(list.querySelectorAll('.mat-item-wrap'));
+      const target=els.find(el=>{
+        if(el===dragSrc)return false;
+        const r=el.getBoundingClientRect();
+        return t.clientY>=r.top&&t.clientY<=r.bottom;
+      });
+      if(target){
+        els.forEach(el=>el.classList.remove('drag-over'));
+        target.classList.add('drag-over');
+        const allWraps=Array.from(list.querySelectorAll('.mat-item-wrap'));
+        const srcIdx=allWraps.indexOf(dragSrc);
+        const tgtIdx=allWraps.indexOf(target);
+        if(srcIdx<tgtIdx)list.insertBefore(dragSrc,target.nextSibling);
+        else list.insertBefore(dragSrc,target);
+        const newOrder=Array.from(list.querySelectorAll('.mat-item-wrap')).map(el=>el.getAttribute('data-key'));
+        onReorder(newOrder);
+      }
+    },{passive:true});
+    card.addEventListener('touchend',()=>{
+      list.querySelectorAll('.mat-item-wrap').forEach(el=>el.classList.remove('drag-over','dragging'));
+      dragSrc=null;
+    });
+  });
 }
 function attachMatSwipe(root){
   (root||document).querySelectorAll('.mat-item-wrap').forEach(wrap=>{
