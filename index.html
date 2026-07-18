@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718N">
+<meta name="app-version" content="20260718O">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -243,10 +243,12 @@ textarea.form-input{resize:none;min-height:72px;}
 .text-green{color:var(--green);}.text-red{color:var(--red);}.text-gold{color:var(--gold);}.fw500{font-weight:500;}
 .mat-toast{position:fixed;bottom:calc(var(--nav-h) + var(--safe-bottom) + 16px);left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 20px;border-radius:10px;font-size:0.875rem;font-weight:600;opacity:0;transition:all .25s;pointer-events:none;z-index:200;white-space:nowrap;}
 .mat-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.mat-item-wrap{position:relative;border-radius:var(--r);overflow:hidden;touch-action:pan-y;margin-bottom:8px;}
-.mat-item-wrap.dragging,.mat-subitem-wrap.dragging{opacity:.6;}
+.mat-item-wrap{position:relative;border-radius:var(--r);overflow:hidden;touch-action:pan-y;margin-bottom:8px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+.mat-item-wrap.dragging,.mat-subitem-wrap.dragging{animation:none !important;transform:scale(1.04);opacity:0.98;z-index:10;position:relative;}
+.mat-item-wrap.dragging .mat-item-card,.mat-subitem-wrap.dragging .mat-item-card{box-shadow:0 6px 20px rgba(0,0,0,0.35),0 0 0 3px var(--gold) !important;}
+.mat-item-wrap:not(.dragging),.mat-subitem-wrap:not(.dragging){transition:transform .18s ease;}
 .mat-item-wrap.drag-over,.mat-subitem-wrap.drag-over{outline:2px dashed var(--gold);outline-offset:-2px;}
-.mat-subitem-wrap{position:relative;border-radius:var(--r);overflow:hidden;touch-action:pan-y;margin-bottom:6px;}
+.mat-subitem-wrap{position:relative;border-radius:var(--r);overflow:hidden;touch-action:pan-y;margin-bottom:6px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
 .subcat-expand{margin:0 0 10px 1rem;padding-left:0.5rem;border-left:2px solid var(--border);}
 .mat-swipe-actions{position:absolute;right:0;top:0;bottom:0;display:flex;z-index:0;}
 .mat-sw-btn{border:none;cursor:pointer;font-size:0.75rem;font-weight:600;padding:0 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:64px;color:#fff;}
