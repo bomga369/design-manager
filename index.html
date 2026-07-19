@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718R">
+<meta name="app-version" content="20260718S">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2293,6 +2293,7 @@ function attachToolReorder(){
       const t=e.touches[0];
       if(Math.abs(t.clientX-startX)>12||Math.abs(t.clientY-startY)>12)clearTimeout(longTimer);
       if(grid.classList.contains('reorder-mode')&&dragTile){
+        e.preventDefault(); // 拖曳排序中鎖住頁面捲動
         const el=document.elementFromPoint(t.clientX,t.clientY);
         const target=el&&el.closest('.tool-tile');
         if(target&&target!==dragTile&&grid.contains(target)){
@@ -2322,7 +2323,7 @@ function attachToolReorder(){
           });
         }
       }
-    },{passive:true});
+    },{passive:false});
     icon.addEventListener('touchend',()=>{
       clearTimeout(longTimer);
       if(dragTile){dragTile.classList.remove('tool-dragging');dragTile=null;}
@@ -2333,6 +2334,7 @@ function attachToolReorder(){
   });
   function enterToolReorderMode(){
     grid.classList.add('reorder-mode');
+    grid.style.touchAction='none';
     document.getElementById('tool-reorder-hint').textContent='拖曳圖示調整順序，完成後點旁邊「完成」';
     let doneBtn=document.getElementById('tool-reorder-done');
     if(!doneBtn){
@@ -2348,6 +2350,7 @@ function attachToolReorder(){
   }
   function exitToolReorderMode(){
     grid.classList.remove('reorder-mode');
+    grid.style.touchAction='';
     const doneBtn=document.getElementById('tool-reorder-done');
     if(doneBtn)doneBtn.style.display='none';
     if(canEditToolIcons())document.getElementById('tool-settings-btn').style.display='flex';
@@ -3935,12 +3938,12 @@ function renderMaterials(){
   items.forEach(m=>{const c=m.cat||'未分類';(grouped[c]=grouped[c]||[]).push(m);});
   Object.values(grouped).forEach(arr=>arr.sort((a,b)=>(a.order||0)-(b.order||0)||a.name.localeCompare(b.name)));
   const catNames=Object.keys(grouped).sort((a,b)=>a==='未分類'?1:b==='未分類'?-1:a.localeCompare(b));
-  document.getElementById('materials-list').innerHTML=catNames.length?catNames.map(cat=>`
+  document.getElementById('materials-list').innerHTML=catNames.length?catNames.map((cat,ci)=>`
     <div class="section-hd" style="margin-top:0.75rem">${cat} <span style="color:var(--text3);font-weight:400">${grouped[cat].length}件</span></div>
-    <div class="mat-cat-group" data-cat="${cat}">${grouped[cat].map(m=>{
+    <div class="mat-cat-group" id="mat-cat-group-${ci}" data-cat="${cat}">${grouped[cat].map(m=>{
       const tax=m.taxType==='inc'?'含稅':'未稅';
       const vcol=vendorColor(m.vendor);
-      return `<div class="mat-item-wrap" data-id="${m.id}">
+      return `<div class="mat-item-wrap" data-key="${m.id}">
         <div class="mat-swipe-actions">
           <button class="mat-sw-btn mat-sw-copy" onclick="event.stopPropagation();copyMaterial('${m.id}')"><i class="ti ti-copy"></i>複製</button>
           <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteMaterial('${m.id}')"><i class="ti ti-trash"></i>刪除</button>
@@ -3962,7 +3965,15 @@ function renderMaterials(){
       </div>`;
     }).join('')}</div>`).join(''):'<div class="empty"><i class="ti ti-search-off"></i><p>找不到符合的材料</p></div>';
   attachMatSwipe(document.getElementById('materials-list'));
-  attachMatDrag();
+  catNames.forEach((cat,ci)=>{
+    attachArrayDrag('mat-cat-group-'+ci,newOrder=>{
+      newOrder.forEach((id,i)=>{
+        const d=db.materials.find(x=>x.id===id);
+        if(d){d.order=i;if(window.fbSaveMaterial)window.fbSaveMaterial(d);}
+      });
+      save();
+    });
+  });
 }
 function openEditMaterialSwipeSafe(id,cardEl){
   const wrap=cardEl.closest('.mat-item-wrap');
@@ -3980,6 +3991,8 @@ function attachArrayDrag(containerId,onReorder,selector){
       longTimer=setTimeout(()=>{
         if(navigator.vibrate)navigator.vibrate(30);
         dragSrc=wrap;didReorder=false;wrap.classList.add('dragging');
+        list.style.touchAction='none';
+        wrap.style.touchAction='none';
         const cardEl=wrap.querySelector('.mat-item-card');
         if(cardEl)cardEl.style.transform='';
       },500);
@@ -3987,6 +4000,7 @@ function attachArrayDrag(containerId,onReorder,selector){
     card.addEventListener('touchmove',e=>{
       clearTimeout(longTimer);
       if(!dragSrc)return;
+      e.preventDefault(); // 拖曳排序中鎖住頁面捲動，避免整頁跟著滑動
       const t=e.touches[0];
       const els=Array.from(list.querySelectorAll(selector));
       const target=els.find(el=>{
@@ -4024,9 +4038,11 @@ function attachArrayDrag(containerId,onReorder,selector){
         didReorder=true;
         // 拖曳過程中只搬動畫面上的順序，不寫入/同步，避免中途觸發重繪造成閃爍與錯位
       }
-    },{passive:true});
+    },{passive:false});
     card.addEventListener('touchend',()=>{
       clearTimeout(longTimer);
+      list.style.touchAction='';
+      wrap.style.touchAction='';
       list.querySelectorAll(selector).forEach(el=>el.classList.remove('drag-over','dragging'));
       if(dragSrc===wrap&&didReorder){
         const newOrder=Array.from(list.querySelectorAll(selector)).map(el=>el.getAttribute('data-key'));
@@ -4071,55 +4087,6 @@ function attachMatSwipe(root,selector){
     card.addEventListener('touchstart',e=>{const t=e.touches[0];start(t.clientX,t.clientY);},{passive:true});
     card.addEventListener('touchmove',e=>{const t=e.touches[0];move(t.clientX,t.clientY);},{passive:true});
     card.addEventListener('touchend',end);
-  });
-}
-function attachMatDrag(){
-  document.querySelectorAll('.mat-cat-group').forEach(list=>{
-    let dragSrc=null;
-    list.querySelectorAll('.mat-item-wrap').forEach(wrap=>{
-      const card=wrap.querySelector('.mat-item-card');
-      let longTimer=null;
-      card.addEventListener('touchstart',()=>{
-        longTimer=setTimeout(()=>{
-          if(navigator.vibrate)navigator.vibrate(30);
-          dragSrc=wrap;wrap.classList.add('dragging');
-        },500);
-      },{passive:true});
-      card.addEventListener('touchend',()=>{
-        clearTimeout(longTimer);
-        if(dragSrc===wrap){wrap.classList.remove('dragging');dragSrc=null;}
-      });
-      card.addEventListener('touchmove',e=>{
-        clearTimeout(longTimer);
-        if(!dragSrc)return;
-        const t=e.touches[0];
-        const els=Array.from(list.querySelectorAll('.mat-item-wrap'));
-        const target=els.find(el=>{
-          if(el===dragSrc)return false;
-          const r=el.getBoundingClientRect();
-          return t.clientY>=r.top&&t.clientY<=r.bottom;
-        });
-        if(target){
-          els.forEach(el=>el.classList.remove('drag-over'));
-          target.classList.add('drag-over');
-          const allWraps=Array.from(list.querySelectorAll('.mat-item-wrap'));
-          const srcIdx=allWraps.indexOf(dragSrc);
-          const tgtIdx=allWraps.indexOf(target);
-          if(srcIdx<tgtIdx)list.insertBefore(dragSrc,target.nextSibling);
-          else list.insertBefore(dragSrc,target);
-          Array.from(list.querySelectorAll('.mat-item-wrap')).forEach((el,i)=>{
-            const id=el.getAttribute('data-id');
-            const d=db.materials.find(x=>x.id===id);
-            if(d){d.order=i;if(window.fbSaveMaterial)window.fbSaveMaterial(d);}
-          });
-          save();
-        }
-      },{passive:true});
-      card.addEventListener('touchend',()=>{
-        list.querySelectorAll('.mat-item-wrap').forEach(el=>el.classList.remove('drag-over','dragging'));
-        dragSrc=null;
-      });
-    });
   });
 }
 function copyMaterial(id){
