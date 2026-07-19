@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718Q">
+<meta name="app-version" content="20260718R">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2297,11 +2297,14 @@ function attachToolReorder(){
         const target=el&&el.closest('.tool-tile');
         if(target&&target!==dragTile&&grid.contains(target)){
           const tilesBefore=Array.from(grid.querySelectorAll('.tool-tile'));
-          const beforeRects=new Map();
-          tilesBefore.forEach(el2=>{if(el2!==dragTile)beforeRects.set(el2,el2.getBoundingClientRect());});
           const srcIdx=tilesBefore.indexOf(dragTile);
           const tgtIdx=tilesBefore.indexOf(target);
-          if(srcIdx<tgtIdx)grid.insertBefore(dragTile,target.nextSibling);
+          const insertAfter=srcIdx<tgtIdx;
+          const alreadyInPlace=insertAfter?(dragTile.previousElementSibling===target):(dragTile.nextElementSibling===target);
+          if(alreadyInPlace)return;
+          const beforeRects=new Map();
+          tilesBefore.forEach(el2=>{if(el2!==dragTile)beforeRects.set(el2,el2.getBoundingClientRect());});
+          if(insertAfter)grid.insertBefore(dragTile,target.nextSibling);
           else grid.insertBefore(dragTile,target);
           Array.from(grid.querySelectorAll('.tool-tile')).forEach(el2=>{
             if(el2===dragTile)return;
@@ -3992,15 +3995,17 @@ function attachArrayDrag(containerId,onReorder,selector){
         return t.clientY>=r.top&&t.clientY<=r.bottom;
       });
       if(target){
+        // 用「目標項目的中點」判斷要插在它前面還是後面，比單純比較索引穩定，不容易來回震盪
+        const r=target.getBoundingClientRect();
+        const insertAfter=t.clientY>(r.top+r.height/2);
+        const alreadyInPlace=insertAfter?(dragSrc.previousElementSibling===target):(dragSrc.nextElementSibling===target);
+        if(alreadyInPlace)return; // 已經在正確位置了，不要重複搬動觸發動畫，避免閃爍
+        target.classList.add('drag-over');
+        els.forEach(el=>{if(el!==target)el.classList.remove('drag-over');});
         // FLIP：先記錄其他項目目前位置，搬移後再讓它們平滑滑到新位置
         const beforeRects=new Map();
         els.forEach(el=>{if(el!==dragSrc)beforeRects.set(el,el.getBoundingClientRect());});
-        els.forEach(el=>el.classList.remove('drag-over'));
-        target.classList.add('drag-over');
-        const allWraps=Array.from(list.querySelectorAll(selector));
-        const srcIdx=allWraps.indexOf(dragSrc);
-        const tgtIdx=allWraps.indexOf(target);
-        if(srcIdx<tgtIdx)list.insertBefore(dragSrc,target.nextSibling);
+        if(insertAfter)list.insertBefore(dragSrc,target.nextSibling);
         else list.insertBefore(dragSrc,target);
         Array.from(list.querySelectorAll(selector)).forEach(el=>{
           if(el===dragSrc)return;
