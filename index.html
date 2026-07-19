@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718P">
+<meta name="app-version" content="20260718Q">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3977,6 +3977,8 @@ function attachArrayDrag(containerId,onReorder,selector){
       longTimer=setTimeout(()=>{
         if(navigator.vibrate)navigator.vibrate(30);
         dragSrc=wrap;didReorder=false;wrap.classList.add('dragging');
+        const cardEl=wrap.querySelector('.mat-item-card');
+        if(cardEl)cardEl.style.transform='';
       },500);
     },{passive:true});
     card.addEventListener('touchmove',e=>{
@@ -4038,6 +4040,7 @@ function attachMatSwipe(root,selector){
     wrap._tx=0;
     function start(x,y){startX=x;startY=y;moving=false;}
     function move(x,y){
+      if(wrap.classList.contains('dragging'))return; // 拖曳排序進行中，滑動邏輯完全退讓
       const dx=x-startX,dy=y-startY;
       if(!moving&&Math.abs(dx)<6&&Math.abs(dy)<6)return;
       moving=true;
@@ -4047,6 +4050,7 @@ function attachMatSwipe(root,selector){
       card.style.transform='translateX('+tx+'px)';
     }
     function end(){
+      if(wrap.classList.contains('dragging'))return;
       if(!moving)return;
       const aw=actions?actions.offsetWidth:128;
       if(tx<-40){
