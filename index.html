@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718T">
+<meta name="app-version" content="20260718U">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2241,6 +2241,10 @@ function orderedTools(){
   const order=getToolOrder();
   return order.map(id=>TOOLS.find(t=>t.id===id)).filter(Boolean);
 }
+function getToolName(t){
+  const custom=db.toolIcons&&db.toolIcons.__names__&&db.toolIcons.__names__[t.id];
+  return custom||t.name;
+}
 function resetToolIconsIfNeeded(){
   if(localStorage.getItem('dmgr_tool_reset_v1'))return;
   localStorage.setItem('dmgr_tool_reset_v1','1');
@@ -2259,7 +2263,7 @@ function renderToolGrid(){
     const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
     return `<div class="tool-tile">
       <div class="tool-icon" data-tool="${t.id}"${iconStyle}>${custom?'':t.emoji}</div>
-      <div class="tool-label">${t.name}</div>
+      <div class="tool-label">${getToolName(t)}</div>
     </div>`;
   }).join('');
   attachToolIconPress();
@@ -2375,9 +2379,22 @@ function renderToolSettingsGrid(){
     const iconStyle=custom?` style="background-image:url('${custom}')"`:'';
     return `<div class="tool-tile">
       <div class="tool-icon" onclick="pickToolIcon('${t.id}')"${iconStyle}>${custom?'':t.emoji}</div>
-      <div class="tool-label">${t.name}</div>
+      <div class="tool-label" style="display:flex;align-items:center;gap:3px;cursor:pointer;" onclick="renameTool('${t.id}')">${getToolName(t)}<i class="ti ti-pencil" style="font-size:11px;color:var(--gold);"></i></div>
     </div>`;
   }).join('');
+}
+function renameTool(id){
+  const t=TOOLS.find(x=>x.id===id);if(!t)return;
+  const newName=prompt('修改小工具名稱',getToolName(t));
+  if(newName===null)return;
+  const trimmed=newName.trim();
+  if(!trimmed)return;
+  if(!db.toolIcons)db.toolIcons={};
+  if(!db.toolIcons.__names__)db.toolIcons.__names__={};
+  db.toolIcons.__names__[id]=trimmed;
+  save();if(window.fbSaveToolIcons)window.fbSaveToolIcons(db.toolIcons);
+  renderToolSettingsGrid();
+  renderToolGrid();
 }
 function pickToolIcon(id){
   currentToolIconId=id;
