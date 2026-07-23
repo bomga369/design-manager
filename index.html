@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260723D">
+<meta name="app-version" content="20260723E">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2102,12 +2102,13 @@ function refreshFinanceCategories(){
   const mgLink=document.getElementById('f-cat-manage-link');
   if(mgLink)mgLink.style.display=useCustomCats?'inline':'none';
   const incMgLink=document.getElementById('f-inc-cat-manage-link');
-  if(incMgLink)incMgLink.style.display=(!reserve&&acct==='__andun__')?'inline':'none';
+  if(incMgLink)incMgLink.style.display=useCustomCats?'inline':'none';
   const expSel=document.getElementById('f-expense-cat');
   const incSel=document.getElementById('f-income-cat');
   const expVal=expSel.value,incVal=incSel.value;
   const expCats=useCustomCats?andunCats():FIN_EXP_CATS_PROJECT;
-  const incCats=reserve?[]:(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
+  // 備用金帳戶（Wallace/Mark）跟安盾-中國信託共用同一套收入分類，另外多一個「補款」（公司撥入備用金）專屬選項
+  const incCats=reserve?['補款',...andunIncCats()]:(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
   expSel.innerHTML=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   incSel.innerHTML=incCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   if(expCats.includes(expVal))expSel.value=expVal;
@@ -2244,15 +2245,8 @@ function toggleFinanceCat(t){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
   document.getElementById('f-expense-cat-group').style.display=t==='支出'?'block':'none';
-  document.getElementById('f-income-cat-group').style.display=(!reserve&&t==='收入')?'block':'none';
-  if(t==='支出'||!reserve)refreshFinanceCategories();
-  else{
-    // 備用金帳的收入＝補款，無分類
-    document.getElementById('f-expense-detail-group').style.display='none';
-    document.getElementById('f-income-detail-group').style.display='none';
-    document.getElementById('f-cat-project-group').style.display='none';
-    document.getElementById('f-staff-group').style.display='none';
-  }
+  document.getElementById('f-income-cat-group').style.display=t==='收入'?'block':'none';
+  refreshFinanceCategories();
 }
 function toggleFinanceStaff(){
   const t=document.getElementById('f-type').value;
@@ -4138,24 +4132,22 @@ function saveFinance(){
   const noteVal=document.getElementById('f-note').value;
   const reserve=isReserveAccount(acct);
 
-  if(reserve&&ftype==='收入'){
-    // 補款：公司撥入備用金
-    const staffId=reserveStaffId(acct);
-    const rec={id:uid(),staffId,amount:Number(amount),date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
-    db.reserveFunding.push(rec);
-    save();if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec);
-    logAudit('create','reserveFunding',rec.id,sName(staffId)+' 補款（'+fMoney(rec.amount)+'元）',rec.amount);
-    closeSheet('sheet-finance');resetFinanceForm();
-    if(currentPage==='finance-detail')renderFinance();
-    if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
-    return;
-  }
-
   if(reserve||acct==='__andun__'){
     if(ftype!=='支出'){
-      // 安盾-中國信託收入：可選「專案」直接算進該專案的進項（可再選收入項目/收入內容），或其他自訂分類
+      // 收入：安盾-中國信託可選「專案」等分類；備用金帳戶（Wallace/Mark）多一個「補款」專屬選項
       const incCat=document.getElementById('f-income-cat').value;
       if(!incCat)return alert('請選擇收入類別');
+      if(reserve&&incCat==='補款'){
+        const staffId=reserveStaffId(acct);
+        const rec={id:uid(),staffId,amount:Number(amount),date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
+        db.reserveFunding.push(rec);
+        save();if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec);
+        logAudit('create','reserveFunding',rec.id,sName(staffId)+' 補款（'+fMoney(rec.amount)+'元）',rec.amount);
+        closeSheet('sheet-finance');resetFinanceForm();
+        if(currentPage==='finance-detail')renderFinance();
+        if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
+        return;
+      }
       let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='',incContent='';
       if(incCat==='專案'||incCat==='其他帳戶'){
         const proj=document.getElementById('f-cat-project').value;
