@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718Z">
+<meta name="app-version" content="20260723B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -185,6 +185,11 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .form-group{margin-bottom:0.875rem;}
 .form-label{display:block;font-size:0.8438rem;font-weight:500;color:var(--text2);margin-bottom:0.35rem;}
 .form-input{width:100%;padding:12px 13px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:1rem;font-family:inherit;background:var(--bg);color:var(--text);outline:none;-webkit-appearance:none;}
+.amount-input-wrap{display:flex;align-items:center;background:var(--bg2);border:2px solid var(--gold);border-radius:var(--rl);padding:0.5rem 1.1rem;transition:border-color .15s;}
+.amount-input-wrap:focus-within{border-color:#ffd60a;box-shadow:0 0 0 3px rgba(255,214,10,0.25);}
+.amount-prefix{font-size:1.875rem;font-weight:700;color:var(--gold-text);margin-right:8px;line-height:1;}
+.amount-input{flex:1;border:none;background:transparent;font-size:2.125rem;font-weight:700;color:var(--text);outline:none;-webkit-appearance:none;font-family:inherit;min-width:0;}
+.amount-input::placeholder{color:var(--text3);font-weight:400;}
 .form-input:focus{border-color:var(--gold);}
 textarea.form-input{resize:none;min-height:72px;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;}
@@ -374,6 +379,25 @@ textarea.form-input{resize:none;min-height:72px;}
   <div id="page-finance-accounts" class="page">
     <div class="content">
       <div id="finance-accounts-list"></div>
+      <div class="section-hd" style="margin-top:1rem">帳務工具</div>
+      <div class="card">
+        <div class="finance-item" style="cursor:pointer;" onclick="createBalanceSnapshot()">
+          <div class="finance-body"><div class="finance-name">本月結算存檔</div><div class="finance-meta">把目前各帳戶餘額存一份快照，方便之後回頭核對</div></div>
+          <i class="ti ti-camera" style="color:var(--gold);font-size:1.1rem;"></i>
+        </div>
+        <div class="finance-item" style="cursor:pointer;" onclick="showPage('balance-snapshots')">
+          <div class="finance-body"><div class="finance-name">查看結算存檔</div></div>
+          <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+        </div>
+        <div class="finance-item" style="cursor:pointer;" onclick="showPage('deleted-items')">
+          <div class="finance-body"><div class="finance-name">已刪除項目</div><div class="finance-meta">誤刪的收支/轉帳/補款可以在這裡復原</div></div>
+          <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+        </div>
+        <div class="finance-item" style="cursor:pointer;" onclick="showPage('audit-log')">
+          <div class="finance-body"><div class="finance-name">異動紀錄</div><div class="finance-meta">誰、什麼時候，新增或刪除了哪一筆</div></div>
+          <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -388,6 +412,24 @@ textarea.form-input{resize:none;min-height:72px;}
       <div class="stat-grid" id="finance-stats"></div>
       <div class="section-hd">收支明細</div>
       <div class="card" id="finance-list"></div>
+    </div>
+  </div>
+
+  <div id="page-deleted-items" class="page">
+    <div class="content">
+      <div id="deleted-items-list"></div>
+    </div>
+  </div>
+
+  <div id="page-audit-log" class="page">
+    <div class="content">
+      <div id="audit-log-list"></div>
+    </div>
+  </div>
+
+  <div id="page-balance-snapshots" class="page">
+    <div class="content">
+      <div id="balance-snapshots-list"></div>
     </div>
   </div>
 
@@ -647,6 +689,12 @@ textarea.form-input{resize:none;min-height:72px;}
       <input type="hidden" id="f-type" value="支出">
       <div id="f-reserve-hint" style="display:none;color:var(--text3);font-size:0.8125rem;margin-top:4px;">此帳戶為備用金帳：選「支出」＝報帳；選「收入」＝補款（公司撥入備用金）</div>
     </div>
+    <div class="form-group"><label class="form-label">金額（元）*</label>
+      <div class="amount-input-wrap">
+        <span class="amount-prefix">$</span>
+        <input class="amount-input" id="f-amount" type="number" inputmode="numeric" placeholder="0">
+      </div>
+    </div>
     <div class="form-group" id="f-expense-cat-group" style="display:none;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">支出類別<span id="f-cat-manage-link" style="display:none;color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openCatManage('exp')">管理分類</span></label>
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
@@ -674,7 +722,6 @@ textarea.form-input{resize:none;min-height:72px;}
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-income-detail').value,'inc',document.getElementById('f-income-cat').value)">管理內容</span></label>
       <select class="form-input" id="f-income-content"></select>
     </div>
-    <div class="form-group"><label class="form-label">金額（元）*</label><input class="form-input" id="f-amount" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
     <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="f-note" placeholder="補充說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="sheet-footer">
@@ -1083,6 +1130,12 @@ window.onFirebaseReady=function(){
   if(window.fbStartAccountTransfersListeners){
     window.fbStartAccountTransfersListeners(onAccountTransfersSynced,onAccountTransfersSyncError);
   }
+  if(window.fbStartAuditLogListeners){
+    window.fbStartAuditLogListeners(onAuditLogSynced,onAuditLogSyncError);
+  }
+  if(window.fbStartBalanceSnapshotsListeners){
+    window.fbStartBalanceSnapshotsListeners(onBalanceSnapshotsSynced,onBalanceSnapshotsSyncError);
+  }
   if(window.fbStartFinanceCatsListener){
     window.fbStartFinanceCatsListener(onFinanceCatsSynced,onFinanceCatsSyncError);
   }
@@ -1171,7 +1224,9 @@ function refreshProjectDependentViews(){
   else if(currentPage==='projects')renderProjects();
   else if(currentPage==='detail')renderDetail(currentProjectId);
   else if(currentPage==='calendar')renderCalendar();
-  else if(currentPage==='finance')renderFinance();
+  else if(currentPage==='finance')renderFinanceHome();
+  else if(currentPage==='finance-accounts')renderFinanceAccounts();
+  else if(currentPage==='finance-detail')renderFinance();
 }
 async function checkProjectMigration(){
   if(!window.fbCheckProjectsEmpty)return;
@@ -1235,13 +1290,19 @@ async function runStaffMigration(){
 // ── Firebase 雲端同步（收支）──
 let financeSyncErrorShown=false;
 function onFinanceSyncError(){if(financeSyncErrorShown)return;financeSyncErrorShown=true;alert('收支資料雲端同步權限不足，請聯絡管理者');}
-function onFinanceSynced(arr){db.finance=arr;save();if(currentPage==='finance')renderFinance();}
+function onFinanceSynced(arr){db.finance=arr;save();if(currentPage==='finance')renderFinanceHome();if(currentPage==='finance-accounts')renderFinanceAccounts();if(currentPage==='finance-detail')renderFinance();}
 let reserveFundingSyncErrorShown=false;
 function onReserveFundingSyncError(){if(reserveFundingSyncErrorShown)return;reserveFundingSyncErrorShown=true;alert('備用金資料雲端同步權限不足，請聯絡管理者');}
-function onReserveFundingSynced(arr){db.reserveFunding=arr;save();if(currentPage==='finance')renderFinance();if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);}
+function onReserveFundingSynced(arr){db.reserveFunding=arr;save();if(currentPage==='finance')renderFinanceHome();if(currentPage==='finance-accounts')renderFinanceAccounts();if(currentPage==='finance-detail')renderFinance();if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);}
 let accountTransfersSyncErrorShown=false;
 function onAccountTransfersSyncError(){if(accountTransfersSyncErrorShown)return;accountTransfersSyncErrorShown=true;alert('帳戶轉帳資料雲端同步權限不足，請聯絡管理者');}
-function onAccountTransfersSynced(arr){db.accountTransfers=arr;save();renderFinanceHome();if(currentPage==='finance')renderFinance();}
+function onAccountTransfersSynced(arr){db.accountTransfers=arr;save();if(currentPage==='finance')renderFinanceHome();if(currentPage==='finance-accounts')renderFinanceAccounts();if(currentPage==='finance-detail')renderFinance();}
+let auditLogSyncErrorShown=false;
+function onAuditLogSyncError(){if(auditLogSyncErrorShown)return;auditLogSyncErrorShown=true;console.error('異動紀錄雲端同步權限不足');}
+function onAuditLogSynced(arr){db.auditLog=arr;save();if(currentPage==='audit-log')renderAuditLog();}
+let balanceSnapshotsSyncErrorShown=false;
+function onBalanceSnapshotsSyncError(){if(balanceSnapshotsSyncErrorShown)return;balanceSnapshotsSyncErrorShown=true;console.error('餘額快照雲端同步權限不足');}
+function onBalanceSnapshotsSynced(arr){db.balanceSnapshots=arr;save();if(currentPage==='balance-snapshots')renderBalanceSnapshots();}
 let financeCatsSyncErrorShown=false;
 function onFinanceCatsSyncError(){if(financeCatsSyncErrorShown)return;financeCatsSyncErrorShown=true;console.error('分類設定雲端同步權限不足');}
 function migrateFinanceCatsSub(){
@@ -1283,6 +1344,8 @@ function ensureSystemCategories(){
   let changed=false;
   if(!db.financeCats.cats.includes('其他帳戶')){db.financeCats.cats.push('其他帳戶');changed=true;}
   if(!db.financeCats.incCats.includes('其他帳戶')){db.financeCats.incCats.push('其他帳戶');changed=true;}
+  if(!db.financeCats.cats.includes('金額調整')){db.financeCats.cats.push('金額調整');changed=true;}
+  if(!db.financeCats.incCats.includes('金額調整')){db.financeCats.incCats.push('金額調整');changed=true;}
   if(!db.financeCats.sub)db.financeCats.sub={exp:{},inc:{}};
   if(!db.financeCats.sub.exp)db.financeCats.sub.exp={};
   if(!db.financeCats.sub.inc)db.financeCats.sub.inc={};
@@ -1429,9 +1492,9 @@ const CITY_DISTRICTS={
 '其他':['其他']
 };
 
-let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
-  cats:['專案','薪資','其他帳戶'],
-  incCats:['專案','其他帳戶'],
+let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
+  cats:['專案','薪資','其他帳戶','金額調整'],
+  incCats:['專案','其他帳戶','金額調整'],
   sub:{exp:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']},inc:{}}
 }};
 window.fbDebugLog=function(){};
@@ -1457,7 +1520,9 @@ function load(){
   if(!db.punchGcalIds)db.punchGcalIds={};
   if(!db.reserveFunding)db.reserveFunding=[];
   if(!db.accountTransfers)db.accountTransfers=[];
-  if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶'],incCats:['專案','其他帳戶'],sub:{exp:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']},inc:{}}};
+  if(!db.auditLog)db.auditLog=[];
+  if(!db.balanceSnapshots)db.balanceSnapshots=[];
+  if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶','金額調整'],incCats:['專案','其他帳戶','金額調整'],sub:{exp:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']},inc:{}}};
   if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
   migrateFinanceCatsSub();
   dedupeFinanceCats(db.financeCats);
@@ -1793,7 +1858,7 @@ function renameCatKey(oldName,newName,mode){
   }
 }
 function editFinanceCat(name){
-  if(name==='專案'||name==='薪資')return alert('「專案」與「薪資」是系統辨識用的固定分類，無法改名');
+  if(['專案','薪資','其他帳戶','金額調整'].includes(name))return alert('「'+name+'」是系統辨識用的固定分類，無法改名');
   const newName=prompt('修改分類名稱',name);
   if(newName===null)return;
   const trimmed=newName.trim();
@@ -2265,7 +2330,7 @@ function showPage(id,opts={}){
   document.getElementById('page-'+id).classList.add('active');
   currentPage=id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  const tabMap={dashboard:0,finance:1,'finance-accounts':1,'finance-detail':1,projects:2,calendar:3,staff:4};
+  const tabMap={dashboard:0,finance:1,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4};
   if(tabMap[id]!==undefined)document.querySelectorAll('.nav-tab')[tabMap[id]].classList.add('active');
   const titles={dashboard:'總覽',projects:'專案',finance:'收支管理',calendar:'小工具',staff:'人事'};
   const tr=document.getElementById('topbar-right');
@@ -2289,10 +2354,19 @@ function showPage(id,opts={}){
     tr.innerHTML='';
   } else if(id==='finance-accounts'){
     titleEl.innerHTML=`<button onclick="showPage('finance')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>金流帳戶`;
-    tr.innerHTML=`<button class="topbar-btn-add" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></button>`;
+    tr.innerHTML='';
   } else if(id==='finance-detail'){
     titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${financeAccountLabel(document.getElementById('finance-filter-project').value||'__andun__')}`;
     tr.innerHTML=`<button class="topbar-btn-add" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></button>`;
+  } else if(id==='deleted-items'){
+    titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>已刪除項目`;
+    tr.innerHTML='';
+  } else if(id==='audit-log'){
+    titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>異動紀錄`;
+    tr.innerHTML='';
+  } else if(id==='balance-snapshots'){
+    titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>結算存檔`;
+    tr.innerHTML='';
   } else if(id==='materials'){
     titleEl.innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>材料成本表`;
     tr.innerHTML=`<button class="topbar-btn-add" onclick="openAddMaterial()"><i class="ti ti-plus"></i></button>`;
@@ -2307,6 +2381,9 @@ function showPage(id,opts={}){
   if(id==='finance'){fillAccountSel('f-project',false,false);renderFinanceHome();}
   if(id==='finance-accounts')renderFinanceAccounts();
   if(id==='finance-detail'){fillAccountSel('finance-filter-project',true);onFinanceAccountChange();renderFinance();}
+  if(id==='deleted-items')renderDeletedItems();
+  if(id==='audit-log')renderAuditLog();
+  if(id==='balance-snapshots')renderBalanceSnapshots();
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();renderToolGrid();}
   if(id==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
   if(id==='staff')renderStaff();
@@ -2655,21 +2732,25 @@ function financeAccountLabel(v){
 function allAccountIds(){
   return['__andun__',...db.staff.filter(s=>s.hasReserve).map(s=>'__reserve_'+s.id+'__')];
 }
+// ── 軟刪除：計算/顯示一律只看「未刪除」的紀錄，刪除只是標記，不會真的消失 ──
+function activeFinance(){return db.finance.filter(f=>!f.deleted);}
+function activeTransfers(){return db.accountTransfers.filter(t=>!t.deleted);}
+function activeReserveFunding(){return db.reserveFunding.filter(r=>!r.deleted);}
 function transferAdjustment(acctId){
-  const inSum=db.accountTransfers.filter(t=>t.to===acctId).reduce((s,t)=>s+Number(t.amount||0),0);
-  const outSum=db.accountTransfers.filter(t=>t.from===acctId).reduce((s,t)=>s+Number(t.amount||0),0);
+  const inSum=activeTransfers().filter(t=>t.to===acctId).reduce((s,t)=>s+Number(t.amount||0),0);
+  const outSum=activeTransfers().filter(t=>t.from===acctId).reduce((s,t)=>s+Number(t.amount||0),0);
   return inSum-outSum;
 }
 function andunBalance(){
-  const base=db.finance.filter(f=>f.projectId==='__andun__');
+  const base=activeFinance().filter(f=>f.projectId==='__andun__');
   const income=base.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
-  const reserveOutflow=db.reserveFunding.reduce((s,r)=>s+Number(r.amount||0),0);
+  const reserveOutflow=activeReserveFunding().reduce((s,r)=>s+Number(r.amount||0),0);
   const exp=base.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0)+reserveOutflow;
   return{income,exp,reserveOutflow,balance:income-exp+transferAdjustment('__andun__')};
 }
 function reserveBalance(staffId){
-  const funded=db.reserveFunding.filter(r=>r.staffId===staffId).reduce((s,r)=>s+Number(r.amount||0),0);
-  const claimed=db.finance.filter(f=>f.ftype==='支出'&&f.paidBy===staffId).reduce((s,f)=>s+Number(f.amount||0),0);
+  const funded=activeReserveFunding().filter(r=>r.staffId===staffId).reduce((s,r)=>s+Number(r.amount||0),0);
+  const claimed=activeFinance().filter(f=>f.ftype==='支出'&&f.paidBy===staffId).reduce((s,f)=>s+Number(f.amount||0),0);
   const acctId='__reserve_'+staffId+'__';
   return{funded,claimed,balance:funded-claimed+transferAdjustment(acctId)};
 }
@@ -2680,6 +2761,30 @@ function accountBalance(acctId){
 }
 function grandTotalBalance(){
   return allAccountIds().reduce((s,id)=>s+accountBalance(id),0);
+}
+// ── 稽核軌跡：每次新增/刪除/復原都記一筆，誰、什麼時候、動了哪一筆 ──
+function logAudit(action,type,recordId,summary,amount){
+  const rec={
+    id:uid(),action,type,recordId,summary:summary||'',amount:Number(amount)||0,
+    byEmail:(currentUser&&currentUser.email)||'',byName:(currentUser&&currentUser.name)||'',
+    at:new Date().toISOString()
+  };
+  db.auditLog.push(rec);
+  save();
+  if(window.fbSaveAuditLog)window.fbSaveAuditLog(rec);
+}
+// ── 期間鎖定：專案結案（已完工）之後，屬於該專案的紀錄不能再刪除，確保結算後的帳不會被亂動 ──
+function isProjectLocked(projectId){
+  const p=db.projects.find(x=>x.id===projectId);
+  return!!(p&&p.type==='已完工');
+}
+function checkFinanceEditable(rec){
+  if(!rec)return true;
+  if(rec.projectId&&isProjectLocked(rec.projectId)){
+    alert('這筆紀錄屬於已結案的專案「'+pName(rec.projectId)+'」，結案後的紀錄不能刪除，避免結算後的帳被誤動。若真的需要更正，請用「金額調整／帳務校正」另外記一筆。');
+    return false;
+  }
+  return true;
 }
 function renderFinanceHome(){
   const el=document.getElementById('finance-home-total');if(!el)return;
@@ -2703,6 +2808,74 @@ function renderFinanceAccounts(){
   }).join('')}</div>
   <div class="section-hd" style="margin-top:1rem">帳房總額</div>
   <div class="card"><div class="finance-item"><div class="finance-body"><div class="finance-name fw500">三帳戶合計</div></div><span class="fw500 text-gold" style="font-size:1.125rem;">$${fMoney(grandTotalBalance())}</span></div></div>`;
+}
+function renderDeletedItems(){
+  const el=document.getElementById('deleted-items-list');if(!el)return;
+  const finItems=db.finance.filter(f=>f.deleted).map(f=>({...f,kind:'finance'}));
+  const transferItems=db.accountTransfers.filter(t=>t.deleted).map(t=>({...t,kind:'transfer'}));
+  const fundItems=db.reserveFunding.filter(r=>r.deleted).map(r=>({...r,kind:'fund'}));
+  const all=[...finItems,...transferItems,...fundItems].sort((a,b)=>(b.deletedAt||'').localeCompare(a.deletedAt||''));
+  el.innerHTML=all.length?`<div class="card">${all.map(it=>{
+    let label='';
+    if(it.kind==='finance')label=it.name+(it.expCat?' · '+it.expCat:'')+(it.incCat?' · '+it.incCat:'');
+    else if(it.kind==='transfer')label='轉帳：'+financeAccountLabel(it.from)+' → '+financeAccountLabel(it.to);
+    else label=sName(it.staffId)+' 補款';
+    const restoreFn=it.kind==='finance'?'restoreFinance':(it.kind==='transfer'?'restoreAccountTransfer':'restoreReserveFunding');
+    return `<div class="finance-item">
+      <div class="finance-body">
+        <div class="finance-name">${label}</div>
+        <div class="finance-meta">刪除於 ${it.deletedAt?fDate(it.deletedAt.slice(0,10)):'—'} · $${fMoney(it.amount)}${it.deletedBy?' · '+it.deletedBy:''}</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="${restoreFn}('${it.id}')">復原</button>
+    </div>`;
+  }).join('')}</div>`:'<div class="empty"><i class="ti ti-trash-off"></i><p>沒有已刪除的項目</p></div>';
+}
+function renderAuditLog(){
+  const el=document.getElementById('audit-log-list');if(!el)return;
+  const items=[...db.auditLog].sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  const actionLabel={create:'新增',delete:'刪除',restore:'復原'};
+  const typeLabel={finance:'收支',transfer:'轉帳',reserveFunding:'補款'};
+  el.innerHTML=items.length?`<div class="card">${items.map(a=>`
+    <div class="finance-item">
+      <div class="finance-body">
+        <div class="finance-name">${actionLabel[a.action]||a.action} · ${typeLabel[a.type]||a.type}</div>
+        <div class="finance-meta">${a.summary}${a.byName?' · '+a.byName:''} · ${a.at?fDate(a.at.slice(0,10))+' '+a.at.slice(11,16):''}</div>
+      </div>
+    </div>`).join('')}</div>`:'<div class="empty"><i class="ti ti-history"></i><p>尚無異動紀錄</p></div>';
+}
+function createBalanceSnapshot(){
+  const month=today().slice(0,7);
+  if(db.balanceSnapshots.some(s=>s.month===month)&&!confirm('這個月已經存過一次快照了，要再存一次嗎？（會多一筆，不會覆蓋舊的）'))return;
+  const wallets={};
+  db.staff.filter(s=>s.hasReserve).forEach(s=>{wallets[s.id]={name:s.name,balance:reserveBalance(s.id).balance};});
+  const rec={
+    id:uid(),month,andun:andunBalance().balance,wallets,grandTotal:grandTotalBalance(),
+    createdAt:new Date().toISOString(),createdBy:(currentUser&&currentUser.name)||''
+  };
+  db.balanceSnapshots.push(rec);
+  save();
+  if(window.fbSaveBalanceSnapshot)window.fbSaveBalanceSnapshot(rec);
+  alert('已存檔本月結算，帳房總額 $'+fMoney(rec.grandTotal));
+}
+function renderBalanceSnapshots(){
+  const el=document.getElementById('balance-snapshots-list');if(!el)return;
+  const items=[...db.balanceSnapshots].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  el.innerHTML=items.length?`<div class="card">${items.map(s=>{
+    const walletLine=Object.values(s.wallets||{}).map(w=>w.name+' $'+fMoney(w.balance)).join('、');
+    return `<div class="finance-item">
+      <div class="finance-body">
+        <div class="finance-name">${s.month} 結算存檔</div>
+        <div class="finance-meta">帳房總額 $${fMoney(s.grandTotal)}（安盾-中國信託 $${fMoney(s.andun)}${walletLine?'、'+walletLine:''}） · 存檔於 ${s.createdAt?fDate(s.createdAt.slice(0,10)):''}${s.createdBy?' · '+s.createdBy:''}</div>
+      </div>
+      <button class="btn btn-danger btn-sm btn-icon" onclick="deleteBalanceSnapshot('${s.id}')"><i class="ti ti-trash"></i></button>
+    </div>`;
+  }).join('')}</div>`:'<div class="empty"><i class="ti ti-camera-off"></i><p>尚無結算存檔，點「本月結算存檔」建立第一筆</p></div>';
+}
+function deleteBalanceSnapshot(id){
+  if(!confirm('確定刪除這筆結算存檔？'))return;
+  db.balanceSnapshots=db.balanceSnapshots.filter(s=>s.id!==id);save();
+  if(window.fbDeleteBalanceSnapshot)window.fbDeleteBalanceSnapshot(id).catch(()=>{});
+  renderBalanceSnapshots();
 }
 function goToAccountDetail(acctId){
   prevPage='finance-accounts';
@@ -3034,7 +3207,7 @@ function openEditProject(pid){
 function exportProjectReport(pid,btnEl){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!window.html2pdf){alert('PDF 產生工具尚未載入完成，請確認網路連線後再試一次');return;}
-  const pFin=db.finance.filter(f=>f.projectId===pid);
+  const pFin=activeFinance().filter(f=>f.projectId===pid);
   const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
   const profit=income-exp;
@@ -3140,7 +3313,7 @@ function renderDetail(pid){
     },200);
   }
 
-  const pFin=db.finance.filter(f=>f.projectId===pid);
+  const pFin=activeFinance().filter(f=>f.projectId===pid);
   const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
 
@@ -3386,7 +3559,7 @@ async function autoSaveReportToDrive(pid){
   ensureDriveAuth(async()=>{
     try{
       // 產生PDF blob
-      const pFin=db.finance.filter(f=>f.projectId===pid);
+      const pFin=activeFinance().filter(f=>f.projectId===pid);
       const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
       const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
       const profit=income-exp;
@@ -3461,7 +3634,7 @@ function checkAndDeleteCompletedProjects(){
 }
 function settleProjectToAndun(pid,pname){
   // 計算該專案盈餘（收入 - 支出）
-  const pFin=db.finance.filter(f=>f.projectId===pid);
+  const pFin=activeFinance().filter(f=>f.projectId===pid);
   const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
   const profit=income-exp;
@@ -3821,20 +3994,20 @@ function renderFinance(){
   const filter=document.getElementById('finance-filter-project').value;
   if(isReserveAccount(filter)){renderReserveLedger(reserveStaffId(filter));return;}
   const typeFilter=document.getElementById('finance-filter-type').value;
-  let items=[...db.finance].sort((a,b)=>b.date?.localeCompare(a.date||''));
+  let items=[...activeFinance()].sort((a,b)=>b.date?.localeCompare(a.date||''));
   if(filter)items=items.filter(f=>f.projectId===filter);
   else items=items.filter(f=>!f.settleFromPid); // 所有專案總覽：排除結算摘要，避免與專案原始收支重複計算
   if(typeFilter)items=items.filter(f=>f.ftype===typeFilter);
-  const base=filter?db.finance.filter(f=>f.projectId===filter):db.finance.filter(f=>!f.settleFromPid);
+  const base=filter?activeFinance().filter(f=>f.projectId===filter):activeFinance().filter(f=>!f.settleFromPid);
   const income=base.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
-  const reserveOutflow=filter==='__andun__'?db.reserveFunding.reduce((s,r)=>s+Number(r.amount||0),0):0;
+  const reserveOutflow=filter==='__andun__'?activeReserveFunding().reduce((s,r)=>s+Number(r.amount||0),0):0;
   const exp=base.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0)+reserveOutflow;
   const transferAdj=filter?transferAdjustment(filter):0;
   const total=income-exp+transferAdj;
   // 帳戶間轉帳紀錄一併併入明細清單
   let transferItems=[];
   if(filter){
-    transferItems=db.accountTransfers.filter(t=>t.from===filter||t.to===filter).map(t=>({
+    transferItems=activeTransfers().filter(t=>t.from===filter||t.to===filter).map(t=>({
       id:t.id,isTransfer:true,date:t.date,note:t.note,amount:t.amount,
       ftype:t.to===filter?'收入':'支出',
       name:t.to===filter?'轉入 · 來自'+financeAccountLabel(t.from):'轉出 · 給'+financeAccountLabel(t.to)
@@ -3864,7 +4037,7 @@ function renderFinance(){
     <div class="finance-item">
       <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
       <div class="finance-body">
-        <div class="finance-name">${f.name}${f.expCat?` <span style="color:var(--text3);font-size:11px">${f.expCat}</span>`:''}</div>
+        <div class="finance-name">${f.name}${f.expCat?` <span style="color:var(--text3);font-size:11px">${f.expCat}</span>`:''}${(f.expCat==='金額調整'||f.incCat==='金額調整')?'<span class="badge badge-amber" style="margin-left:6px;font-size:10px;">校正</span>':''}</div>
         <div class="finance-meta">${fDate(f.date)} · ${pName(f.projectId)}${f.expCat?' · '+f.expCat:''}${f.expDetail?' · '+f.expDetail:''}${f.expContent?' · '+f.expContent:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.paidBy?' · 由'+sName(f.paidBy)+'備用金代墊':''}${f.note?' · '+f.note:''}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
@@ -3877,9 +4050,9 @@ function renderReserveLedger(staffId){
   const s=db.staff.find(x=>x.id===staffId);
   const{funded,claimed,balance}=reserveBalance(staffId);
   const acctId='__reserve_'+staffId+'__';
-  const funds=db.reserveFunding.filter(r=>r.staffId===staffId).map(r=>({...r,kind:'fund'}));
-  const claims=db.finance.filter(f=>f.ftype==='支出'&&f.paidBy===staffId).map(f=>({...f,kind:'claim'}));
-  const transfers=db.accountTransfers.filter(t=>t.from===acctId||t.to===acctId).map(t=>({
+  const funds=activeReserveFunding().filter(r=>r.staffId===staffId).map(r=>({...r,kind:'fund'}));
+  const claims=activeFinance().filter(f=>f.ftype==='支出'&&f.paidBy===staffId).map(f=>({...f,kind:'claim'}));
+  const transfers=activeTransfers().filter(t=>t.from===acctId||t.to===acctId).map(t=>({
     ...t,kind:'transfer',isIn:t.to===acctId
   }));
   const items=[...funds,...claims,...transfers].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -3945,8 +4118,9 @@ function saveFinance(){
     const rec={id:uid(),staffId,amount:Number(amount),date:dateVal,note:noteVal};
     db.reserveFunding.push(rec);
     save();if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec);
+    logAudit('create','reserveFunding',rec.id,sName(staffId)+' 補款（'+fMoney(rec.amount)+'元）',rec.amount);
     closeSheet('sheet-finance');resetFinanceForm();
-    if(currentPage==='finance')renderFinance();
+    if(currentPage==='finance-detail')renderFinance();
     if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
     return;
   }
@@ -3980,8 +4154,9 @@ function saveFinance(){
       const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,expContent:incContent,staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal};
       db.finance.push(rec);
       save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
+      logAudit('create','finance',rec.id,name+'（'+fMoney(rec.amount)+'元）',rec.amount);
       closeSheet('sheet-finance');resetFinanceForm();
-      if(currentPage==='finance')renderFinance();
+      if(currentPage==='finance-detail')renderFinance();
       if(currentPage==='detail')renderDetail(currentProjectId);
       return;
     }
@@ -4001,6 +4176,7 @@ function saveFinance(){
       const rec={id:uid(),from:acct,to:target,amount:Number(amount),date:dateVal,note:transferNote};
       db.accountTransfers.push(rec);
       save();if(window.fbSaveAccountTransfer)window.fbSaveAccountTransfer(rec);
+      logAudit('create','transfer',rec.id,financeAccountLabel(acct)+' → '+financeAccountLabel(target)+'（'+fMoney(rec.amount)+'元）',rec.amount);
       closeSheet('sheet-finance');resetFinanceForm();
       if(currentPage==='finance')renderFinanceHome();
       if(currentPage==='finance-accounts')renderFinanceAccounts();
@@ -4050,8 +4226,9 @@ function saveFinance(){
     const rec={id:uid(),name,amount:Number(amount),projectId,ftype:'支出',expCat,incCat:'',expDetail,expContent,staffId,staffName,paidBy,date:dateVal,note:noteVal};
     db.finance.push(rec);
     save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
+    logAudit('create','finance',rec.id,name+'（'+fMoney(rec.amount)+'元）',rec.amount);
     closeSheet('sheet-finance');resetFinanceForm();
-    if(currentPage==='finance')renderFinance();
+    if(currentPage==='finance-detail')renderFinance();
     if(currentPage==='detail')renderDetail(currentProjectId);
     if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
     return;
@@ -4063,27 +4240,52 @@ function saveFinance(){
   const needStaff=(ftype==='支出'&&(expCat==='薪資'||expCat==='臨時性支出'))||(ftype==='收入'&&incCat==='款項還回');
   const staffId=needStaff?document.getElementById('f-staff-sel').value:'';
   if(needStaff&&!staffId)return alert('請選擇領薪人員');
+  if(isProjectLocked(acct)){alert('這個專案已經結案（已完工），不能再新增收支紀錄。若真的需要更正，請到安盾-中國信託用「金額調整／帳務校正」另外記一筆。');return;}
   const staffName=staffId?(db.staff.find(s=>s.id===staffId)||{}).name||'':'';
   const name=(ftype==='支出'?expCat:incCat)+(staffName?' · '+staffName:'');
   const rec={id:uid(),name,amount:Number(amount),projectId:acct,ftype,expCat,incCat,expDetail:'',staffId,staffName,paidBy:'',date:dateVal,note:noteVal};
   db.finance.push(rec);
   save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
+  logAudit('create','finance',rec.id,name+'（'+fMoney(rec.amount)+'元）',rec.amount);
   closeSheet('sheet-finance');resetFinanceForm();
-  if(currentPage==='finance')renderFinance();
+  if(currentPage==='finance-detail')renderFinance();
   if(currentPage==='detail')renderDetail(currentProjectId);
 }
 function deleteFinance(id){
-  if(!confirm('確定刪除？'))return;
-  db.finance=db.finance.filter(f=>f.id!==id);save();
-  if(window.fbDeleteFinance)window.fbDeleteFinance(id).catch(err=>console.error('刪除收支失敗',err));
+  const rec=db.finance.find(f=>f.id===id);if(!rec)return;
+  if(!checkFinanceEditable(rec))return;
+  if(!confirm('確定刪除？（可以在「已刪除項目」裡復原）'))return;
+  rec.deleted=true;rec.deletedAt=new Date().toISOString();rec.deletedBy=(currentUser&&currentUser.email)||'';
+  save();
+  if(window.fbSaveFinance)window.fbSaveFinance(rec).catch(err=>console.error('刪除收支失敗',err));
+  logAudit('delete','finance',id,rec.name+'（'+fMoney(rec.amount)+'元）',rec.amount);
   renderFinance();
 }
+function restoreFinance(id){
+  const rec=db.finance.find(f=>f.id===id);if(!rec)return;
+  rec.deleted=false;delete rec.deletedAt;delete rec.deletedBy;
+  save();
+  if(window.fbSaveFinance)window.fbSaveFinance(rec).catch(err=>console.error('復原收支失敗',err));
+  logAudit('restore','finance',id,rec.name+'（'+fMoney(rec.amount)+'元）',rec.amount);
+  renderDeletedItems();
+}
 function deleteAccountTransfer(id){
-  if(!confirm('確定刪除這筆轉帳紀錄？'))return;
-  db.accountTransfers=db.accountTransfers.filter(t=>t.id!==id);save();
-  if(window.fbDeleteAccountTransfer)window.fbDeleteAccountTransfer(id).catch(err=>console.error('刪除轉帳失敗',err));
+  const rec=db.accountTransfers.find(t=>t.id===id);if(!rec)return;
+  if(!confirm('確定刪除這筆轉帳紀錄？（可以在「已刪除項目」裡復原）'))return;
+  rec.deleted=true;rec.deletedAt=new Date().toISOString();rec.deletedBy=(currentUser&&currentUser.email)||'';
+  save();
+  if(window.fbSaveAccountTransfer)window.fbSaveAccountTransfer(rec).catch(err=>console.error('刪除轉帳失敗',err));
+  logAudit('delete','transfer',id,financeAccountLabel(rec.from)+' → '+financeAccountLabel(rec.to)+'（'+fMoney(rec.amount)+'元）',rec.amount);
   if(currentPage==='finance-detail')renderFinance();
   if(currentPage==='finance-accounts')renderFinanceAccounts();
+}
+function restoreAccountTransfer(id){
+  const rec=db.accountTransfers.find(t=>t.id===id);if(!rec)return;
+  rec.deleted=false;delete rec.deletedAt;delete rec.deletedBy;
+  save();
+  if(window.fbSaveAccountTransfer)window.fbSaveAccountTransfer(rec).catch(err=>console.error('復原轉帳失敗',err));
+  logAudit('restore','transfer',id,financeAccountLabel(rec.from)+' → '+financeAccountLabel(rec.to)+'（'+fMoney(rec.amount)+'元）',rec.amount);
+  renderDeletedItems();
 }
 function calcTaxPrices(price,taxType){
   const r=db.materialConfig.taxRate/100;
@@ -4528,11 +4730,22 @@ function openAddReserveFunding(staffId){
   openReserveEntry(staffId);
 }
 function deleteReserveFunding(id){
-  if(!confirm('確定刪除這筆補款記錄？'))return;
-  db.reserveFunding=db.reserveFunding.filter(r=>r.id!==id);save();
-  if(window.fbDeleteReserveFunding)window.fbDeleteReserveFunding(id).catch(err=>console.error('刪除補款失敗',err));
-  if(currentPage==='finance')renderFinance();
+  const rec=db.reserveFunding.find(r=>r.id===id);if(!rec)return;
+  if(!confirm('確定刪除這筆補款記錄？（可以在「已刪除項目」裡復原）'))return;
+  rec.deleted=true;rec.deletedAt=new Date().toISOString();rec.deletedBy=(currentUser&&currentUser.email)||'';
+  save();
+  if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec).catch(err=>console.error('刪除補款失敗',err));
+  logAudit('delete','reserveFunding',id,sName(rec.staffId)+' 補款（'+fMoney(rec.amount)+'元）',rec.amount);
+  if(currentPage==='finance-detail')renderFinance();
   if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
+}
+function restoreReserveFunding(id){
+  const rec=db.reserveFunding.find(r=>r.id===id);if(!rec)return;
+  rec.deleted=false;delete rec.deletedAt;delete rec.deletedBy;
+  save();
+  if(window.fbSaveReserveFunding)window.fbSaveReserveFunding(rec).catch(err=>console.error('復原補款失敗',err));
+  logAudit('restore','reserveFunding',id,sName(rec.staffId)+' 補款（'+fMoney(rec.amount)+'元）',rec.amount);
+  renderDeletedItems();
 }
 
 // ── 人事 ──
@@ -5065,7 +5278,7 @@ try{
   window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
 }
 
-let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null, auditLogUnsub = null, balanceSnapshotsUnsub = null;
 
 if (fbAuth) {
   onAuthStateChanged(fbAuth, (user) => {
@@ -5081,6 +5294,8 @@ if (fbAuth) {
       if (eventsUnsub) { eventsUnsub(); eventsUnsub = null; }
       if (reserveFundingUnsub) { reserveFundingUnsub(); reserveFundingUnsub = null; }
       if (accountTransfersUnsub) { accountTransfersUnsub(); accountTransfersUnsub = null; }
+      if (auditLogUnsub) { auditLogUnsub(); auditLogUnsub = null; }
+      if (balanceSnapshotsUnsub) { balanceSnapshotsUnsub(); balanceSnapshotsUnsub = null; }
       if (financeCatsUnsub) { financeCatsUnsub(); financeCatsUnsub = null; }
       if (materialsUnsub) { materialsUnsub(); materialsUnsub = null; }
       if (materialConfigUnsub) { materialConfigUnsub(); materialConfigUnsub = null; }
@@ -5239,6 +5454,23 @@ window.fbStartAccountTransfersListeners = function (onData, onError) {
 };
 window.fbSaveAccountTransfer = function (r) { return setDoc(doc(fbDb, 'accountTransfers', r.id), r); };
 window.fbDeleteAccountTransfer = function (id) { return deleteDoc(doc(fbDb, 'accountTransfers', id)); };
+
+// ── Audit Log（稽核紀錄）──
+window.fbStartAuditLogListeners = function (onData, onError) {
+  auditLogUnsub = onSnapshot(collection(fbDb, 'auditLog'), (snap) => {
+    const arr = []; snap.forEach(d => arr.push(d.data())); onData(arr);
+  }, (err) => { console.error('異動紀錄同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveAuditLog = function (r) { return setDoc(doc(fbDb, 'auditLog', r.id), r); };
+
+// ── Balance Snapshots（餘額快照）──
+window.fbStartBalanceSnapshotsListeners = function (onData, onError) {
+  balanceSnapshotsUnsub = onSnapshot(collection(fbDb, 'balanceSnapshots'), (snap) => {
+    const arr = []; snap.forEach(d => arr.push(d.data())); onData(arr);
+  }, (err) => { console.error('餘額快照同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveBalanceSnapshot = function (r) { return setDoc(doc(fbDb, 'balanceSnapshots', r.id), r); };
+window.fbDeleteBalanceSnapshot = function (id) { return deleteDoc(doc(fbDb, 'balanceSnapshots', id)); };
 
 // ── Finance Categories（收支分類設定，單一文件）──
 window.fbStartFinanceCatsListener = function (onData, onError) {
