@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718W">
+<meta name="app-version" content="20260718X">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1255,9 +1255,18 @@ function dedupeFinanceCats(cfg){
   }
   return cfg;
 }
+function ensureSystemCategories(){
+  let changed=false;
+  if(!db.financeCats.cats.includes('其他帳戶')){db.financeCats.cats.push('其他帳戶');changed=true;}
+  if(!db.financeCats.incCats.includes('其他帳戶')){db.financeCats.incCats.push('其他帳戶');changed=true;}
+  if(!db.financeCats.sub)db.financeCats.sub={};
+  if(!db.financeCats.sub['其他帳戶']){db.financeCats.sub['其他帳戶']=['備用金'];changed=true;}
+  if(changed){save();if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);}
+}
 function onFinanceCatsSynced(cfg){
   if(!cfg||!cfg.cats)return;
   db.financeCats=dedupeFinanceCats(cfg);save();
+  ensureSystemCategories();
   const sheet=document.getElementById('sheet-finance');
   if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
   const catSheet=document.getElementById('sheet-cat-manage');
@@ -1423,6 +1432,7 @@ function load(){
   if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶'],incCats:['專案','其他帳戶'],sub:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']}};
   if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
   dedupeFinanceCats(db.financeCats);
+  ensureSystemCategories();
   if(!db.financeCats.sub)db.financeCats.sub={};
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.toolIcons)db.toolIcons={};
@@ -2021,10 +2031,16 @@ function updateCatDependentUI(){
   const needProject=cat==='專案'||(t==='收入'&&cat==='其他帳戶');
   const isTransferCat=t==='支出'&&cat==='其他帳戶';
 
+  // 選擇專案／轉帳給 這兩個共用欄位，依目前是支出還是收入，動態搬到對應類別下方，
+  // 避免收入模式時「選擇專案」跑到「收入類別」上面
+  const catGrpEl=document.getElementById(t==='支出'?'f-expense-cat-group':'f-income-cat-group');
+  catGrpEl.insertAdjacentElement('afterend',projGrp);
+  const transferGrp=document.getElementById('f-cat-transfer-group');
+  projGrp.insertAdjacentElement('afterend',transferGrp);
+
   projGrp.style.display=needProject?'block':'none';
   if(needProject)fillProjectSel('f-cat-project');
 
-  const transferGrp=document.getElementById('f-cat-transfer-group');
   transferGrp.style.display=isTransferCat?'block':'none';
   if(isTransferCat)fillTransferTargetSel();
 
