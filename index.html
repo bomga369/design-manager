@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260718Y">
+<meta name="app-version" content="20260718Z">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -367,7 +367,7 @@ textarea.form-input{resize:none;min-height:72px;}
         </div>
         <i class="ti ti-chevron-right" style="color:var(--text3);font-size:1.125rem;"></i>
       </div>
-      <div class="topbar-btn-add" style="width:60vw;height:60vw;max-width:220px;max-height:220px;font-size:5rem;" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></div>
+      <div class="topbar-btn-add" style="width:60vw;height:60vw;max-width:220px;max-height:220px;font-size:5rem;background:#ffd60a;color:#3a2e00;" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></div>
     </div>
   </div>
 
@@ -1244,13 +1244,37 @@ function onAccountTransfersSyncError(){if(accountTransfersSyncErrorShown)return;
 function onAccountTransfersSynced(arr){db.accountTransfers=arr;save();renderFinanceHome();if(currentPage==='finance')renderFinance();}
 let financeCatsSyncErrorShown=false;
 function onFinanceCatsSyncError(){if(financeCatsSyncErrorShown)return;financeCatsSyncErrorShown=true;console.error('分類設定雲端同步權限不足');}
+function migrateFinanceCatsSub(){
+  const sub=db.financeCats.sub;
+  if(!sub)return;
+  const isNewFormat=sub.exp&&typeof sub.exp==='object'&&!Array.isArray(sub.exp)&&sub.inc&&typeof sub.inc==='object'&&!Array.isArray(sub.inc);
+  if(isNewFormat)return;
+  // 舊版支出/收入共用同一份明細清單，這裡各複製一份給支出跟收入，之後才會各自獨立，互不影響
+  const flat={};
+  Object.keys(sub).forEach(k=>{
+    if(k==='exp'||k==='inc')return;
+    if(Array.isArray(sub[k]))flat[k]=sub[k];
+  });
+  const cloneMap=(base)=>{
+    const out={};
+    Object.keys(base||{}).forEach(k=>{out[k]=Array.isArray(base[k])?base[k].slice():base[k];});
+    Object.keys(flat).forEach(k=>{out[k]=flat[k].slice();});
+    return out;
+  };
+  db.financeCats.sub={exp:cloneMap(sub.exp),inc:cloneMap(sub.inc)};
+  save();
+  if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);
+}
 function dedupeFinanceCats(cfg){
   if(!cfg)return cfg;
   if(Array.isArray(cfg.cats))cfg.cats=[...new Set(cfg.cats)];
   if(Array.isArray(cfg.incCats))cfg.incCats=[...new Set(cfg.incCats)];
   if(cfg.sub){
-    Object.keys(cfg.sub).forEach(k=>{
-      if(Array.isArray(cfg.sub[k]))cfg.sub[k]=[...new Set(cfg.sub[k])];
+    ['exp','inc'].forEach(mode=>{
+      if(!cfg.sub[mode])return;
+      Object.keys(cfg.sub[mode]).forEach(k=>{
+        if(Array.isArray(cfg.sub[mode][k]))cfg.sub[mode][k]=[...new Set(cfg.sub[mode][k])];
+      });
     });
   }
   return cfg;
@@ -1259,13 +1283,17 @@ function ensureSystemCategories(){
   let changed=false;
   if(!db.financeCats.cats.includes('其他帳戶')){db.financeCats.cats.push('其他帳戶');changed=true;}
   if(!db.financeCats.incCats.includes('其他帳戶')){db.financeCats.incCats.push('其他帳戶');changed=true;}
-  if(!db.financeCats.sub)db.financeCats.sub={};
-  if(!db.financeCats.sub['其他帳戶']){db.financeCats.sub['其他帳戶']=['備用金'];changed=true;}
+  if(!db.financeCats.sub)db.financeCats.sub={exp:{},inc:{}};
+  if(!db.financeCats.sub.exp)db.financeCats.sub.exp={};
+  if(!db.financeCats.sub.inc)db.financeCats.sub.inc={};
+  if(!db.financeCats.sub.exp['其他帳戶']){db.financeCats.sub.exp['其他帳戶']=['備用金'];changed=true;}
   if(changed){save();if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);}
 }
 function onFinanceCatsSynced(cfg){
   if(!cfg||!cfg.cats)return;
-  db.financeCats=dedupeFinanceCats(cfg);save();
+  db.financeCats=cfg;
+  migrateFinanceCatsSub();
+  dedupeFinanceCats(db.financeCats);save();
   ensureSystemCategories();
   const sheet=document.getElementById('sheet-finance');
   if(sheet&&sheet.classList.contains('open'))refreshFinanceCategories();
@@ -1404,7 +1432,7 @@ const CITY_DISTRICTS={
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
   cats:['專案','薪資','其他帳戶'],
   incCats:['專案','其他帳戶'],
-  sub:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']}
+  sub:{exp:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']},inc:{}}
 }};
 window.fbDebugLog=function(){};
 let currentPage='dashboard';
@@ -1429,11 +1457,11 @@ function load(){
   if(!db.punchGcalIds)db.punchGcalIds={};
   if(!db.reserveFunding)db.reserveFunding=[];
   if(!db.accountTransfers)db.accountTransfers=[];
-  if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶'],incCats:['專案','其他帳戶'],sub:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']}};
+  if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶'],incCats:['專案','其他帳戶'],sub:{exp:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']},inc:{}}};
   if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
+  migrateFinanceCatsSub();
   dedupeFinanceCats(db.financeCats);
   ensureSystemCategories();
-  if(!db.financeCats.sub)db.financeCats.sub={};
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.toolIcons)db.toolIcons={};
   if(!db.materials||!db.materials.length){
@@ -1705,7 +1733,7 @@ const FIN_EXP_CATS_PROJECT=['午餐','晚餐','材料五金','薪資','臨時性
 const FIN_INC_CATS_PROJECT=['工程款01期','工程款02期','工程款03期','尾款','款項還回','其他'];
 function andunCats(){return(db.financeCats&&db.financeCats.cats)||[];}
 function andunIncCats(){return(db.financeCats&&db.financeCats.incCats)||[];}
-function andunSubcats(cat){return(db.financeCats&&db.financeCats.sub&&db.financeCats.sub[cat])||[];}
+function andunSubcats(cat,mode){mode=mode||'exp';return(db.financeCats&&db.financeCats.sub&&db.financeCats.sub[mode]&&db.financeCats.sub[mode][cat])||[];}
 function saveFinanceCatsConfig(){
   save();
   if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);
@@ -1724,7 +1752,7 @@ function renderCatManageList(){
   const itemWord=catManageMode==='inc'?'收入項目':'支出項目';
   document.getElementById('cat-manage-list').innerHTML=cats.length?cats.map(c=>{
     const isProj=c==='專案';
-    const subCount=andunSubcats(c).length;
+    const subCount=andunSubcats(c,catManageMode).length;
     const meta=(isProj?'選擇 App 內施作中專案 · ':'')+(subCount?subCount+' 個'+itemWord:'無'+itemWord);
     return `<div class="mat-item-wrap" data-key="${c}">
       <div class="mat-swipe-actions">
@@ -1755,12 +1783,13 @@ function addFinanceCat(){
   saveFinanceCatsConfig();
   renderCatManageList();
 }
-function renameCatKey(oldName,newName){
-  // 分類重新命名時，把它自己底下的支出項目清單也一併搬到新名字底下
+function renameCatKey(oldName,newName,mode){
+  mode=mode||'exp';
+  // 分類重新命名時，把它自己底下的支出項目清單也一併搬到新名字底下（只動對應的支出或收入那一份）
   if(oldName===newName)return;
-  if(db.financeCats.sub[oldName]){
-    db.financeCats.sub[newName]=db.financeCats.sub[oldName];
-    delete db.financeCats.sub[oldName];
+  if(db.financeCats.sub[mode]&&db.financeCats.sub[mode][oldName]){
+    db.financeCats.sub[mode][newName]=db.financeCats.sub[mode][oldName];
+    delete db.financeCats.sub[mode][oldName];
   }
 }
 function editFinanceCat(name){
@@ -1774,7 +1803,7 @@ function editFinanceCat(name){
   if(arr.includes(trimmed))return alert('已經有相同名稱的分類了');
   const idx=arr.indexOf(name);
   if(idx>=0)arr[idx]=trimmed;
-  renameCatKey(name,trimmed);
+  renameCatKey(name,trimmed,catManageMode);
   saveFinanceCatsConfig();
   renderCatManageList();
 }
@@ -1800,10 +1829,10 @@ function toggleSubcatExpand(item){
   renderSubcatManageList();
 }
 function renderSubcatManageList(){
-  const subs=andunSubcats(currentEditingCat);
+  const subs=andunSubcats(currentEditingCat,currentEditingCatMode);
   const contentWord=currentEditingCatMode==='inc'?'收入內容':'支出內容';
   document.getElementById('subcat-manage-list').innerHTML=subs.length?subs.map(s=>{
-    const contents=andunSubcats(s);
+    const contents=andunSubcats(s,currentEditingCatMode);
     const isOpen=expandedSubcatItem===s;
     return `<div class="mat-item-wrap" data-key="${s}">
       <div class="mat-swipe-actions">
@@ -1834,7 +1863,7 @@ function renderSubcatManageList(){
   }).join(''):'<div class="empty"><p>尚無項目</p></div>';
   attachMatSwipe(document.getElementById('subcat-manage-list'),'.mat-item-wrap');
   attachArrayDrag('subcat-manage-list',newOrder=>{
-    db.financeCats.sub[currentEditingCat]=newOrder;
+    db.financeCats.sub[currentEditingCatMode][currentEditingCat]=newOrder;
     saveFinanceCatsConfig();
   },'.mat-item-wrap');
   if(expandedSubcatItem){
@@ -1842,7 +1871,7 @@ function renderSubcatManageList(){
     if(expandEl){
       attachMatSwipe(expandEl,'.mat-subitem-wrap');
       attachArrayDrag('subcat-expand-'+expandedSubcatItem,newOrder=>{
-        db.financeCats.sub[expandedSubcatItem]=newOrder;
+        db.financeCats.sub[currentEditingCatMode][expandedSubcatItem]=newOrder;
         saveFinanceCatsConfig();
       },'.mat-subitem-wrap');
     }
@@ -1852,8 +1881,9 @@ function addFinanceContentInline(item){
   const input=document.getElementById('inline-content-input');
   const name=input.value.trim();
   if(!name)return;
-  if(!db.financeCats.sub[item])db.financeCats.sub[item]=[];
-  if(!db.financeCats.sub[item].includes(name))db.financeCats.sub[item].push(name);
+  const ns=db.financeCats.sub[currentEditingCatMode];
+  if(!ns[item])ns[item]=[];
+  if(!ns[item].includes(name))ns[item].push(name);
   saveFinanceCatsConfig();
   renderSubcatManageList();
 }
@@ -1862,7 +1892,7 @@ function editFinanceContentInline(item,name){
   if(newName===null)return;
   const trimmed=newName.trim();
   if(!trimmed||trimmed===name)return;
-  const arr=db.financeCats.sub[item]||[];
+  const arr=db.financeCats.sub[currentEditingCatMode][item]||[];
   if(arr.includes(trimmed))return alert('已經有相同名稱的內容了');
   const idx=arr.indexOf(name);
   if(idx>=0)arr[idx]=trimmed;
@@ -1871,7 +1901,8 @@ function editFinanceContentInline(item,name){
 }
 function deleteFinanceContentInline(item,name){
   if(!confirm(`確定刪除「${name}」？`))return;
-  db.financeCats.sub[item]=(db.financeCats.sub[item]||[]).filter(s=>s!==name);
+  const ns=db.financeCats.sub[currentEditingCatMode];
+  ns[item]=(ns[item]||[]).filter(s=>s!==name);
   saveFinanceCatsConfig();
   renderSubcatManageList();
 }
@@ -1879,8 +1910,9 @@ function addFinanceSubcat(){
   const input=document.getElementById('subcat-new-name');
   const name=input.value.trim();
   if(!name||!currentEditingCat)return;
-  if(!db.financeCats.sub[currentEditingCat])db.financeCats.sub[currentEditingCat]=[];
-  if(!db.financeCats.sub[currentEditingCat].includes(name))db.financeCats.sub[currentEditingCat].push(name);
+  const ns=db.financeCats.sub[currentEditingCatMode];
+  if(!ns[currentEditingCat])ns[currentEditingCat]=[];
+  if(!ns[currentEditingCat].includes(name))ns[currentEditingCat].push(name);
   input.value='';
   saveFinanceCatsConfig();
   renderSubcatManageList();
@@ -1891,11 +1923,11 @@ function editFinanceSubcat(name){
   if(newName===null)return;
   const trimmed=newName.trim();
   if(!trimmed||trimmed===name)return;
-  const arr=db.financeCats.sub[currentEditingCat]||[];
+  const arr=db.financeCats.sub[currentEditingCatMode][currentEditingCat]||[];
   if(arr.includes(trimmed))return alert('已經有相同名稱的項目了');
   const idx=arr.indexOf(name);
   if(idx>=0)arr[idx]=trimmed;
-  renameCatKey(name,trimmed);
+  renameCatKey(name,trimmed,currentEditingCatMode);
   if(expandedSubcatItem===name)expandedSubcatItem=trimmed;
   saveFinanceCatsConfig();
   renderSubcatManageList();
@@ -1904,8 +1936,9 @@ function editFinanceSubcat(name){
 function deleteFinanceSubcat(name){
   if(!currentEditingCat)return;
   if(!confirm(`確定刪除「${name}」？`))return;
-  db.financeCats.sub[currentEditingCat]=(db.financeCats.sub[currentEditingCat]||[]).filter(s=>s!==name);
-  delete db.financeCats.sub[name];
+  const ns=db.financeCats.sub[currentEditingCatMode];
+  ns[currentEditingCat]=(ns[currentEditingCat]||[]).filter(s=>s!==name);
+  delete ns[name];
   if(expandedSubcatItem===name)expandedSubcatItem=null;
   saveFinanceCatsConfig();
   renderSubcatManageList();
@@ -1922,7 +1955,7 @@ function openSubSubcatManage(item,mode,parentCat){
   openSheet('sheet-subsubcat-manage');
 }
 function renderSubSubcatManageList(){
-  const contents=andunSubcats(currentEditingItem);
+  const contents=andunSubcats(currentEditingItem,currentEditingItemMode);
   document.getElementById('subsubcat-manage-list').innerHTML=contents.length?contents.map(s=>`
     <div class="mat-item-wrap" data-key="${s}">
       <div class="mat-swipe-actions">
@@ -1935,7 +1968,7 @@ function renderSubSubcatManageList(){
     </div>`).join(''):'<div class="empty"><p>尚無項目</p></div>';
   attachMatSwipe(document.getElementById('subsubcat-manage-list'));
   attachArrayDrag('subsubcat-manage-list',newOrder=>{
-    db.financeCats.sub[currentEditingItem]=newOrder;
+    db.financeCats.sub[currentEditingItemMode][currentEditingItem]=newOrder;
     saveFinanceCatsConfig();
   });
 }
@@ -1943,8 +1976,9 @@ function addFinanceSubSubcat(){
   const input=document.getElementById('subsubcat-new-name');
   const name=input.value.trim();
   if(!name||!currentEditingItem)return;
-  if(!db.financeCats.sub[currentEditingItem])db.financeCats.sub[currentEditingItem]=[];
-  if(!db.financeCats.sub[currentEditingItem].includes(name))db.financeCats.sub[currentEditingItem].push(name);
+  const ns=db.financeCats.sub[currentEditingItemMode];
+  if(!ns[currentEditingItem])ns[currentEditingItem]=[];
+  if(!ns[currentEditingItem].includes(name))ns[currentEditingItem].push(name);
   input.value='';
   saveFinanceCatsConfig();
   renderSubSubcatManageList();
@@ -1955,7 +1989,7 @@ function editFinanceSubSubcat(name){
   if(newName===null)return;
   const trimmed=newName.trim();
   if(!trimmed||trimmed===name)return;
-  const arr=db.financeCats.sub[currentEditingItem]||[];
+  const arr=db.financeCats.sub[currentEditingItemMode][currentEditingItem]||[];
   if(arr.includes(trimmed))return alert('已經有相同名稱的內容了');
   const idx=arr.indexOf(name);
   if(idx>=0)arr[idx]=trimmed;
@@ -1966,7 +2000,8 @@ function editFinanceSubSubcat(name){
 function deleteFinanceSubSubcat(name){
   if(!currentEditingItem)return;
   if(!confirm(`確定刪除「${name}」？`))return;
-  db.financeCats.sub[currentEditingItem]=(db.financeCats.sub[currentEditingItem]||[]).filter(s=>s!==name);
+  const ns=db.financeCats.sub[currentEditingItemMode];
+  ns[currentEditingItem]=(ns[currentEditingItem]||[]).filter(s=>s!==name);
   saveFinanceCatsConfig();
   renderSubSubcatManageList();
   renderSubcatManageList();
@@ -2044,7 +2079,7 @@ function updateCatDependentUI(){
   transferGrp.style.display=isTransferCat?'block':'none';
   if(isTransferCat)fillTransferTargetSel();
 
-  const subs=cat?andunSubcats(cat):[];
+  const subs=cat?andunSubcats(cat,t==='支出'?'exp':'inc'):[];
   const detGrp=t==='支出'?expDetGrp:incDetGrp;
   const otherDetGrp=t==='支出'?incDetGrp:expDetGrp;
   otherDetGrp.style.display='none';
@@ -2100,7 +2135,7 @@ function updateStaffNeed(){
 }
 function onExpenseDetailChange(){
   const item=document.getElementById('f-expense-detail').value;
-  const contents=item?andunSubcats(item):[];
+  const contents=item?andunSubcats(item,'exp'):[];
   const grp=document.getElementById('f-expense-content-group');
   if(contents.length){
     grp.style.display='block';
@@ -2115,7 +2150,7 @@ function onExpenseDetailChange(){
 }
 function onIncomeDetailChange(){
   const item=document.getElementById('f-income-detail').value;
-  const contents=item?andunSubcats(item):[];
+  const contents=item?andunSubcats(item,'inc'):[];
   const grp=document.getElementById('f-income-content-group');
   if(contents.length){
     grp.style.display='block';
@@ -2651,7 +2686,7 @@ function renderFinanceHome(){
   const total=grandTotalBalance();
   el.textContent='$'+fMoney(total);
   el.className=total>=0?'':'';
-  el.style.color=total>=0?'var(--gold)':'var(--red)';
+  el.style.color=total>=0?'var(--gold-text)':'var(--red)';
 }
 function renderFinanceAccounts(){
   const el=document.getElementById('finance-accounts-list');if(!el)return;
@@ -3930,12 +3965,12 @@ function saveFinance(){
       } else {
         name=incCat;
       }
-      const subs=andunSubcats(incCat);
+      const subs=andunSubcats(incCat,'inc');
       if(subs.length){
         incDetail=document.getElementById('f-income-detail').value;
         if(!incDetail)return alert('請選擇收入項目');
         name+=' · '+incDetail;
-        const contents=andunSubcats(incDetail);
+        const contents=andunSubcats(incDetail,'inc');
         if(contents.length){
           incContent=document.getElementById('f-income-content').value;
           if(!incContent)return alert('請選擇收入內容');
@@ -3957,7 +3992,7 @@ function saveFinance(){
       const target=document.getElementById('f-cat-transfer-target').value;
       if(!target)return alert('請選擇轉帳給哪個帳戶');
       let transferNote=noteVal;
-      const transferSubs=andunSubcats('其他帳戶');
+      const transferSubs=andunSubcats('其他帳戶','exp');
       if(transferSubs.length){
         const item=document.getElementById('f-expense-detail').value;
         if(!item)return alert('請選擇支出項目');
@@ -3986,7 +4021,7 @@ function saveFinance(){
       name='薪資 · '+staffName;
     }
     if(cat!=='薪資'){
-      const subs=andunSubcats(cat);
+      const subs=andunSubcats(cat,'exp');
       if(subs.length){
         expDetail=document.getElementById('f-expense-detail').value;
         if(!expDetail)return alert('請選擇支出項目');
@@ -3997,7 +4032,7 @@ function saveFinance(){
           staffName=(db.staff.find(s=>s.id===staffId)||{}).name||'';
           name+=' · '+staffName;
         }
-        const contents=andunSubcats(expDetail);
+        const contents=andunSubcats(expDetail,'exp');
         if(contents.length){
           expContent=document.getElementById('f-expense-content').value;
           if(!expContent)return alert('請選擇支出內容');
@@ -4551,18 +4586,6 @@ function renderStaffDetail(sid){
       <div class="info-row"><span class="info-label">職稱</span><span class="info-value">${s.stitle||'—'}</span></div>
       ${s.note?`<div class="info-row"><span class="info-label">備註</span><span class="info-value">${s.note}</span></div>`:''}
     </div></div>
-
-    ${s.hasReserve?(()=>{const{funded,claimed,balance}=reserveBalance(s.id);return`
-    <div class="section-hd">備用金帳</div>
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">補款總額</div><div class="stat-value text-green" style="font-size:18px">$${fMoney(funded)}</div></div>
-      <div class="stat-card"><div class="stat-label">已報帳</div><div class="stat-value text-red" style="font-size:18px">$${fMoney(claimed)}</div></div>
-      <div class="stat-card" style="grid-column:1/-1"><div class="stat-label">目前餘額</div><div class="stat-value ${balance>=0?'text-green':'text-red'}" style="font-size:18px">$${fMoney(balance)}</div></div>
-    </div>
-    <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
-      <button class="btn btn-primary" style="flex:1" onclick="openAddReserveFunding('${s.id}')"><i class="ti ti-plus"></i> 新增補款</button>
-      <button class="btn" style="flex:1" onclick="goToReserveFinance('${s.id}')">查看明細</button>
-    </div>`;})():''}
 
     <div class="section-hd">工時查詢</div>
     <div class="period-tabs">
