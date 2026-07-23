@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260723E">
+<meta name="app-version" content="20260723F">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1343,7 +1343,6 @@ function dedupeFinanceCats(cfg){
 function ensureSystemCategories(){
   let changed=false;
   if(!db.financeCats.cats.includes('其他帳戶')){db.financeCats.cats.push('其他帳戶');changed=true;}
-  if(!db.financeCats.incCats.includes('其他帳戶')){db.financeCats.incCats.push('其他帳戶');changed=true;}
   if(!db.financeCats.cats.includes('金額調整')){db.financeCats.cats.push('金額調整');changed=true;}
   if(!db.financeCats.incCats.includes('金額調整')){db.financeCats.incCats.push('金額調整');changed=true;}
   if(!db.financeCats.sub)db.financeCats.sub={exp:{},inc:{}};
@@ -2108,7 +2107,7 @@ function refreshFinanceCategories(){
   const expVal=expSel.value,incVal=incSel.value;
   const expCats=useCustomCats?andunCats():FIN_EXP_CATS_PROJECT;
   // 備用金帳戶（Wallace/Mark）跟安盾-中國信託共用同一套收入分類，另外多一個「補款」（公司撥入備用金）專屬選項
-  const incCats=reserve?['補款',...andunIncCats()]:(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
+  const incCats=reserve?andunIncCats():(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
   expSel.innerHTML=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   incSel.innerHTML=incCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   if(expCats.includes(expVal))expSel.value=expVal;
@@ -2139,7 +2138,7 @@ function updateCatDependentUI(){
   }
 
   const cat=t==='支出'?document.getElementById('f-expense-cat').value:document.getElementById('f-income-cat').value;
-  const needProject=cat==='專案'||(t==='收入'&&cat==='其他帳戶');
+  const needProject=cat==='專案';
   const isTransferCat=t==='支出'&&cat==='其他帳戶';
 
   // 選擇專案／轉帳給 這兩個共用欄位，依目前是支出還是收入，動態搬到對應類別下方，
@@ -4149,7 +4148,7 @@ function saveFinance(){
         return;
       }
       let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='',incContent='';
-      if(incCat==='專案'||incCat==='其他帳戶'){
+      if(incCat==='專案'){
         const proj=document.getElementById('f-cat-project').value;
         if(!proj)return alert('請選擇專案');
         projectId=proj;storedIncCat=incCat;
