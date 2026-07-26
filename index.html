@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260723H">
+<meta name="app-version" content="20260723I">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2608,7 +2608,8 @@ function handleAdd(){
   editingProjectId=null;
   document.getElementById('sheet-project-title').textContent='新增專案';
   document.getElementById('sheet-project-save').textContent='儲存專案';
-  ['p-name','p-client','p-note','p-city','p-measure-date'].forEach(id=>document.getElementById(id).value='');
+  ['p-name','p-client','p-note','p-city'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-measure-date').value=today();
   setMeasureTime('09:00');
   updateDatePlaceholder();
   document.getElementById('p-area').value='';
@@ -2916,6 +2917,7 @@ function openFinanceAddSheet(){
   if(filter&&[...sel.options].some(o=>o.value===filter))sel.value=filter;
   setSeg('f-type','支出');
   onFinanceAccountChange();
+  document.getElementById('f-date').value=today();
   openSheet('sheet-finance');
 }
 function openReserveEntry(staffId){
@@ -2923,6 +2925,7 @@ function openReserveEntry(staffId){
   document.getElementById('f-project').value='__reserve_'+staffId+'__';
   setSeg('f-type','收入');
   onFinanceAccountChange();
+  document.getElementById('f-date').value=today();
   openSheet('sheet-finance');
 }
 function fillStaffSel(selId,placeholder){
@@ -3370,10 +3373,13 @@ function renderDetail(pid){
       <div class="stat-card"><div class="stat-label">收入</div><div class="stat-value text-green" style="font-size:18px">$${fMoney(income)}</div></div>
       <div class="stat-card"><div class="stat-label">支出</div><div class="stat-value text-red" style="font-size:18px">$${fMoney(exp)}</div></div>
     </div>
-    ${pFin.length?`<div class="card">${pFin.slice().reverse().slice(0,5).map(f=>`
+    ${pFin.length?`<div class="card">${pFin.slice().sort(sortByCreated).map(f=>`
       <div class="finance-item">
         <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
-        <div class="finance-body"><div class="finance-name">${f.name}${f.expCat?' · '+f.expCat:''}</div><div class="finance-meta">${fDate(f.date)}</div></div>
+        <div class="finance-body">
+          <div class="finance-name">${fDateTime(f)}</div>
+          <div class="finance-meta">${f.name}${f.expCat?' · '+f.expCat:''}${f.expDetail?' · '+f.expDetail:''}${f.expContent?' · '+f.expContent:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.paidBy?' · 由'+sName(f.paidBy)+'備用金代墊':''}${f.viaAccount?' · 經手：'+financeAccountLabel(f.viaAccount):''}${f.note?' · '+f.note:''}</div>
+        </div>
         <span class="fw500 ${f.ftype==='收入'?'text-green':'text-red'}">${f.ftype==='收入'?'+':'-'}$${fMoney(f.amount)}</span>
       </div>`).join('')}</div>`:''}`;
   }
@@ -3558,6 +3564,7 @@ function openFinanceForProject(pid){
   sel.value=pid;
   setSeg('f-type','支出');
   onFinanceAccountChange();
+  document.getElementById('f-date').value=today();
   openSheet('sheet-finance');
 }
 
