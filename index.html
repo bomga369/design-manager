@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="app-version" content="20260723F">
+<meta name="app-version" content="20260723H">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -679,7 +679,7 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-finance">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">新增收支項目<button class="sheet-close" onclick="closeSheet('sheet-finance')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title"><span id="sheet-finance-title">新增收支項目</span><button class="sheet-close" onclick="closeSheet('sheet-finance')"><i class="ti ti-x"></i></button></div>
     <div class="form-group"><label class="form-label">帳戶選擇 *</label><select class="form-input" id="f-project" onchange="onFinanceAccountChange()"></select></div>
     <div class="form-group"><label class="form-label">類型</label>
       <div class="segmented" id="f-type-segmented">
@@ -726,7 +726,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="f-note" placeholder="補充說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-finance')">取消</button>
-      <button class="btn btn-primary" onclick="saveFinance()">儲存</button>
+      <button class="btn btn-primary" id="sheet-finance-save-btn" onclick="saveFinance()">儲存</button>
     </div>
   </div>
 </div>
@@ -2744,8 +2744,11 @@ function transferAdjustment(acctId){
   const outSum=activeTransfers().filter(t=>t.from===acctId).reduce((s,t)=>s+Number(t.amount||0),0);
   return inSum-outSum;
 }
+function financeViaAccount(f){return f.viaAccount||f.projectId;}
 function andunBalance(){
-  const base=activeFinance().filter(f=>f.projectId==='__andun__');
+  // 支出要排除「由備用金代墊」的紀錄（paidBy）：那筆錢是從Wallace/Mark的備用金出去的，
+  // 不是安盾自己的現金，已經在對方的 claimed（已報帳）裡扣過一次，這裡不能重複扣
+  const base=activeFinance().filter(f=>financeViaAccount(f)==='__andun__'&&!f.paidBy);
   const income=base.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const reserveOutflow=activeReserveFunding().reduce((s,r)=>s+Number(r.amount||0),0);
   const exp=base.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0)+reserveOutflow;
@@ -2755,8 +2758,8 @@ function reserveBalance(staffId){
   const acctId='__reserve_'+staffId+'__';
   const funded=activeReserveFunding().filter(r=>r.staffId===staffId).reduce((s,r)=>s+Number(r.amount||0),0);
   const claimed=activeFinance().filter(f=>f.ftype==='支出'&&f.paidBy===staffId).reduce((s,f)=>s+Number(f.amount||0),0);
-  // 直接記在這個帳戶自己名下的收入/支出（例如金額調整），跟報帳/補款是不同的兩件事
-  const direct=activeFinance().filter(f=>f.projectId===acctId);
+  // 直接記在這個帳戶自己名下的收入/支出（含金額調整、記到專案底下但實際經手的是這個帳戶）
+  const direct=activeFinance().filter(f=>financeViaAccount(f)===acctId&&!f.paidBy);
   const directIncome=direct.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const directExpense=direct.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
   return{funded,claimed,directIncome,directExpense,balance:funded-claimed+directIncome-directExpense+transferAdjustment(acctId)};
@@ -2779,6 +2782,20 @@ function logAudit(action,type,recordId,summary,amount){
   db.auditLog.push(rec);
   save();
   if(window.fbSaveAuditLog)window.fbSaveAuditLog(rec);
+}
+function saveOrCreateFinance(rec,summary){
+  if(editingFinanceId){
+    rec.id=editingFinanceId;
+    const idx=db.finance.findIndex(f=>f.id===editingFinanceId);
+    if(idx>=0)db.finance[idx]=rec;else db.finance.push(rec);
+    save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
+    logAudit('edit','finance',rec.id,summary,rec.amount);
+    editingFinanceId=null;
+  } else {
+    db.finance.push(rec);
+    save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
+    logAudit('create','finance',rec.id,summary,rec.amount);
+  }
 }
 // ── 期間鎖定：專案結案（已完工）之後，屬於該專案的紀錄不能再刪除，確保結算後的帳不會被亂動 ──
 function isProjectLocked(projectId){
@@ -2890,6 +2907,9 @@ function goToAccountDetail(acctId){
   showPage('finance-detail');
 }
 function openFinanceAddSheet(){
+  editingFinanceId=null;
+  document.getElementById('sheet-finance-title').textContent='新增收支項目';
+  document.getElementById('sheet-finance-save-btn').textContent='儲存';
   const filter=document.getElementById('finance-filter-project').value;
   fillAccountSel('f-project',false,false);
   const sel=document.getElementById('f-project');
@@ -3526,6 +3546,9 @@ function setNegStep(pid,step){
 }
 
 function openFinanceForProject(pid){
+  editingFinanceId=null;
+  document.getElementById('sheet-finance-title').textContent='新增收支項目';
+  document.getElementById('sheet-finance-save-btn').textContent='儲存';
   fillAccountSel('f-project',false,false);
   const proj=db.projects.find(p=>p.id===pid);
   const sel=document.getElementById('f-project');
@@ -3640,8 +3663,9 @@ function checkAndDeleteCompletedProjects(){
   console.log(`已自動刪除 ${toDelete.length} 個完工超過兩個月的專案`);
 }
 function settleProjectToAndun(pid,pname){
-  // 計算該專案盈餘（收入 - 支出）
-  const pFin=activeFinance().filter(f=>f.projectId===pid);
+  // 計算該專案盈餘（收入 - 支出）；只算「沒有透過帳戶選擇即時入帳」的部分，
+  // 避免跟已經即時反映在安盾/Wallace/Mark帳戶餘額裡的部分重複計算
+  const pFin=activeFinance().filter(f=>f.projectId===pid&&!f.viaAccount);
   const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
   const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
   const profit=income-exp;
@@ -4001,11 +4025,13 @@ function renderFinance(){
   const filter=document.getElementById('finance-filter-project').value;
   if(isReserveAccount(filter)){renderReserveLedger(reserveStaffId(filter));return;}
   const typeFilter=document.getElementById('finance-filter-type').value;
-  let items=activeFinance().filter(f=>f.projectId===filter);
+  // 這裡的 filter 固定是 '__andun__'：跟 andunBalance() 用同一套邏輯（依實際經手帳戶判斷、排除備用金代墊的紀錄），
+  // 確保畫面上顯示的清單/統計，跟帳房總額背後的計算完全一致
+  let items=activeFinance().filter(f=>financeViaAccount(f)===filter&&!f.paidBy);
   if(typeFilter)items=items.filter(f=>f.ftype===typeFilter);
-  const base=activeFinance().filter(f=>f.projectId===filter);
+  const base=activeFinance().filter(f=>financeViaAccount(f)===filter&&!f.paidBy);
   const income=base.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
-  const reserveOutflow=filter==='__andun__'?activeReserveFunding().reduce((s,r)=>s+Number(r.amount||0),0):0;
+  const reserveOutflow=activeReserveFunding().reduce((s,r)=>s+Number(r.amount||0),0);
   const exp=base.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0)+reserveOutflow;
   const transferAdj=transferAdjustment(filter);
   const total=income-exp+transferAdj;
@@ -4044,7 +4070,10 @@ function renderFinance(){
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         <span class="fw500 ${f.ftype==='收入'?'text-green':'text-red'}">${f.ftype==='收入'?'+':'-'}$${fMoney(f.amount)}</span>
-        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinance('${f.id}')"><i class="ti ti-trash"></i></button>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm btn-icon" onclick="editFinance('${f.id}')"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinance('${f.id}')"><i class="ti ti-trash"></i></button>
+        </div>
       </div>
     </div>`).join(''):'<div class="empty"><i class="ti ti-receipt-off"></i><p>尚無收支紀錄</p></div>';
 }
@@ -4054,7 +4083,7 @@ function renderReserveLedger(staffId){
   const acctId='__reserve_'+staffId+'__';
   const funds=activeReserveFunding().filter(r=>r.staffId===staffId).map(r=>({...r,kind:'fund'}));
   const claims=activeFinance().filter(f=>f.ftype==='支出'&&f.paidBy===staffId).map(f=>({...f,kind:'claim'}));
-  const direct=activeFinance().filter(f=>f.projectId===acctId).map(f=>({...f,kind:'direct'}));
+  const direct=activeFinance().filter(f=>financeViaAccount(f)===acctId&&!f.paidBy).map(f=>({...f,kind:'direct'}));
   const transfers=activeTransfers().filter(t=>t.from===acctId||t.to===acctId).map(t=>({
     ...t,kind:'transfer',isIn:t.to===acctId
   }));
@@ -4092,15 +4121,19 @@ function renderReserveLedger(staffId){
     }
     if(it.kind==='direct'){
       const isAdj=it.expCat==='金額調整'||it.incCat==='金額調整';
+      const projLabel=(it.projectId&&it.projectId!==acctId)?' · '+pName(it.projectId):'';
       return `<div class="finance-item">
       <div class="finance-dot" style="background:${it.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
       <div class="finance-body">
         <div class="finance-name">${fDateTime(it)}</div>
-        <div class="finance-meta">${it.name}${isAdj?'<span class="badge badge-amber" style="margin-left:6px;font-size:10px;">校正</span>':''}${it.note?' · '+it.note:''}</div>
+        <div class="finance-meta">${it.name}${isAdj?'<span class="badge badge-amber" style="margin-left:6px;font-size:10px;">校正</span>':''}${projLabel}${it.note?' · '+it.note:''}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         <span class="fw500 ${it.ftype==='收入'?'text-green':'text-red'}">${it.ftype==='收入'?'+':'-'}$${fMoney(it.amount)}</span>
-        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinance('${it.id}')"><i class="ti ti-trash"></i></button>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm btn-icon" onclick="editFinance('${it.id}')"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinance('${it.id}')"><i class="ti ti-trash"></i></button>
+        </div>
       </div>
     </div>`;
     }
@@ -4113,7 +4146,10 @@ function renderReserveLedger(staffId){
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
         <span class="fw500 text-red">-$${fMoney(it.amount)}</span>
-        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinance('${it.id}')"><i class="ti ti-trash"></i></button>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm btn-icon" onclick="editFinance('${it.id}')"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteFinance('${it.id}')"><i class="ti ti-trash"></i></button>
+        </div>
       </div>
     </div>`;
   }).join(''):'<div class="empty"><i class="ti ti-receipt-off"></i><p>尚無備用金記錄</p></div>';
@@ -4147,11 +4183,12 @@ function saveFinance(){
         if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
         return;
       }
-      let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='',incContent='';
+      let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='',incContent='',viaAccount='';
       if(incCat==='專案'){
         const proj=document.getElementById('f-cat-project').value;
         if(!proj)return alert('請選擇專案');
         projectId=proj;storedIncCat=incCat;
+        viaAccount=acct; // 記住這筆錢實際是進到哪個帳戶，帳戶餘額才會正確反映
         name='工程款';
       } else {
         name=incCat;
@@ -4168,10 +4205,8 @@ function saveFinance(){
           name+=' · '+incContent;
         }
       }
-      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,expContent:incContent,staffId:'',staffName:'',paidBy:'',date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
-      db.finance.push(rec);
-      save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
-      logAudit('create','finance',rec.id,name+'（'+fMoney(rec.amount)+'元）',rec.amount);
+      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,expContent:incContent,staffId:'',staffName:'',paidBy:'',viaAccount,date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
+      saveOrCreateFinance(rec,name+'（'+fMoney(rec.amount)+'元）');
       closeSheet('sheet-finance');resetFinanceForm();
       if(currentPage==='finance-detail')renderFinance();
       if(currentPage==='detail')renderDetail(currentProjectId);
@@ -4201,11 +4236,12 @@ function saveFinance(){
       if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
       return;
     }
-    let projectId='__andun__',staffId='',staffName='',expDetail='',expContent='',expCat=cat,name=cat;
+    let projectId='__andun__',staffId='',staffName='',expDetail='',expContent='',expCat=cat,name=cat,viaAccount='';
     if(cat==='專案'){
       const proj=document.getElementById('f-cat-project').value;
       if(!proj)return alert('請選擇專案');
       projectId=proj;
+      viaAccount=acct; // 記住這筆錢實際是從哪個帳戶出去的，帳戶餘額才會正確反映
       name='專案支出';
     } else if(cat==='薪資'){
       staffId=document.getElementById('f-staff-sel').value;
@@ -4244,10 +4280,8 @@ function saveFinance(){
       }
     }
     const paidBy=(reserve&&cat!=='金額調整')?reserveStaffId(acct):'';
-    const rec={id:uid(),name,amount:Number(amount),projectId,ftype:'支出',expCat,incCat:'',expDetail,expContent,staffId,staffName,paidBy,date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
-    db.finance.push(rec);
-    save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
-    logAudit('create','finance',rec.id,name+'（'+fMoney(rec.amount)+'元）',rec.amount);
+    const rec={id:uid(),name,amount:Number(amount),projectId,ftype:'支出',expCat,incCat:'',expDetail,expContent,staffId,staffName,paidBy,viaAccount,date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
+    saveOrCreateFinance(rec,name+'（'+fMoney(rec.amount)+'元）');
     closeSheet('sheet-finance');resetFinanceForm();
     if(currentPage==='finance-detail')renderFinance();
     if(currentPage==='detail')renderDetail(currentProjectId);
@@ -4265,12 +4299,78 @@ function saveFinance(){
   const staffName=staffId?(db.staff.find(s=>s.id===staffId)||{}).name||'':'';
   const name=(ftype==='支出'?expCat:incCat)+(staffName?' · '+staffName:'');
   const rec={id:uid(),name,amount:Number(amount),projectId:acct,ftype,expCat,incCat,expDetail:'',staffId,staffName,paidBy:'',date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
-  db.finance.push(rec);
-  save();if(window.fbSaveFinance)window.fbSaveFinance(rec);
-  logAudit('create','finance',rec.id,name+'（'+fMoney(rec.amount)+'元）',rec.amount);
+  saveOrCreateFinance(rec,name+'（'+fMoney(rec.amount)+'元）');
   closeSheet('sheet-finance');resetFinanceForm();
   if(currentPage==='finance-detail')renderFinance();
   if(currentPage==='detail')renderDetail(currentProjectId);
+}
+let editingFinanceId=null;
+function editFinance(id){
+  const rec=db.finance.find(f=>f.id===id);if(!rec)return;
+  if(rec.expCat==='專案結算'||rec.settleFromPid){alert('這是系統自動產生的結算摘要，無法直接編輯。要調整的話請到專案裡重新結算一次。');return;}
+  if(!checkFinanceEditable(rec))return;
+  editingFinanceId=id;
+  document.getElementById('sheet-finance-title').textContent='編輯收支項目';
+  document.getElementById('sheet-finance-save-btn').textContent='儲存修改';
+
+  // 決定表單上「帳戶選擇」要帶入哪個值：優先用 viaAccount（實際經手帳戶），否則用 projectId 本身
+  const acctForForm=rec.viaAccount||rec.projectId;
+  fillAccountSel('f-project',false,false);
+  const sel=document.getElementById('f-project');
+  if(![...sel.options].some(o=>o.value===acctForForm)){
+    const opt=document.createElement('option');
+    opt.value=acctForForm;opt.textContent=pName(acctForForm);
+    sel.appendChild(opt);
+  }
+  sel.value=acctForForm;
+  setSeg('f-type',rec.ftype);
+  onFinanceAccountChange();
+
+  const reserve=isReserveAccount(acctForForm);
+  const isAndunLike=reserve||acctForForm==='__andun__';
+
+  if(isAndunLike){
+    if(rec.ftype==='支出'){
+      document.getElementById('f-expense-cat').value=rec.expCat||'';
+      onExpenseCatChange();
+      if(rec.expCat==='專案')document.getElementById('f-cat-project').value=rec.projectId;
+      if(document.getElementById('f-expense-detail-group').style.display!=='none'){
+        document.getElementById('f-expense-detail').value=rec.expDetail||'';
+        onExpenseDetailChange();
+      }
+      if(document.getElementById('f-expense-content-group').style.display!=='none'){
+        document.getElementById('f-expense-content').value=rec.expContent||'';
+      }
+      updateStaffNeed();
+      if(document.getElementById('f-staff-group').style.display!=='none'){
+        document.getElementById('f-staff-sel').value=rec.staffId||'';
+      }
+    } else {
+      document.getElementById('f-income-cat').value=rec.incCat||'';
+      onIncomeCatChange();
+      if(rec.incCat==='專案')document.getElementById('f-cat-project').value=rec.projectId;
+      if(document.getElementById('f-income-detail-group').style.display!=='none'){
+        document.getElementById('f-income-detail').value=rec.expDetail||'';
+        onIncomeDetailChange();
+      }
+      if(document.getElementById('f-income-content-group').style.display!=='none'){
+        document.getElementById('f-income-content').value=rec.expContent||'';
+      }
+    }
+  } else {
+    // 真實專案自己的固定分類
+    if(rec.ftype==='支出')document.getElementById('f-expense-cat').value=rec.expCat||'';
+    else document.getElementById('f-income-cat').value=rec.incCat||'';
+    updateCatDependentUI();
+    if(document.getElementById('f-staff-group').style.display!=='none'){
+      document.getElementById('f-staff-sel').value=rec.staffId||'';
+    }
+  }
+
+  document.getElementById('f-amount').value=rec.amount;
+  document.getElementById('f-date').value=rec.date;
+  document.getElementById('f-note').value=rec.note||'';
+  openSheet('sheet-finance');
 }
 function deleteFinance(id){
   const rec=db.finance.find(f=>f.id===id);if(!rec)return;
