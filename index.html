@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723P">
+<meta name="app-version" content="20260723Q">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -779,7 +779,6 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
     <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project" onchange="onCatProjectChange()"></select></div>
-    <div class="form-group" id="f-cat-period-group" style="display:none;"><label class="form-label">工程款期別 *</label><select class="form-input" id="f-cat-period" onchange="onCatPeriodChange()"></select></div>
     <div class="form-group" id="f-cat-transfer-group" style="display:none;"><label class="form-label">轉帳給 *</label><select class="form-input" id="f-cat-transfer-target"></select></div>
     <div class="form-group" id="f-expense-detail-group" style="display:none;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-expense-detail-label">支出項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-expense-cat').value)">管理項目</span></label>
@@ -799,7 +798,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-income-detail" onchange="onIncomeDetailChange()"></select>
     </div>
     <div class="form-group" id="f-income-content-group" style="display:none;">
-      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;">收入內容<span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-income-detail').value,'inc',document.getElementById('f-income-cat').value)">管理內容</span></label>
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-income-content-label">收入內容</span><span id="f-income-content-manage-link" style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubSubcatManage(document.getElementById('f-income-detail').value,'inc',document.getElementById('f-income-cat').value)">管理內容</span></label>
       <select class="form-input" id="f-income-content"></select>
     </div>
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
@@ -1481,6 +1480,8 @@ function ensureSystemCategories(){
   if(!db.financeCats.sub.exp)db.financeCats.sub.exp={};
   if(!db.financeCats.sub.inc)db.financeCats.sub.inc={};
   if(!db.financeCats.sub.exp['其他帳戶']){db.financeCats.sub.exp['其他帳戶']=['備用金'];changed=true;}
+  if(!db.financeCats.sub.inc['專案'])db.financeCats.sub.inc['專案']=[];
+  if(!db.financeCats.sub.inc['專案'].includes('工程款')){db.financeCats.sub.inc['專案'].push('工程款');changed=true;}
   if(changed){save();if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);}
 }
 function onFinanceCatsSynced(cfg){
@@ -2125,6 +2126,7 @@ function addFinanceSubcat(){
   renderCatManageList();
 }
 function editFinanceSubcat(name){
+  if(currentEditingCatMode==='inc'&&currentEditingCat==='專案'&&name==='工程款')return alert('「工程款」是系統辨識用的固定項目，無法改名');
   const newName=prompt('修改項目名稱',name);
   if(newName===null)return;
   const trimmed=newName.trim();
@@ -2141,6 +2143,7 @@ function editFinanceSubcat(name){
 }
 function deleteFinanceSubcat(name){
   if(!currentEditingCat)return;
+  if(currentEditingCatMode==='inc'&&currentEditingCat==='專案'&&name==='工程款')return alert('「工程款」是系統辨識用的固定項目，無法刪除。如果不想用工程款期別功能，直接不選這個項目就好。');
   if(!confirm(`確定刪除「${name}」？`))return;
   const ns=db.financeCats.sub[currentEditingCatMode];
   ns[currentEditingCat]=(ns[currentEditingCat]||[]).filter(s=>s!==name);
@@ -2357,11 +2360,23 @@ function onExpenseDetailChange(){
 }
 function onIncomeDetailChange(){
   const item=document.getElementById('f-income-detail').value;
-  const contents=item?andunSubcats(item,'inc'):[];
   const grp=document.getElementById('f-income-content-group');
+  const sel=document.getElementById('f-income-content');
+  const mgLink=document.getElementById('f-income-content-manage-link');
+  const projId=document.getElementById('f-cat-project').value;
+  const proj=db.projects.find(p=>p.id===projId);
+  if(item==='工程款'&&proj&&proj.paymentSchedule&&proj.paymentSchedule.length){
+    grp.style.display='block';
+    document.getElementById('f-income-content-label').textContent='工程款期別';
+    mgLink.style.display='none';
+    sel.innerHTML=proj.paymentSchedule.map(pd=>`<option value="${pd.period}">${pd.label}（規劃 $${fMoney(pd.amount)}）</option>`).join('');
+    return;
+  }
+  document.getElementById('f-income-content-label').textContent='收入內容';
+  mgLink.style.display='inline';
+  const contents=item?andunSubcats(item,'inc'):[];
   if(contents.length){
     grp.style.display='block';
-    const sel=document.getElementById('f-income-content');
     const val=sel.value;
     sel.innerHTML=contents.map(c=>`<option value="${c}">${c}</option>`).join('');
     if(contents.includes(val))sel.value=val;
@@ -2369,19 +2384,7 @@ function onIncomeDetailChange(){
     grp.style.display='none';
   }
 }
-function onCatProjectChange(){
-  const t=document.getElementById('f-type').value;
-  const projId=document.getElementById('f-cat-project').value;
-  const periodGrp=document.getElementById('f-cat-period-group');
-  const proj=db.projects.find(p=>p.id===projId);
-  const hasSchedule=t==='收入'&&proj&&proj.paymentSchedule&&proj.paymentSchedule.length;
-  periodGrp.style.display=hasSchedule?'block':'none';
-  if(hasSchedule){
-    const sel=document.getElementById('f-cat-period');
-    sel.innerHTML='<option value="">不指定期別</option>'+proj.paymentSchedule.map(pd=>`<option value="${pd.period}">${pd.label}（規劃 $${fMoney(pd.amount)}）</option>`).join('');
-  }
-}
-function onCatPeriodChange(){/* 選期別時目前不需要額外處理，金額比對放在儲存時檢查 */}
+function onCatProjectChange(){/* 選擇的專案本身不影響其他欄位，工程款期別改在收入項目=工程款時，於收入內容動態帶出 */}
 function onExpenseCatChange(){updateCatDependentUI();}
 function onIncomeCatChange(){updateCatDependentUI();}
 function toggleFinanceCat(t){
@@ -4475,32 +4478,30 @@ function saveFinance(){
         if(!proj)return alert('請選擇專案');
         projectId=proj;storedIncCat=incCat;
         viaAccount=acct; // 記住這筆錢實際是進到哪個帳戶，帳戶餘額才會正確反映
-        name='工程款';
-        const projObj=db.projects.find(p=>p.id===proj);
-        if(projObj&&projObj.paymentSchedule&&projObj.paymentSchedule.length){
-          const periodVal=document.getElementById('f-cat-period').value;
-          if(periodVal){
-            paymentPeriod=Number(periodVal);
-            const pd=projObj.paymentSchedule.find(x=>x.period===paymentPeriod);
-            name='工程款 · '+pd.label;
-            if(pd&&pd.amount>0&&Number(amount)!==pd.amount){
-              if(!confirm(pd.label+'原本規劃金額是 $'+fMoney(pd.amount)+'，你這次輸入的是 $'+fMoney(Number(amount))+'，金額不符，確定要這樣記嗎？'))return;
-            }
-          }
-        }
-      } else {
-        name=incCat;
       }
       const subs=andunSubcats(incCat,'inc');
       if(subs.length){
         incDetail=document.getElementById('f-income-detail').value;
         if(!incDetail)return alert('請選擇收入項目');
         name+=' · '+incDetail;
-        const contents=andunSubcats(incDetail,'inc');
-        if(contents.length){
-          incContent=document.getElementById('f-income-content').value;
-          if(!incContent)return alert('請選擇收入內容');
+        const projObj=incCat==='專案'?db.projects.find(p=>p.id===projectId):null;
+        if(incDetail==='工程款'&&projObj&&projObj.paymentSchedule&&projObj.paymentSchedule.length){
+          const periodVal=document.getElementById('f-income-content').value;
+          if(!periodVal)return alert('請選擇工程款期別');
+          paymentPeriod=Number(periodVal);
+          const pd=projObj.paymentSchedule.find(x=>x.period===paymentPeriod);
+          incContent=pd?pd.label:'';
           name+=' · '+incContent;
+          if(pd&&pd.amount>0&&Number(amount)!==pd.amount){
+            if(!confirm(pd.label+'原本規劃金額是 $'+fMoney(pd.amount)+'，你這次輸入的是 $'+fMoney(Number(amount))+'，金額不符，確定要這樣記嗎？'))return;
+          }
+        } else {
+          const contents=andunSubcats(incDetail,'inc');
+          if(contents.length){
+            incContent=document.getElementById('f-income-content').value;
+            if(!incContent)return alert('請選擇收入內容');
+            name+=' · '+incContent;
+          }
         }
       }
       const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,expContent:incContent,staffId:'',staffName:'',paidBy:'',viaAccount,paymentPeriod,date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
