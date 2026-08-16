@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723I">
+<meta name="app-version" content="20260723K">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -329,10 +329,10 @@ textarea.form-input{resize:none;min-height:72px;}
   <div id="page-dashboard" class="page active">
     <div class="content">
       <div class="punch-grid">
-        <button class="punch-btn in" onclick="punch('in')"><i class="ti ti-login"></i>上班打卡</button>
-        <button class="punch-btn out" onclick="punch('out')"><i class="ti ti-logout"></i>下班打卡</button>
+        <button class="punch-btn work" onclick="punchWorkday()" style="grid-column:1/-1;background:#ffd60a;color:#3a2e00;"><i class="ti ti-square-check"></i>計工打卡</button>
       </div>
-      <div id="punch-status" style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:0.75rem;"></div>
+      <div id="punch-status" style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:4px;"></div>
+      <div style="text-align:center;margin-bottom:0.75rem;"><span style="color:var(--gold);cursor:pointer;font-size:0.8125rem;" onclick="showPage('workdays')">查看本月工時 ›</span></div>
       <div class="stat-grid" id="dash-stats"></div>
       <div class="section-hd">洽談中專案</div>
       <div class="card" id="dash-negotiating"></div>
@@ -434,6 +434,23 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
   </div>
 
+  <div id="page-workdays" class="page">
+    <div class="content">
+      <div class="flex-between" style="margin-bottom:0.75rem;gap:0.5rem;">
+        <select class="form-input" id="wd-period-sel" onchange="renderWorkdays()" style="flex:1;">
+          <option value="current">本期</option>
+          <option value="prev">上期</option>
+          <option value="custom">自訂月份</option>
+        </select>
+        <input class="form-input" id="wd-period-month" type="month" style="display:none;width:150px;" onchange="renderWorkdays()">
+      </div>
+      <div id="wd-period-label" style="color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;"></div>
+      <div class="stat-grid" id="wd-stats"></div>
+      <div class="section-hd">工時明細</div>
+      <div id="workdays-list"></div>
+    </div>
+  </div>
+
   <!-- 小工具 -->
   <div id="page-calendar" class="page">
     <div class="content">
@@ -499,12 +516,12 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-punch">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title"><span id="sheet-punch-title">上班打卡</span><button class="sheet-close" onclick="closeSheet('sheet-punch')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title"><span id="sheet-punch-title">計工打卡</span><button class="sheet-close" onclick="closeSheet('sheet-punch')"><i class="ti ti-x"></i></button></div>
     <div class="form-group"><label class="form-label">今日工作專案</label><select class="form-input" id="punch-project"></select></div>
     <div class="form-group"><label class="form-label">員工姓名</label><select class="form-input" id="punch-name"><option value="">請選擇員工</option></select></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-punch')">取消</button>
-      <button class="btn btn-primary" onclick="confirmPunch()">確認打卡</button>
+      <button class="btn btn-primary" onclick="confirmWorkday()">確認計工（1整工）</button>
     </div>
   </div>
 </div>
@@ -536,6 +553,32 @@ textarea.form-input{resize:none;min-height:72px;}
       <button class="btn btn-primary" onclick="savePunchEdit()">儲存</button>
     </div>
     <button class="btn btn-danger" id="pe-delete-btn" style="width:100%;margin-top:0.6rem;display:none" onclick="deletePunchEdit()"><i class="ti ti-trash"></i> 刪除這筆紀錄</button>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-workday-edit">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="workday-edit-title">編輯計工紀錄</span><button class="sheet-close" onclick="closeSheet('sheet-workday-edit')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">員工姓名 *</label><select class="form-input" id="wd-name"><option value="">請選擇員工</option></select></div>
+    <div class="form-group"><label class="form-label">所屬專案</label><select class="form-input" id="wd-project"></select></div>
+    <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="wd-date" type="date"></div>
+    <div class="form-group">
+      <label class="form-label">工天數</label>
+      <div class="segmented">
+        <div class="seg-btn active" id="wd-type-full" onclick="selectSeg(this,'wd-type','full')">整工</div>
+        <div class="seg-btn" id="wd-type-half" onclick="selectSeg(this,'wd-type','half')">半工</div>
+      </div>
+      <input type="hidden" id="wd-type" value="full">
+    </div>
+    <div class="form-group"><label class="form-label">加班時數</label><input class="form-input" id="wd-ot" type="number" inputmode="decimal" placeholder="0" step="0.5" min="0"></div>
+    <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="wd-note" placeholder="補充說明" autocomplete="off"></div>
+    <input type="hidden" id="wd-id" value="">
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-workday-edit')">取消</button>
+      <button class="btn btn-primary" onclick="saveWorkdayEdit()">儲存</button>
+    </div>
+    <button class="btn btn-danger" id="wd-delete-btn" style="width:100%;margin-top:0.6rem;display:none" onclick="deleteWorkdayEdit()"><i class="ti ti-trash"></i> 刪除這筆紀錄</button>
   </div>
 </div>
 
@@ -653,6 +696,40 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 </div>
 
+<div class="sheet-overlay" id="sheet-construction-setup">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">施作專案設定<button class="sheet-close" onclick="closeSheet('sheet-construction-setup')"><i class="ti ti-x"></i></button></div>
+    <div style="color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">這個專案要轉為施作中了，先設定一下這兩件事（之後都還能再調整）</div>
+    <div class="form-group">
+      <label class="form-label">施工項目（勾選這個專案實際會用到的項目）</label>
+      <div id="cs-steps-list"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">工程款共幾期</label>
+      <input class="form-input" id="cs-period-count" type="number" inputmode="numeric" min="0" placeholder="例：3" onchange="renderPaymentPeriodInputs()">
+    </div>
+    <div id="cs-periods-list"></div>
+    <div class="sheet-footer">
+      <button class="btn" onclick="skipConstructionSetup()">先跳過</button>
+      <button class="btn btn-primary" onclick="saveConstructionSetup()">儲存設定</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-manage-steps">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">管理施工項目<button class="sheet-close" onclick="closeSheet('sheet-manage-steps')"><i class="ti ti-x"></i></button></div>
+    <div style="color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">勾選這個專案要顯示的施工項目</div>
+    <div id="ms-steps-list"></div>
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-manage-steps')">取消</button>
+      <button class="btn btn-primary" onclick="saveManageSteps()">儲存</button>
+    </div>
+  </div>
+</div>
+
 <div class="sheet-overlay" id="sheet-source-other">
   <div class="sheet">
     <div class="sheet-handle"></div>
@@ -701,6 +778,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
     <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project" onchange="onCatProjectChange()"></select></div>
+    <div class="form-group" id="f-cat-period-group" style="display:none;"><label class="form-label">工程款期別 *</label><select class="form-input" id="f-cat-period" onchange="onCatPeriodChange()"></select></div>
     <div class="form-group" id="f-cat-transfer-group" style="display:none;"><label class="form-label">轉帳給 *</label><select class="form-input" id="f-cat-transfer-target"></select></div>
     <div class="form-group" id="f-expense-detail-group" style="display:none;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-expense-detail-label">支出項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-expense-cat').value)">管理項目</span></label>
@@ -1160,16 +1238,68 @@ function onPunchSyncError(){
 }
 function onPunchesSynced(arr){
   window.fbDebugLog('打卡資料同步：收到雲端 '+arr.length+' 筆');
-  arr.sort((a,b)=>a.time.localeCompare(b.time));
+  arr.sort((a,b)=>(a.time||a.createdAt||'').localeCompare(b.time||b.createdAt||''));
   db.punches=arr;
   save();
+  migrateOldPunchesToWorkdays();
   refreshPunchDependentViews();
+}
+// ── 一次性遷移：把舊制上下班打卡資料換算成工天數，保留原始紀錄不動，另外產生一份計工紀錄 ──
+function migrateOldPunchesToWorkdays(){
+  if(localStorage.getItem('dmgr_workday_migration_v1'))return;
+  localStorage.setItem('dmgr_workday_migration_v1','1');
+  const oldPunches=db.punches.filter(p=>p.type==='in'||p.type==='out');
+  if(!oldPunches.length)return;
+  const byKey={};
+  oldPunches.forEach(p=>{
+    const key=p.date+'|'+p.name;
+    if(!byKey[key])byKey[key]=[];
+    byKey[key].push(p);
+  });
+  const newRecords=[];
+  Object.keys(byKey).forEach(key=>{
+    const arr=byKey[key];
+    const date=arr[0].date,name=arr[0].name;
+    const ins=arr.filter(p=>p.type==='in').map(p=>new Date(p.time)).sort((a,b)=>a-b);
+    const outs=arr.filter(p=>p.type==='out').map(p=>new Date(p.time)).sort((a,b)=>a-b);
+    if(!ins.length||!outs.length)return; // 資料不完整（只有上班沒下班等），不硬猜，跳過不換算
+    const inT=ins[0],outT=outs[outs.length-1];
+    const inMs=inT.getTime(),outMs=outT.getTime();
+    const lunchStart=new Date(inT);lunchStart.setHours(12,0,0,0);
+    const lunchEnd=new Date(inT);lunchEnd.setHours(13,0,0,0);
+    let workMins=(outMs-inMs)/60000;
+    if(inMs<lunchEnd.getTime()&&outMs>lunchStart.getTime()){
+      const overlapStart=Math.max(inMs,lunchStart.getTime());
+      const overlapEnd=Math.min(outMs,lunchEnd.getTime());
+      if(overlapEnd>overlapStart)workMins-=(overlapEnd-overlapStart)/60000;
+    }
+    const dayType=workMins>=360?'full':'half';
+    const ot17=new Date(outT);ot17.setHours(17,0,0,0);
+    let otHours=0;
+    if(outT>ot17){
+      const otMins=(outT.getTime()-ot17.getTime())/60000;
+      otHours=Math.floor(otMins/60);
+    }
+    const inRec=arr.find(p=>p.type==='in');
+    const projectId=(inRec&&inRec.projectId)||arr[0].projectId||'';
+    newRecords.push({
+      id:uid(),kind:'workday',name,projectId,date,dayType,overtimeHours:otHours,
+      note:'',createdAt:new Date().toISOString(),migrated:true
+    });
+  });
+  if(!newRecords.length)return;
+  db.punches.push(...newRecords);
+  save();
+  if(window.fbSavePunch){
+    newRecords.forEach(rec=>window.fbSavePunch(rec).catch(err=>console.error('換算舊打卡資料失敗',err)));
+  }
 }
 function onGcalIdsSynced(obj){
   db.punchGcalIds=obj;
 }
 function refreshPunchDependentViews(){
   if(currentPage==='dashboard')renderDashboard();
+  else if(currentPage==='workdays')renderWorkdays();
   else if(currentPage==='detail')renderDetail(currentProjectId);
   else if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
   else if(currentPage==='calendar')renderCalendar();
@@ -2238,7 +2368,19 @@ function onIncomeDetailChange(){
     grp.style.display='none';
   }
 }
-function onCatProjectChange(){/* 目前選擇的專案本身不影響其他欄位，保留供未來擴充 */}
+function onCatProjectChange(){
+  const t=document.getElementById('f-type').value;
+  const projId=document.getElementById('f-cat-project').value;
+  const periodGrp=document.getElementById('f-cat-period-group');
+  const proj=db.projects.find(p=>p.id===projId);
+  const hasSchedule=t==='收入'&&proj&&proj.paymentSchedule&&proj.paymentSchedule.length;
+  periodGrp.style.display=hasSchedule?'block':'none';
+  if(hasSchedule){
+    const sel=document.getElementById('f-cat-period');
+    sel.innerHTML='<option value="">不指定期別</option>'+proj.paymentSchedule.map(pd=>`<option value="${pd.period}">${pd.label}（規劃 $${fMoney(pd.amount)}）</option>`).join('');
+  }
+}
+function onCatPeriodChange(){/* 選期別時目前不需要額外處理，金額比對放在儲存時檢查 */}
 function onExpenseCatChange(){updateCatDependentUI();}
 function onIncomeCatChange(){updateCatDependentUI();}
 function toggleFinanceCat(t){
@@ -2263,35 +2405,12 @@ document.querySelectorAll('.sheet-overlay').forEach(m=>{m.addEventListener('clic
 
 // ── 打卡計算 ──
 function calcWorkStats(punches){
-  const byDate={};
-  punches.forEach(p=>{if(!byDate[p.date])byDate[p.date]=[];byDate[p.date].push(p);});
-  let totalDays=0, totalOTMins=0;
-  Object.values(byDate).forEach(arr=>{
-    const ins=arr.filter(p=>p.type==='in').map(p=>new Date(p.time)).sort((a,b)=>a-b);
-    const outs=arr.filter(p=>p.type==='out').map(p=>new Date(p.time)).sort((a,b)=>a-b);
-    if(!ins.length||!outs.length)return;
-    const inT=ins[0], outT=outs[outs.length-1];
-    const inMs=inT.getTime(), outMs=outT.getTime();
-    // 扣午休 12:00-13:00
-    const lunchStart=new Date(inT);lunchStart.setHours(12,0,0,0);
-    const lunchEnd=new Date(inT);lunchEnd.setHours(13,0,0,0);
-    let workMins=(outMs-inMs)/60000;
-    if(inMs<lunchEnd.getTime()&&outMs>lunchStart.getTime()){
-      const overlapStart=Math.max(inMs,lunchStart.getTime());
-      const overlapEnd=Math.min(outMs,lunchEnd.getTime());
-      if(overlapEnd>overlapStart)workMins-=(overlapEnd-overlapStart)/60000;
-    }
-    // 天數計算：實際工時≥6小時→1天，不滿6小時→0.5天
-    if(workMins>=360)totalDays+=1;
-    else totalDays+=0.5;
-    // 加班：17:00後每滿1小時計1小時（不足1小時不計）
-    const ot17=new Date(outT);ot17.setHours(17,0,0,0);
-    if(outT>ot17){
-      const otMins=(outT.getTime()-ot17.getTime())/60000;
-      totalOTMins+=Math.floor(otMins/60)*60;
-    }
-  });
-  return{days:totalDays,otHours:totalOTMins/60};
+  // 遷移後，所有有效的歷史上下班紀錄都已經換算成計工紀錄（kind:'workday'），
+  // 這裡只需要加總計工紀錄即可，不能再處理原始 in/out，不然同一天會被算兩次
+  const workdayPunches=punches.filter(p=>p.kind==='workday');
+  const days=workdayPunches.reduce((s,p)=>s+(p.dayType==='half'?0.5:1),0);
+  const otHours=workdayPunches.reduce((s,p)=>s+Number(p.overtimeHours||0),0);
+  return{days,otHours};
 }
 
 // 取得期間範圍
@@ -2334,7 +2453,7 @@ function showPage(id,opts={}){
   document.getElementById('page-'+id).classList.add('active');
   currentPage=id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  const tabMap={dashboard:0,finance:1,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4};
+  const tabMap={dashboard:0,workdays:0,finance:1,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4};
   if(tabMap[id]!==undefined)document.querySelectorAll('.nav-tab')[tabMap[id]].classList.add('active');
   const titles={dashboard:'總覽',projects:'專案',finance:'收支管理',calendar:'小工具',staff:'人事'};
   const tr=document.getElementById('topbar-right');
@@ -2349,7 +2468,7 @@ function showPage(id,opts={}){
     tr.innerHTML=`<button class="topbar-btn ghost" onclick="openEditStaff('${currentStaffId}')"><i class="ti ti-pencil"></i></button>`;
   } else if(id==='projects'){
     titleEl.textContent=titles[id];
-    tr.innerHTML=`<button class="topbar-btn-add" onclick="handleAdd()"><i class="ti ti-plus"></i></button>`;
+    tr.innerHTML=`<button class="topbar-btn-add" style="background:#ffd60a;color:#3a2e00;" onclick="handleAdd()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='staff'){
     titleEl.textContent=titles[id];
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openAddStaff()"><i class="ti ti-plus"></i></button>`;
@@ -2371,6 +2490,9 @@ function showPage(id,opts={}){
   } else if(id==='balance-snapshots'){
     titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>結算存檔`;
     tr.innerHTML='';
+  } else if(id==='workdays'){
+    titleEl.innerHTML=`<button onclick="showPage('dashboard')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>本月工時`;
+    tr.innerHTML=`<button class="topbar-btn-add" style="background:#ffd60a;color:#3a2e00;" onclick="openWorkdayEdit()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='materials'){
     titleEl.innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>材料成本表`;
     tr.innerHTML=`<button class="topbar-btn-add" onclick="openAddMaterial()"><i class="ti ti-plus"></i></button>`;
@@ -2388,6 +2510,7 @@ function showPage(id,opts={}){
   if(id==='deleted-items')renderDeletedItems();
   if(id==='audit-log')renderAuditLog();
   if(id==='balance-snapshots')renderBalanceSnapshots();
+  if(id==='workdays')renderWorkdays();
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();renderToolGrid();}
   if(id==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
   if(id==='staff')renderStaff();
@@ -2971,7 +3094,42 @@ function fillNameSel(selId){
   if(val)el.value=val;
 }
 
-// ── 打卡 ──
+// ── 計工打卡（簡化版：一天一次，預設整工，例外事後在「本月工時」修改）──
+function punchWorkday(){
+  fillSel('punch-project');
+  fillNameSel('punch-name');
+  const workdays=db.punches.filter(p=>p.kind==='workday');
+  const last=workdays[workdays.length-1];
+  if(last){const el=document.getElementById('punch-name');if(el)el.value=last.name;}
+  openSheet('sheet-punch');
+}
+function confirmWorkday(){
+  const name=document.getElementById('punch-name').value;
+  const projectId=document.getElementById('punch-project').value;
+  if(!name)return alert('請選擇員工姓名');
+  if(!projectId)return alert('請選擇今日工作專案');
+  if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
+  const rec={id:uid(),kind:'workday',name,projectId,date:today(),dayType:'full',overtimeHours:0,note:'',createdAt:new Date().toISOString()};
+  db.punches.push(rec);
+  save();
+  renderWorkdayStatus();
+  closeSheet('sheet-punch');
+  window.fbSavePunch(rec).catch(err=>{
+    console.error('計工儲存失敗',err);
+    alert('計工儲存失敗，請檢查網路連線');
+  });
+}
+function renderWorkdayStatus(){
+  const el=document.getElementById('punch-status');if(!el)return;
+  const todayStr=today();
+  const td=db.punches.filter(p=>p.kind==='workday'&&p.date===todayStr);
+  if(!td.length){el.innerHTML='今日尚未計工';return;}
+  el.innerHTML=td.map(p=>{
+    const label=p.dayType==='half'?'半工':'整工';
+    const ot=p.overtimeHours?'＋加班'+p.overtimeHours+'hr':'';
+    return `<div style="font-size:13px;line-height:1.8">✅ <b>${p.name}</b>　${pName(p.projectId)}　${label}${ot}</div>`;
+  }).join('');
+}
 function punch(type){
   pendingPunchType=type;
   document.getElementById('sheet-punch-title').textContent=type==='in'?'上班打卡 🟢':'下班打卡 🔴';
@@ -3056,7 +3214,7 @@ function renderPunchStatus(){
 
 // ── DASHBOARD ──
 function renderDashboard(){
-  renderPunchStatus();
+  renderWorkdayStatus();
   const neg=db.projects.filter(p=>p.type==='洽談中').length;
   const con=db.projects.filter(p=>p.type==='施作中').length;
   document.getElementById('dash-stats').innerHTML=`
@@ -3187,6 +3345,7 @@ function saveProject(){
   const doSave=()=>{
     if(editingProjectId){
       const p=db.projects.find(x=>x.id===editingProjectId);if(!p)return;
+      const prevType=p.type;
       p.name=name;p.area=area;p.bname=bname;p.city=city;
       p.client=document.getElementById('p-client').value;
       p.type=type;p.note=document.getElementById('p-note').value;
@@ -3195,11 +3354,13 @@ function saveProject(){
       save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-project');
       if(currentPage==='detail')renderDetail(editingProjectId);else renderProjects();
       if(measureDate)syncMeasureToCalendar(p);
+      if(type==='施作中'&&prevType!=='施作中')openConstructionSetup(p.id);
     } else {
       const np={id:uid(),name,area,bname,city,type,client:document.getElementById('p-client').value,note:document.getElementById('p-note').value,leader:document.getElementById('p-leader').value,measureDate,negStep:0,negStepTimes:{},negSource:'',conSteps:{},conCustomSteps:[],conOtherLabel:'',info:{},notes:[],files:{},createdAt:today()};
       db.projects.push(np);
       save();if(window.fbSaveProject)window.fbSaveProject(np);closeSheet('sheet-project');renderProjects();
       if(measureDate)syncMeasureToCalendar(np);
+      if(type==='施作中')openConstructionSetup(np.id);
     }
     editingProjectId=null;
   };
@@ -3366,6 +3527,23 @@ function renderDetail(pid){
     ${p.info.remark?`<div class="info-row"><span class="info-label">備註</span><span class="info-value" style="white-space:pre-wrap">${p.info.remark}</span></div>`:''}
   </div></div>`;
 
+  // 工程款期數（施作中才顯示，且有設定過才顯示）
+  let scheduleHtml='';
+  if(isCon&&p.paymentSchedule&&p.paymentSchedule.length){
+    scheduleHtml=`<div class="section-hd"><span>工程款期數</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openConstructionSetup('${pid}')">編輯</span></div>
+    <div class="card">${p.paymentSchedule.map(period=>{
+      const received=pFin.filter(f=>f.ftype==='收入'&&f.paymentPeriod===period.period).reduce((s,f)=>s+Number(f.amount||0),0);
+      const isPaid=received>=period.amount&&period.amount>0;
+      return `<div class="finance-item">
+        <div class="finance-body">
+          <div class="finance-name">${period.label}${isPaid?'<span class="badge badge-green" style="margin-left:6px;font-size:10px;">已收</span>':received>0?'<span class="badge badge-amber" style="margin-left:6px;font-size:10px;">部分收款</span>':''}</div>
+          <div class="finance-meta">規劃 $${fMoney(period.amount)}${received>0?' · 已收 $'+fMoney(received):''}</div>
+        </div>
+        <span class="fw500 ${isPaid?'text-green':''}">$${fMoney(period.amount)}</span>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
   // 收支（施作中才顯示）
   let finHtml='';
   if(isCon){
@@ -3428,9 +3606,9 @@ function renderDetail(pid){
       <div class="card">
         ${staffNames.length?effRows+`<div class="eff-row" style="background:var(--bg2)"><div class="eff-name fw500">合計</div><div class="eff-val fw500">${totalEffMins}天${totalOTHours>0?' +'+totalOTHours+'h加班':''}</div></div>`:'<div class="empty" style="padding:1.5rem"><i class="ti ti-users-off"></i><p>尚無打卡記錄</p></div>'}
       </div>
-      <div class="section-hd">施工進度</div>
+      <div class="section-hd"><span>施工進度</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openManageSteps('${pid}')">管理項目</span></div>
       <div class="card">
-        ${CON_STEPS.map(s=>{
+        ${(p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS).map(s=>{
           const sd=steps[s]||{state:'未開始'};
           const state=sd.state||'未開始';
           return`<div class="task-list-item">
@@ -3440,7 +3618,7 @@ function renderDetail(pid){
               ${sd.time?`<div class="task-time">${state==='完成'?'完成 ':'更新 '}${fmtMD(sd.time)}</div>`:''}
             </div>
             <span class="task-state ${state==='完成'?'done':state==='進行中'?'ongoing':''}">${state}</span>
-          </div>`;}).join('')}
+          </div>`;}).join('')||'<div class="empty" style="padding:1.25rem"><p>尚未選擇施工項目，點上方「管理項目」選擇</p></div>'}
       </div>
       <div class="section-hd"><span>其他施工項目</span><button class="btn btn-sm btn-ghost" onclick="openAddCustomStep('${pid}')"><i class="ti ti-plus"></i> 新增</button></div>
       ${(()=>{
@@ -3486,7 +3664,7 @@ function renderDetail(pid){
 
   const middleHtml=isNeg
     ? `${infoHtml}${progressHtml}${notesHtml}`
-    : `${infoHtml}${finHtml}${notesHtml}${progressHtml}`;
+    : `${infoHtml}${scheduleHtml}${finHtml}${notesHtml}${progressHtml}`;
 
   document.getElementById('detail-content').innerHTML=`
     <div class="flex-between" style="margin-bottom:0.5rem">
@@ -3543,13 +3721,78 @@ function setNegStep(pid,step){
   } else if(p.negStep<prev){
     for(let i=p.negStep;i<prev;i++)delete p.negStepTimes[i];
   }
+  let justConverted=false;
   if(p.negStep===NEG_STEPS.length){
     if(confirm('簽約完成！是否將此專案轉為「施作中」？')){
       p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
+      justConverted=true;
     }
   }
   save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
   document.getElementById('topbar-title').innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${p.name}`;
+  if(justConverted)openConstructionSetup(pid);
+}
+
+// ── 施作專案設定（施工項目勾選＋工程款期數）──
+function renderStepCheckboxes(containerId,currentSelected){
+  const el=document.getElementById(containerId);if(!el)return;
+  el.innerHTML='<div class="card">'+CON_STEPS.map(s=>{
+    const checked=currentSelected.includes(s);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:0.7rem 0.9rem;border-bottom:1px solid var(--border);cursor:pointer;">
+      <input type="checkbox" class="cs-step-check" value="${s}" ${checked?'checked':''} style="width:19px;height:19px;flex-shrink:0;accent-color:var(--gold);">
+      <span>${s}</span>
+    </label>`;
+  }).join('')+'</div>';
+}
+function renderPaymentPeriodInputs(){
+  const count=Math.max(0,Number(document.getElementById('cs-period-count').value)||0);
+  const el=document.getElementById('cs-periods-list');
+  const existing=window._csExistingSchedule||[];
+  let html='';
+  for(let i=1;i<=count;i++){
+    const found=existing.find(x=>x.period===i);
+    html+=`<div class="form-group"><label class="form-label">第${i}期金額</label><input class="form-input cs-period-amount" data-period="${i}" type="number" inputmode="numeric" placeholder="0" value="${found?found.amount:''}"></div>`;
+  }
+  el.innerHTML=html;
+}
+function openConstructionSetup(pid){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  currentSetupProjectId=pid;
+  renderStepCheckboxes('cs-steps-list',p.selectedSteps||[]);
+  window._csExistingSchedule=p.paymentSchedule||[];
+  document.getElementById('cs-period-count').value=(p.paymentSchedule&&p.paymentSchedule.length)||'';
+  renderPaymentPeriodInputs();
+  openSheet('sheet-construction-setup');
+}
+function skipConstructionSetup(){
+  closeSheet('sheet-construction-setup');
+}
+function saveConstructionSetup(){
+  const p=db.projects.find(x=>x.id===currentSetupProjectId);if(!p)return;
+  const checked=Array.from(document.querySelectorAll('#cs-steps-list .cs-step-check:checked')).map(el=>el.value);
+  p.selectedSteps=checked;
+  const amountEls=Array.from(document.querySelectorAll('#cs-periods-list .cs-period-amount'));
+  const schedule=amountEls.map(el=>({period:Number(el.getAttribute('data-period')),label:'第'+el.getAttribute('data-period')+'期',amount:Number(el.value)||0}));
+  p.paymentSchedule=schedule;
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
+  closeSheet('sheet-construction-setup');
+  if(currentPage==='detail')renderDetail(p.id);
+}
+let currentSetupProjectId=null;
+function openManageSteps(pid){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  currentSetupProjectId=pid;
+  const current=p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS;
+  renderStepCheckboxes('ms-steps-list',current);
+  openSheet('sheet-manage-steps');
+}
+function saveManageSteps(){
+  const p=db.projects.find(x=>x.id===currentSetupProjectId);if(!p)return;
+  const checked=Array.from(document.querySelectorAll('#ms-steps-list .cs-step-check:checked')).map(el=>el.value);
+  p.selectedSteps=checked;
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
+  closeSheet('sheet-manage-steps');
+  if(currentPage==='detail')renderDetail(p.id);
 }
 
 function openFinanceForProject(pid){
@@ -4191,13 +4434,25 @@ function saveFinance(){
         if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
         return;
       }
-      let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='',incContent='',viaAccount='';
+      let projectId=acct,storedIncCat=incCat,name=incCat,incDetail='',incContent='',viaAccount='',paymentPeriod=null;
       if(incCat==='專案'){
         const proj=document.getElementById('f-cat-project').value;
         if(!proj)return alert('請選擇專案');
         projectId=proj;storedIncCat=incCat;
         viaAccount=acct; // 記住這筆錢實際是進到哪個帳戶，帳戶餘額才會正確反映
         name='工程款';
+        const projObj=db.projects.find(p=>p.id===proj);
+        if(projObj&&projObj.paymentSchedule&&projObj.paymentSchedule.length){
+          const periodVal=document.getElementById('f-cat-period').value;
+          if(periodVal){
+            paymentPeriod=Number(periodVal);
+            const pd=projObj.paymentSchedule.find(x=>x.period===paymentPeriod);
+            name='工程款 · '+pd.label;
+            if(pd&&pd.amount>0&&Number(amount)!==pd.amount){
+              if(!confirm(pd.label+'原本規劃金額是 $'+fMoney(pd.amount)+'，你這次輸入的是 $'+fMoney(Number(amount))+'，金額不符，確定要這樣記嗎？'))return;
+            }
+          }
+        }
       } else {
         name=incCat;
       }
@@ -4213,7 +4468,7 @@ function saveFinance(){
           name+=' · '+incContent;
         }
       }
-      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,expContent:incContent,staffId:'',staffName:'',paidBy:'',viaAccount,date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
+      const rec={id:uid(),name,amount:Number(amount),projectId,ftype,expCat:'',incCat:storedIncCat,expDetail:incDetail,expContent:incContent,staffId:'',staffName:'',paidBy:'',viaAccount,paymentPeriod,date:dateVal,note:noteVal,createdAt:new Date().toISOString()};
       saveOrCreateFinance(rec,name+'（'+fMoney(rec.amount)+'元）');
       closeSheet('sheet-finance');resetFinanceForm();
       if(currentPage==='finance-detail')renderFinance();
@@ -5085,6 +5340,116 @@ function deletePunchEdit(){
 function switchPeriod(period,month=''){
   currentStaffPeriod=period;currentStaffCustomMonth=month;
   renderStaffDetail(currentStaffId);
+}
+// ── 計工紀錄編輯 ──
+function openWorkdayEdit(id){
+  editingWorkdayId=id||null;
+  fillSel('wd-project');
+  fillNameSel('wd-name');
+  document.getElementById('wd-project').value='';
+  if(id){
+    const rec=db.punches.find(x=>x.id===id);
+    if(!rec)return;
+    document.getElementById('workday-edit-title').textContent='編輯計工紀錄';
+    document.getElementById('wd-id').value=rec.id;
+    document.getElementById('wd-name').value=rec.name;
+    document.getElementById('wd-project').value=rec.projectId||'';
+    document.getElementById('wd-date').value=rec.date;
+    selectSeg(document.getElementById(rec.dayType==='half'?'wd-type-half':'wd-type-full'),'wd-type',rec.dayType||'full');
+    document.getElementById('wd-ot').value=rec.overtimeHours||'';
+    document.getElementById('wd-note').value=rec.note||'';
+    document.getElementById('wd-delete-btn').style.display='block';
+  } else {
+    const staff=currentStaffId?db.staff.find(x=>x.id===currentStaffId):null;
+    document.getElementById('workday-edit-title').textContent='新增計工紀錄';
+    document.getElementById('wd-id').value='';
+    document.getElementById('wd-name').value=staff?staff.name:'';
+    document.getElementById('wd-date').value=today();
+    selectSeg(document.getElementById('wd-type-full'),'wd-type','full');
+    document.getElementById('wd-ot').value='';
+    document.getElementById('wd-note').value='';
+    document.getElementById('wd-delete-btn').style.display='none';
+  }
+  openSheet('sheet-workday-edit');
+}
+function saveWorkdayEdit(){
+  const name=document.getElementById('wd-name').value;
+  const dateVal=document.getElementById('wd-date').value;
+  if(!name||!dateVal)return alert('請選擇員工並填入日期');
+  if(!window.fbSavePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
+  const projectId=document.getElementById('wd-project').value;
+  const dayType=document.getElementById('wd-type').value;
+  const overtimeHours=Number(document.getElementById('wd-ot').value)||0;
+  const note=document.getElementById('wd-note').value.trim();
+  const id=document.getElementById('wd-id').value;
+  closeSheet('sheet-workday-edit');
+  if(id){
+    const rec=db.punches.find(x=>x.id===id);
+    if(!rec)return;
+    Object.assign(rec,{name,projectId,date:dateVal,dayType,overtimeHours,note,editedAt:new Date().toISOString(),editedBy:(currentUser&&currentUser.email)||''});
+    save();
+    window.fbSavePunch(rec).catch(err=>{console.error('更新計工紀錄失敗',err);alert('更新失敗，請檢查網路連線');});
+  } else {
+    const rec={id:uid(),kind:'workday',name,projectId,date:dateVal,dayType,overtimeHours,note,createdAt:new Date().toISOString()};
+    db.punches.push(rec);save();
+    window.fbSavePunch(rec).catch(err=>{console.error('新增計工紀錄失敗',err);alert('新增失敗，請檢查網路連線');});
+  }
+  if(currentPage==='workdays')renderWorkdays();
+  if(currentPage==='dashboard')renderWorkdayStatus();
+}
+function deleteWorkdayEdit(){
+  const id=document.getElementById('wd-id').value;
+  if(!id)return;
+  if(!confirm('確定要刪除這筆計工紀錄嗎？'))return;
+  if(!window.fbDeletePunch)return alert('雲端打卡服務尚未就緒，請稍後再試');
+  db.punches=db.punches.filter(x=>x.id!==id);save();
+  closeSheet('sheet-workday-edit');
+  window.fbDeletePunch(id).catch(err=>{console.error('刪除計工紀錄失敗',err);alert('刪除失敗，請檢查網路連線');});
+  if(currentPage==='workdays')renderWorkdays();
+  if(currentPage==='dashboard')renderWorkdayStatus();
+}
+let editingWorkdayId=null;
+function renderWorkdays(){
+  const periodSel=document.getElementById('wd-period-sel');
+  const monthInput=document.getElementById('wd-period-month');
+  const period=periodSel.value;
+  monthInput.style.display=period==='custom'?'block':'none';
+  if(period==='custom'&&!monthInput.value)monthInput.value=today().slice(0,7);
+  const customMonth=monthInput.value;
+  const{label}=getPeriodRange(period,customMonth);
+  document.getElementById('wd-period-label').textContent=label?'期間：'+label:'';
+
+  const all=db.punches.filter(p=>p.kind==='workday');
+  const filtered=filterPunchesByPeriod(all,period,customMonth).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const totalDays=filtered.reduce((s,p)=>s+(p.dayType==='half'?0.5:1),0);
+  const totalOT=filtered.reduce((s,p)=>s+Number(p.overtimeHours||0),0);
+  document.getElementById('wd-stats').innerHTML=`
+    <div class="stat-card"><div class="stat-label">總工天數</div><div class="stat-value" style="font-size:20px">${totalDays}</div></div>
+    <div class="stat-card"><div class="stat-label">總加班時數</div><div class="stat-value" style="font-size:20px">${totalOT}</div></div>`;
+
+  const byName={};
+  filtered.forEach(p=>{if(!byName[p.name])byName[p.name]=[];byName[p.name].push(p);});
+  const names=Object.keys(byName).sort();
+
+  document.getElementById('workdays-list').innerHTML=names.length?names.map(name=>{
+    const items=byName[name];
+    const days=items.reduce((s,p)=>s+(p.dayType==='half'?0.5:1),0);
+    const ot=items.reduce((s,p)=>s+Number(p.overtimeHours||0),0);
+    return `
+    <div class="section-hd" style="margin-top:0.75rem">${name} <span style="color:var(--text3);font-weight:400">共 ${days} 工${ot?'，加班 '+ot+' 小時':''}</span></div>
+    <div class="card">${items.map(p=>{
+      const label=p.dayType==='half'?'半工':'整工';
+      const migratedTag=p.migrated?'<span style="color:var(--text3);font-size:10px;margin-left:4px;">（舊制換算）</span>':'';
+      return `<div class="finance-item" style="cursor:pointer;" onclick="openWorkdayEdit('${p.id}')">
+        <div class="finance-body">
+          <div class="finance-name">${fDate(p.date)}　${label}${p.overtimeHours?'　加班'+p.overtimeHours+'hr':''}${migratedTag}</div>
+          <div class="finance-meta">${pName(p.projectId)}${p.note?' · '+p.note:''}</div>
+        </div>
+        <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+      </div>`;
+    }).join('')}</div>`;
+  }).join(''):'<div class="empty"><i class="ti ti-calendar-off"></i><p>這段期間還沒有計工紀錄</p></div>';
 }
 function nextStaffNo(){
   const nums=db.staff.map(s=>parseInt((s.no||'E000').replace(/\D/g,''))||0);
