@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723N">
+<meta name="app-version" content="20260723P">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -701,6 +701,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title">施作專案設定<button class="sheet-close" onclick="closeSheet('sheet-construction-setup')"><i class="ti ti-x"></i></button></div>
     <div style="color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">這個專案要轉為施作中了，先設定一下這兩件事（之後都還能再調整）</div>
+    <div id="cs-existing-note" style="display:none;color:var(--red-text);background:var(--red-bg);border-radius:var(--r);padding:0.6rem 0.75rem;font-size:0.8125rem;margin-bottom:0.75rem;line-height:1.5;"></div>
     <div class="form-group">
       <label class="form-label">施工項目（勾選這個專案實際會用到的項目）</label>
       <div id="cs-steps-list"></div>
@@ -3751,7 +3752,8 @@ function renderPaymentPeriodInputs(){
   let html='';
   for(let i=1;i<=count;i++){
     const found=existing.find(x=>x.period===i);
-    html+=`<div class="form-group"><label class="form-label">第${i}期金額</label><input class="form-input cs-period-amount" data-period="${i}" type="number" inputmode="numeric" placeholder="0" value="${found?found.amount:''}"></div>`;
+    const label=(i===count&&count>1)?'尾款金額':'第'+i+'期金額';
+    html+=`<div class="form-group"><label class="form-label">${label}</label><input class="form-input cs-period-amount" data-period="${i}" type="number" inputmode="numeric" placeholder="0" value="${found?found.amount:''}"></div>`;
   }
   el.innerHTML=html;
 }
@@ -3762,6 +3764,19 @@ function openConstructionSetup(pid){
   window._csExistingSchedule=p.paymentSchedule||[];
   document.getElementById('cs-period-count').value=(p.paymentSchedule&&p.paymentSchedule.length)||'';
   renderPaymentPeriodInputs();
+  // 如果這個專案已經有收款紀錄，提醒一下：改期數/改金額不會動到已經收到的錢，
+  // 但畫面上「已完成/未匯款」的比對狀態，會依照這裡改完之後的新設定重新比對
+  const paidPeriods=[...new Set(db.finance.filter(f=>f.projectId===pid&&f.ftype==='收入'&&f.paymentPeriod!=null).map(f=>f.paymentPeriod))];
+  const noteEl=document.getElementById('cs-existing-note');
+  if(noteEl){
+    if(paidPeriods.length){
+      noteEl.innerHTML=`⚠️ 這個專案已經有收款紀錄了（第 ${paidPeriods.sort((a,b)=>a-b).join('、')} 期都有收入紀錄）。這裡的錢不會被動到、專案總收入也不會變，但如果你在這裡減少期數或改動金額，「已完成／未匯款」的比對狀態會照新的設定重新比對，可能會跟你記憶中的狀態對不起來，存檔前請確認清楚。`;
+      noteEl.style.display='block';
+    } else {
+      noteEl.innerHTML='';
+      noteEl.style.display='none';
+    }
+  }
   openSheet('sheet-construction-setup');
 }
 function skipConstructionSetup(){
@@ -3772,7 +3787,27 @@ function saveConstructionSetup(){
   const checked=Array.from(document.querySelectorAll('#cs-steps-list .cs-step-check:checked')).map(el=>el.value);
   p.selectedSteps=checked;
   const amountEls=Array.from(document.querySelectorAll('#cs-periods-list .cs-period-amount'));
-  const schedule=amountEls.map(el=>({period:Number(el.getAttribute('data-period')),label:'第'+el.getAttribute('data-period')+'期',amount:Number(el.value)||0}));
+  const total=amountEls.length;
+  const schedule=amountEls.map((el,i)=>{
+    const periodNum=Number(el.getAttribute('data-period'));
+    const label=(i===total-1&&total>1)?'尾款':'第'+periodNum+'期';
+    return{period:periodNum,label,amount:Number(el.value)||0};
+  });
+  // 檢查：有沒有已經收過款的期別，在新設定裡被刪掉了（期數減少）或金額被改掉
+  const paidPeriods=db.finance.filter(f=>f.projectId===p.id&&f.ftype==='收入'&&f.paymentPeriod!=null);
+  const problems=[];
+  const paidByPeriod={};
+  paidPeriods.forEach(f=>{paidByPeriod[f.paymentPeriod]=(paidByPeriod[f.paymentPeriod]||0)+Number(f.amount||0);});
+  Object.keys(paidByPeriod).forEach(periodNum=>{
+    const num=Number(periodNum);
+    const newPd=schedule.find(x=>x.period===num);
+    if(!newPd){
+      problems.push('第'+num+'期已經收過 $'+fMoney(paidByPeriod[num])+'，但這次設定把這一期刪掉了');
+    } else if(newPd.amount>0&&newPd.amount!==paidByPeriod[num]&&paidByPeriod[num]<newPd.amount){
+      problems.push(newPd.label+'已經收 $'+fMoney(paidByPeriod[num])+'，跟新規劃金額 $'+fMoney(newPd.amount)+'不同，之後會顯示「未匯款」或「部分收款」');
+    }
+  });
+  if(problems.length&&!confirm('提醒一下：\n\n'+problems.join('\n')+'\n\n已收到的錢不會不見、專案總收入也不會變，只是期別的比對狀態可能會改變。確定要這樣儲存嗎？'))return;
   p.paymentSchedule=schedule;
   save();if(window.fbSaveProject)window.fbSaveProject(p);
   closeSheet('sheet-construction-setup');
