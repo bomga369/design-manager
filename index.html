@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723Q">
+<meta name="app-version" content="20260723R">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2384,7 +2384,15 @@ function onIncomeDetailChange(){
     grp.style.display='none';
   }
 }
-function onCatProjectChange(){/* 選擇的專案本身不影響其他欄位，工程款期別改在收入項目=工程款時，於收入內容動態帶出 */}
+function onCatProjectChange(){
+  // 換了專案之後，如果目前收入項目已經選在「工程款」，期別清單要跟著換成這個專案自己的，
+  // 不然會停留在上一個專案的期別上，感覺像卡住或跳很慢
+  const t=document.getElementById('f-type').value;
+  if(t==='收入'){
+    const incDetail=document.getElementById('f-income-detail').value;
+    if(incDetail)onIncomeDetailChange();
+  }
+}
 function onExpenseCatChange(){updateCatDependentUI();}
 function onIncomeCatChange(){updateCatDependentUI();}
 function toggleFinanceCat(t){
