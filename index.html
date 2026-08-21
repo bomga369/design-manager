@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723R">
+<meta name="app-version" content="20260723S">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3126,7 +3126,9 @@ function confirmWorkday(){
   save();
   renderWorkdayStatus();
   closeSheet('sheet-punch');
-  window.fbSavePunch(rec).catch(err=>{
+  window.fbSavePunch(rec).then(()=>{
+    syncWorkdayToCalendar(rec);
+  }).catch(err=>{
     console.error('計工儲存失敗',err);
     alert('計工儲存失敗，請檢查網路連線');
   });
@@ -5442,11 +5444,11 @@ function saveWorkdayEdit(){
     if(!rec)return;
     Object.assign(rec,{name,projectId,date:dateVal,dayType,overtimeHours,note,editedAt:new Date().toISOString(),editedBy:(currentUser&&currentUser.email)||''});
     save();
-    window.fbSavePunch(rec).catch(err=>{console.error('更新計工紀錄失敗',err);alert('更新失敗，請檢查網路連線');});
+    window.fbSavePunch(rec).then(()=>{syncWorkdayToCalendar(rec);}).catch(err=>{console.error('更新計工紀錄失敗',err);alert('更新失敗，請檢查網路連線');});
   } else {
     const rec={id:uid(),kind:'workday',name,projectId,date:dateVal,dayType,overtimeHours,note,createdAt:new Date().toISOString()};
     db.punches.push(rec);save();
-    window.fbSavePunch(rec).catch(err=>{console.error('新增計工紀錄失敗',err);alert('新增失敗，請檢查網路連線');});
+    window.fbSavePunch(rec).then(()=>{syncWorkdayToCalendar(rec);}).catch(err=>{console.error('新增計工紀錄失敗',err);alert('新增失敗，請檢查網路連線');});
   }
   if(currentPage==='workdays')renderWorkdays();
   if(currentPage==='dashboard')renderWorkdayStatus();
@@ -5459,6 +5461,7 @@ function deleteWorkdayEdit(){
   db.punches=db.punches.filter(x=>x.id!==id);save();
   closeSheet('sheet-workday-edit');
   window.fbDeletePunch(id).catch(err=>{console.error('刪除計工紀錄失敗',err);alert('刪除失敗，請檢查網路連線');});
+  deleteWorkdayGcalEvent(id);
   if(currentPage==='workdays')renderWorkdays();
   if(currentPage==='dashboard')renderWorkdayStatus();
 }
@@ -5570,6 +5573,64 @@ function getDayPunchSummary(dateKey,name,projectId){
   const endRec=outs.length?outs[outs.length-1]:null;
   const label=`上班 ${fmtT(startRec.time)}｜下班 ${endRec?fmtT(endRec.time):'尚未下班'}`;
   return{startTime:startRec.time,endTime:endRec?endRec.time:null,label};
+}
+function syncWorkdayToCalendar(rec){
+  if(!rec||!rec.projectId)return;
+  if(!driveAccessToken){
+    if(window.google&&google.accounts&&google.accounts.oauth2){
+      try{
+        const tc=google.accounts.oauth2.initTokenClient({
+          client_id:GOOGLE_CLIENT_ID,scope:GOOGLE_SCOPES,
+          callback:(resp)=>{
+            if(resp&&resp.access_token){driveAccessToken=resp.access_token;syncWorkdayToCalendar(rec);}
+            else{alert('Google 日曆授權已過期，請點畫面右上角頭像 → 重新授權，即可恢復自動同步日曆');}
+          }
+        });
+        tc.requestAccessToken({prompt:''});
+      }catch(e){console.error('重新授權失敗',e);}
+    }
+    return;
+  }
+  ensureDriveAuth(async()=>{
+    try{
+      const proj=db.projects.find(x=>x.id===rec.projectId);
+      const leaderText=proj&&proj.leader?'負責人：'+sName(proj.leader):'尚未指定負責人';
+      const dayLabel=rec.dayType==='half'?'半工':'整工';
+      const otText=rec.overtimeHours?'，加班'+rec.overtimeHours+'小時':'';
+      const nextDay=new Date(rec.date+'T00:00:00');
+      nextDay.setDate(nextDay.getDate()+1);
+      const endDateStr=nextDay.toISOString().slice(0,10);
+      const body={
+        summary:'施作-'+pName(rec.projectId)+'-'+rec.name,
+        description:'系統自動同步：計工紀錄\n'+dayLabel+otText+(rec.note?'\n備註：'+rec.note:'')+'\n'+leaderText,
+        start:{date:rec.date},
+        end:{date:endDateStr}
+      };
+      const key='workday|'+rec.id;
+      const existingId=db.punchGcalIds&&db.punchGcalIds[key];
+      let res;
+      if(existingId){
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${existingId}`,{method:'PUT',body:JSON.stringify(body)});
+      } else {
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
+      }
+      const data=await res.json();
+      if(data.id&&window.fbSaveGcalId){db.punchGcalIds[key]=data.id;await window.fbSaveGcalId(key,data.id);}
+      else if(data.error){console.error('計工同步失敗',data.error);}
+    }catch(err){console.error('計工同步發生錯誤',err);}
+  });
+}
+function deleteWorkdayGcalEvent(recId){
+  const key='workday|'+recId;
+  const gcalId=db.punchGcalIds&&db.punchGcalIds[key];
+  if(!gcalId)return;
+  ensureDriveAuth(async()=>{
+    try{
+      await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${gcalId}`,{method:'DELETE'});
+    }catch(err){console.error('刪除計工日曆事件失敗',err);}
+    delete db.punchGcalIds[key];
+    if(window.fbDeleteGcalId)window.fbDeleteGcalId(key).catch(()=>{});
+  });
 }
 function syncPunchToCalendar(dateKey,name,projectId){
   if(!driveAccessToken){
