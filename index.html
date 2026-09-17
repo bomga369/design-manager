@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723V">
+<meta name="app-version" content="20260723W">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1494,15 +1494,14 @@ function ensureSystemCategories(){
       if(!db.financeCats.sub.exp[group].includes(item)){db.financeCats.sub.exp[group].push(item);changed=true;}
     });
   });
-  // 一次性清理：把「專案」支出項目底下混雜的舊分類清掉，只留人事/費用/材料/廠商款項四項
-  // 只清選單清單，不動任何已經記錄過的收支資料（那些文字紀錄是存在各筆紀錄自己身上，不受影響）
-  if(!localStorage.getItem('dmgr_project_exp_cleanup_v1')){
-    localStorage.setItem('dmgr_project_exp_cleanup_v1','1');
-    const keepOnly=Object.keys(PROJECT_EXP_GROUPS);
-    const before=db.financeCats.sub.exp['專案'].length;
-    db.financeCats.sub.exp['專案']=db.financeCats.sub.exp['專案'].filter(item=>keepOnly.includes(item));
-    if(db.financeCats.sub.exp['專案'].length!==before)changed=true;
-  }
+  // 清掉「專案」支出項目底下混雜的舊分類名稱，只留人事/費用/材料/廠商款項四項
+  // 每次都檢查（不是只清一次），避免雲端同步時被舊資料蓋回來又跑出來
+  // 只清這幾個「已知的舊名稱」，其他你之後自己新增的項目完全不受影響
+  // 只動選單清單，不動任何已經記錄過的收支資料（那些文字是存在各筆紀錄自己身上，不受影響）
+  const STALE_PROJECT_EXP_NAMES=['材料五金','薪資','廠商付款','油漆款項','系統櫃','餐費/油資','工程款','臨時性支出'];
+  const beforeLen=db.financeCats.sub.exp['專案'].length;
+  db.financeCats.sub.exp['專案']=db.financeCats.sub.exp['專案'].filter(item=>!STALE_PROJECT_EXP_NAMES.includes(item));
+  if(db.financeCats.sub.exp['專案'].length!==beforeLen)changed=true;
   if(changed){save();if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);}
 }
 function onFinanceCatsSynced(cfg){
