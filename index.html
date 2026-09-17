@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723T">
+<meta name="app-version" content="20260723V">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1494,6 +1494,15 @@ function ensureSystemCategories(){
       if(!db.financeCats.sub.exp[group].includes(item)){db.financeCats.sub.exp[group].push(item);changed=true;}
     });
   });
+  // 一次性清理：把「專案」支出項目底下混雜的舊分類清掉，只留人事/費用/材料/廠商款項四項
+  // 只清選單清單，不動任何已經記錄過的收支資料（那些文字紀錄是存在各筆紀錄自己身上，不受影響）
+  if(!localStorage.getItem('dmgr_project_exp_cleanup_v1')){
+    localStorage.setItem('dmgr_project_exp_cleanup_v1','1');
+    const keepOnly=Object.keys(PROJECT_EXP_GROUPS);
+    const before=db.financeCats.sub.exp['專案'].length;
+    db.financeCats.sub.exp['專案']=db.financeCats.sub.exp['專案'].filter(item=>keepOnly.includes(item));
+    if(db.financeCats.sub.exp['專案'].length!==before)changed=true;
+  }
   if(changed){save();if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);}
 }
 function onFinanceCatsSynced(cfg){
@@ -3568,25 +3577,26 @@ ${p.notes&&p.notes.length?`<h2>注意內容</h2><ol>${p.notes.map(n=>`<li style=
   }
   const style=document.createElement('style');
   style.id='pdf-export-style';
-  style.textContent=`.pdf-export-root{font-family:'Noto Sans TC',sans-serif;padding:24px;color:#1a1a18;width:760px;background:#fff;}
-.pdf-export-root h1{font-size:22px;font-weight:500;margin-bottom:4px;}
-.pdf-export-root .sub{font-size:14px;color:#6b6b68;margin-bottom:24px;}
-.pdf-export-root h2{font-size:15px;font-weight:500;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid #eee;}
-.pdf-export-root table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;}
-.pdf-export-root th{text-align:left;padding:8px;background:#f7f7f5;border-bottom:1px solid #ddd;font-weight:500;}
-.pdf-export-root td{padding:8px;border-bottom:1px solid #eee;}
+  style.textContent=`.pdf-export-root,.pdf-export-root *{box-sizing:border-box;}
+.pdf-export-root{font-family:'Noto Sans TC',sans-serif;padding:20px;color:#1a1a18;width:740px;background:#fff;word-wrap:break-word;overflow-wrap:break-word;}
+.pdf-export-root h1{font-size:21px;font-weight:500;margin-bottom:3px;}
+.pdf-export-root .sub{font-size:13px;color:#6b6b68;margin-bottom:16px;}
+.pdf-export-root h2{font-size:14px;font-weight:500;margin:12px 0 6px;padding-bottom:3px;border-bottom:1px solid #eee;page-break-after:avoid;break-after:avoid;}
+.pdf-export-root table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;table-layout:fixed;}
+.pdf-export-root th{text-align:left;padding:6px 8px;background:#f7f7f5;border-bottom:1px solid #ddd;font-weight:500;}
+.pdf-export-root td{padding:6px 8px;border-bottom:1px solid #eee;word-break:break-word;}
 .pdf-export-root .money{text-align:right;}.pdf-export-root .green{color:#16a34a;}.pdf-export-root .red{color:#dc2626;}
-.pdf-export-root .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
-.pdf-export-root .sum-card{background:#f7f7f5;border-radius:8px;padding:14px;}
-.pdf-export-root .sum-label{font-size:11px;color:#a0a09c;}
-.pdf-export-root .sum-val{font-size:20px;font-weight:500;margin-top:4px;}
-.pdf-export-root .footnote{margin-top:32px;font-size:12px;color:#a0a09c;border-top:1px solid #eee;padding-top:12px;}
-.pdf-export-root .pie-section{display:flex;align-items:center;gap:28px;margin:14px 0;padding:16px;background:#f7f7f5;border-radius:8px;}
+.pdf-export-root .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;}
+.pdf-export-root .sum-card{background:#f7f7f5;border-radius:8px;padding:10px;min-width:0;}
+.pdf-export-root .sum-label{font-size:10px;color:#a0a09c;}
+.pdf-export-root .sum-val{font-size:17px;font-weight:500;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pdf-export-root .footnote{margin-top:20px;font-size:11px;color:#a0a09c;border-top:1px solid #eee;padding-top:10px;}
+.pdf-export-root .pie-section{display:flex;align-items:center;gap:20px;margin:10px 0;padding:12px;background:#f7f7f5;border-radius:8px;page-break-inside:avoid;break-inside:avoid;}
 .pdf-export-root .pie-chart{flex-shrink:0;}
-.pdf-export-root .pie-legend{flex:1;}
-.pdf-export-root .legend-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;}
-.pdf-export-root .legend-dot{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
-.pdf-export-root .note-line{font-size:11px;color:#a0a09c;margin:-6px 0 14px;}
+.pdf-export-root .pie-legend{flex:1;min-width:0;}
+.pdf-export-root .legend-row{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px;}
+.pdf-export-root .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+.pdf-export-root .note-line{font-size:10px;color:#a0a09c;margin:-4px 0 10px;}
 .pdf-export-root .page-break{page-break-before:always;break-before:page;}`;
   document.head.appendChild(style);
   const container=document.createElement('div');
@@ -4030,7 +4040,8 @@ async function autoSaveReportToDrive(pid){
       const pieSvg=generatePieSVG(pieSegments,160);
       const legendHtml=pieSegments.map(seg=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px"><span style="width:11px;height:11px;border-radius:3px;background:${seg.color};display:inline-block"></span>${seg.label}：$${fMoney(seg.value)}</div>`).join('');
       const pieTableRows=pieSegments.map(seg=>`<tr><td>${seg.label}</td><td>$${fMoney(seg.value)}</td><td>${totalExp4>0?(seg.value/totalExp4*100).toFixed(1):'0.0'}%</td></tr>`).join('');
-      const reportHtml=`<div style="font-family:sans-serif;padding:24px;color:#1a1a18;width:760px;background:#fff;">
+      const reportHtml=`<style>.pdf-auto-report,.pdf-auto-report *{box-sizing:border-box;}</style>
+<div class="pdf-auto-report" style="font-family:sans-serif;padding:20px;color:#1a1a18;width:740px;background:#fff;word-wrap:break-word;overflow-wrap:break-word;">
 <h1 style="font-size:22px;font-weight:500">${p.name} 專案總表</h1>
 <p style="font-size:13px;color:#6b6b68">業主：${p.client||'—'} ｜ 負責人：${p.leader?sName(p.leader):'—'} ｜ 完工日期：${fDate(today())}</p>
 <h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">財務總覽</h2>
