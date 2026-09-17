@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723S">
+<meta name="app-version" content="20260723T">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -917,6 +917,8 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group"><label class="form-label">電話</label><input class="form-input" id="s-phone" type="tel" placeholder="0912-345-678" autocomplete="off"></div>
     <div class="form-group"><label class="form-label">地址</label><input class="form-input" id="s-address" placeholder="居住地址" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label class="form-label">職稱</label><input class="form-input" id="s-stitle" placeholder="例：木工師傅" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="form-group"><label class="form-label">日薪（元/日）</label><input class="form-input" id="s-wage" type="number" inputmode="numeric" placeholder="計工天數×日薪＝人事成本，用於已完工專案的成本計算"></div>
+    <div class="form-group"><label class="form-label">對應登入帳號（選填）</label><input class="form-input" id="s-email" type="email" placeholder="例：stanupu@gmail.com" autocomplete="off" autocapitalize="off"><div style="color:var(--text3);font-size:0.75rem;margin-top:4px;">填了之後，這個人自己登入時，計工會優先自動帶入自己的名字</div></div>
     <div class="form-group"><label class="form-label">備註</label><textarea class="form-input" id="s-note" placeholder="補充說明"></textarea></div>
     <div class="form-group"><label class="form-label">備用金帳</label>
       <div class="segmented">
@@ -1482,6 +1484,16 @@ function ensureSystemCategories(){
   if(!db.financeCats.sub.exp['其他帳戶']){db.financeCats.sub.exp['其他帳戶']=['備用金'];changed=true;}
   if(!db.financeCats.sub.inc['專案'])db.financeCats.sub.inc['專案']=[];
   if(!db.financeCats.sub.inc['專案'].includes('工程款')){db.financeCats.sub.inc['專案'].push('工程款');changed=true;}
+  // 支出(專案)底下的四大類：人事/費用/材料/廠商款項，只新增不刪除，保留使用者原本已有的項目
+  if(!db.financeCats.sub.exp['專案'])db.financeCats.sub.exp['專案']=[];
+  const PROJECT_EXP_GROUPS={'人事':['薪資','茶水餐費'],'費用':['社區費用','油資','停車費'],'材料':['材料五金','設備'],'廠商款項':['油漆','系統櫃','水電']};
+  Object.keys(PROJECT_EXP_GROUPS).forEach(group=>{
+    if(!db.financeCats.sub.exp['專案'].includes(group)){db.financeCats.sub.exp['專案'].push(group);changed=true;}
+    if(!db.financeCats.sub.exp[group])db.financeCats.sub.exp[group]=[];
+    PROJECT_EXP_GROUPS[group].forEach(item=>{
+      if(!db.financeCats.sub.exp[group].includes(item)){db.financeCats.sub.exp[group].push(item);changed=true;}
+    });
+  });
   if(changed){save();if(window.fbSaveFinanceCats)window.fbSaveFinanceCats(db.financeCats);}
 }
 function onFinanceCatsSynced(cfg){
@@ -1627,7 +1639,7 @@ const CITY_DISTRICTS={
 let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
   cats:['專案','薪資','其他帳戶','金額調整'],
   incCats:['專案','其他帳戶','金額調整'],
-  sub:{exp:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']},inc:{}}
+  sub:{exp:{'專案':['人事','費用','材料','廠商款項'],'人事':['薪資','茶水餐費'],'費用':['社區費用','油資','停車費'],'材料':['材料五金','設備'],'廠商款項':['油漆','系統櫃','水電'],'其他帳戶':['備用金']},inc:{}}
 }};
 window.fbDebugLog=function(){};
 let currentPage='dashboard';
@@ -1654,7 +1666,7 @@ function load(){
   if(!db.accountTransfers)db.accountTransfers=[];
   if(!db.auditLog)db.auditLog=[];
   if(!db.balanceSnapshots)db.balanceSnapshots=[];
-  if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶','金額調整'],incCats:['專案','其他帳戶','金額調整'],sub:{exp:{'專案':['材料五金','薪資'],'其他帳戶':['備用金']},inc:{}}};
+  if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶','金額調整'],incCats:['專案','其他帳戶','金額調整'],sub:{exp:{'專案':['人事','費用','材料','廠商款項'],'人事':['薪資','茶水餐費'],'費用':['社區費用','油資','停車費'],'材料':['材料五金','設備'],'廠商款項':['油漆','系統櫃','水電'],'其他帳戶':['備用金']},inc:{}}};
   if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
   migrateFinanceCatsSub();
   dedupeFinanceCats(db.financeCats);
@@ -2462,7 +2474,10 @@ function filterPunchesByPeriod(punches,period,customMonth){
 // ── NAV ──
 function showPage(id,opts={}){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('page-'+id).classList.add('active');
+  const pageEl=document.getElementById('page-'+id);
+  pageEl.classList.add('active');
+  const contentEl=pageEl.querySelector('.content');
+  if(contentEl)contentEl.scrollTop=0;
   currentPage=id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   const tabMap={dashboard:0,finance:1,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4,workdays:4};
@@ -3108,11 +3123,17 @@ function fillNameSel(selId){
 
 // ── 計工打卡（簡化版：一天一次，預設整工，例外事後在「本月工時」修改）──
 function punchWorkday(){
-  fillSel('punch-project');
+  fillProjectSel('punch-project');
   fillNameSel('punch-name');
-  const workdays=db.punches.filter(p=>p.kind==='workday');
-  const last=workdays[workdays.length-1];
-  if(last){const el=document.getElementById('punch-name');if(el)el.value=last.name;}
+  const nameEl=document.getElementById('punch-name');
+  const myStaff=currentUser&&currentUser.email?db.staff.find(s=>s.email&&s.email.toLowerCase()===currentUser.email.toLowerCase()):null;
+  if(myStaff){
+    nameEl.value=myStaff.name;
+  } else {
+    const workdays=db.punches.filter(p=>p.kind==='workday');
+    const last=workdays[workdays.length-1];
+    if(last)nameEl.value=last.name;
+  }
   openSheet('sheet-punch');
 }
 function confirmWorkday(){
@@ -3410,6 +3431,23 @@ function openEditProject(pid){
   document.getElementById('p-leader').value=p.leader||'';
   openSheet('sheet-project');
 }
+function generatePieSVG(segments,size){
+  size=size||160;
+  const total=segments.reduce((s,x)=>s+x.value,0);
+  const cx=size/2,cy=size/2,r=size/2-4;
+  if(total<=0)return`<svg width="${size}" height="${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="#eee"/></svg>`;
+  let angle=-90;
+  const paths=segments.filter(s=>s.value>0).map(seg=>{
+    const slice=seg.value/total*360;
+    const x1=cx+r*Math.cos(angle*Math.PI/180),y1=cy+r*Math.sin(angle*Math.PI/180);
+    angle+=slice;
+    const x2=cx+r*Math.cos(angle*Math.PI/180),y2=cy+r*Math.sin(angle*Math.PI/180);
+    const largeArc=slice>180?1:0;
+    if(slice>=359.99)return`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${seg.color}"/>`;
+    return`<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${seg.color}"/>`;
+  }).join('');
+  return`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+}
 function exportProjectReport(pid,btnEl){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!window.html2pdf){alert('PDF 產生工具尚未載入完成，請確認網路連線後再試一次');return;}
@@ -3418,23 +3456,94 @@ function exportProjectReport(pid,btnEl){
   const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
   const profit=income-exp;
   const steps=p.conSteps||{};
+  // 施工進度只顯示這個專案有勾選的項目；沒設定過(undefined)的舊專案，向下相容顯示全部
+  const activeSteps=p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS;
   const projPunches=db.punches.filter(punch=>punch.projectId===pid);
   const staffMap={};
   projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
-  const staffRows=Object.entries(staffMap).map(([name,ps])=>{
-    const st=calcWorkStats(ps);
-    return`<tr><td>${name}</td><td>${st.days} 天</td><td>${st.otHours} h</td></tr>`;}).join('');
+  const staffStats=Object.entries(staffMap).map(([name,ps])=>({name,...calcWorkStats(ps)}));
+  const staffRows=staffStats.map(row=>`<tr><td>${row.name}</td><td>${row.days} 天</td><td>${row.otHours} h</td></tr>`).join('');
   const finRows=pFin.map(f=>`<tr><td>${fDate(f.date)}</td><td>${f.ftype}</td><td>${f.expCat||'—'}</td><td>${f.name}</td><td style="text-align:right">${f.ftype==='收入'?'+':'−'}$${fMoney(f.amount)}</td></tr>`).join('');
-  const reportHtml=`<div class="pdf-export-root">
-<h1>${p.name}</h1>
-<div class="sub">業主：${p.client||'—'} ｜ 負責人：${p.leader?sName(p.leader):'—'} ｜ 建立日期：${fDate(p.createdAt)}</div>
-
-<h2>基本資料</h2>
-<table><tbody>
+  const progressTable=`<table><thead><tr><th>項目</th><th>狀態</th><th>完成時間</th></tr></thead><tbody>
+${activeSteps.map(s=>{const sd=steps[s]||{state:'未開始'};return`<tr><td>${s}</td><td>${sd.state}</td><td>${sd.time?fmtMD(sd.time):'—'}</td></tr>`;}).join('')}
+${(p.conCustomSteps||[]).map(cs=>`<tr><td>${cs.label}（自訂）</td><td>${cs.state}</td><td>${cs.time?fmtMD(cs.time):'—'}</td></tr>`).join('')}
+</tbody></table>`;
+  const basicInfoTable=`<table><tbody>
 <tr><th>電話</th><td>${p.info&&p.info.phone||'—'}</td><th>地址</th><td>${p.info&&p.info.address||'—'}</td></tr>
 <tr><th>密碼/鑰匙</th><td>${p.info&&p.info.key||'—'}</td><th>車位</th><td>${p.info&&p.info.parking||'—'}</td></tr>
 <tr><th>備註</th><td colspan="3">${p.note||'—'}</td></tr>
-</tbody></table>
+</tbody></table>`;
+  const headerHtml=`<h1>${p.name}</h1><div class="sub">業主：${p.client||'—'} ｜ 負責人：${p.leader?sName(p.leader):'—'} ｜ 建立日期：${fDate(p.createdAt)}</div>`;
+  const isCompleted=p.type==='已完工';
+  let reportHtml;
+
+  if(isCompleted){
+    // ── 已完工專案：兩頁式總表 ──
+    // 人事成本：完全用計工天數×日薪自動計算（不含加班時數，日薪只對應整/半工天數）
+    const personnelCost=staffStats.reduce((s,row)=>{
+      const staff=db.staff.find(x=>x.name===row.name);
+      return s+row.days*((staff&&staff.dailyWage)||0);
+    },0);
+    const expenseCost=pFin.filter(f=>f.ftype==='支出'&&f.expDetail==='費用').reduce((s,f)=>s+Number(f.amount||0),0);
+    const materialCost=pFin.filter(f=>f.ftype==='支出'&&f.expDetail==='材料').reduce((s,f)=>s+Number(f.amount||0),0);
+    const vendorCost=pFin.filter(f=>f.ftype==='支出'&&f.expDetail==='廠商款項').reduce((s,f)=>s+Number(f.amount||0),0);
+    const totalExp4=personnelCost+expenseCost+materialCost+vendorCost;
+    const grossProfit=income-totalExp4;
+    const pieSegments=[
+      {label:'人事',value:personnelCost,color:'#4f7cff'},
+      {label:'費用',value:expenseCost,color:'#f5a623'},
+      {label:'材料',value:materialCost,color:'#7ed321'},
+      {label:'廠商款項',value:vendorCost,color:'#e0507a'}
+    ];
+    const pieSvg=generatePieSVG(pieSegments,160);
+    const legendHtml=pieSegments.map(seg=>`<div class="legend-row"><span class="legend-dot" style="background:${seg.color}"></span>${seg.label}：$${fMoney(seg.value)}</div>`).join('');
+    const pieTableRows=pieSegments.map(seg=>`<tr><td>${seg.label}</td><td class="money">$${fMoney(seg.value)}</td><td class="money">${totalExp4>0?(seg.value/totalExp4*100).toFixed(1):'0.0'}%</td></tr>`).join('');
+
+    reportHtml=`<div class="pdf-export-root">
+${headerHtml}
+
+<h2>基本資料</h2>
+${basicInfoTable}
+
+<h2>財務總覽</h2>
+<div class="summary">
+  <div class="sum-card"><div class="sum-label">收入</div><div class="sum-val green">$${fMoney(income)}</div></div>
+  <div class="sum-card"><div class="sum-label">支出（4大類）</div><div class="sum-val red">$${fMoney(totalExp4)}</div></div>
+  <div class="sum-card"><div class="sum-label">毛利</div><div class="sum-val ${grossProfit>=0?'green':'red'}">$${fMoney(grossProfit)}</div></div>
+</div>
+<div class="pie-section">
+  <div class="pie-chart">${pieSvg}</div>
+  <div class="pie-legend">${legendHtml}</div>
+</div>
+<table><thead><tr><th>支出類別</th><th class="money">金額</th><th class="money">佔比</th></tr></thead><tbody>${pieTableRows}</tbody></table>
+<div class="note-line">＊人事成本＝計工天數×日薪自動計算，不含加班時數；費用／材料／廠商款項為實際記帳金額加總</div>
+
+<h2>施作人員工時</h2>
+<table><thead><tr><th>人員</th><th>出勤天數</th><th>加班工時</th></tr></thead>
+<tbody>${staffRows||'<tr><td colspan="3" style="color:#a0a09c">無打卡記錄</td></tr>'}</tbody></table>
+
+<div class="page-break"></div>
+
+${headerHtml}
+
+<h2>收支細項</h2>
+<table><thead><tr><th>日期</th><th>類型</th><th>類別</th><th>項目</th><th class="money">金額</th></tr></thead>
+<tbody>${finRows||'<tr><td colspan="5" style="color:#a0a09c">無收支記錄</td></tr>'}</tbody></table>
+
+<h2>施工進度細項</h2>
+${progressTable}
+
+${p.notes&&p.notes.length?`<h2>注意內容</h2><ol>${p.notes.map(n=>`<li style="margin-bottom:0.5rem">${n.text}</li>`).join('')}</ol>`:''}
+
+<div class="footnote">匯出時間：${new Date().toLocaleString('zh-TW')}</div>
+</div>`;
+  } else {
+    // ── 施作中等其他狀態：維持原本單頁格式 ──
+    reportHtml=`<div class="pdf-export-root">
+${headerHtml}
+
+<h2>基本資料</h2>
+${basicInfoTable}
 
 <h2>財務總覽</h2>
 <div class="summary">
@@ -3446,10 +3555,7 @@ function exportProjectReport(pid,btnEl){
 <tbody>${finRows||'<tr><td colspan="5" style="color:#a0a09c">無收支記錄</td></tr>'}</tbody></table>
 
 <h2>施工進度</h2>
-<table><thead><tr><th>項目</th><th>狀態</th><th>完成時間</th></tr></thead><tbody>
-${CON_STEPS.map(s=>{const sd=steps[s]||{state:'未開始'};return`<tr><td>${s}</td><td>${sd.state}</td><td>${sd.time?fmtMD(sd.time):'—'}</td></tr>`;}).join('')}
-${(p.conCustomSteps||[]).map(cs=>`<tr><td>${cs.label}（自訂）</td><td>${cs.state}</td><td>${cs.time?fmtMD(cs.time):'—'}</td></tr>`).join('')}
-</tbody></table>
+${progressTable}
 
 <h2>施作人員工時</h2>
 <table><thead><tr><th>人員</th><th>出勤天數</th><th>加班工時</th></tr></thead>
@@ -3459,6 +3565,7 @@ ${p.notes&&p.notes.length?`<h2>注意內容</h2><ol>${p.notes.map(n=>`<li style=
 
 <div class="footnote">匯出時間：${new Date().toLocaleString('zh-TW')}</div>
 </div>`;
+  }
   const style=document.createElement('style');
   style.id='pdf-export-style';
   style.textContent=`.pdf-export-root{font-family:'Noto Sans TC',sans-serif;padding:24px;color:#1a1a18;width:760px;background:#fff;}
@@ -3473,7 +3580,14 @@ ${p.notes&&p.notes.length?`<h2>注意內容</h2><ol>${p.notes.map(n=>`<li style=
 .pdf-export-root .sum-card{background:#f7f7f5;border-radius:8px;padding:14px;}
 .pdf-export-root .sum-label{font-size:11px;color:#a0a09c;}
 .pdf-export-root .sum-val{font-size:20px;font-weight:500;margin-top:4px;}
-.pdf-export-root .footnote{margin-top:32px;font-size:12px;color:#a0a09c;border-top:1px solid #eee;padding-top:12px;}`;
+.pdf-export-root .footnote{margin-top:32px;font-size:12px;color:#a0a09c;border-top:1px solid #eee;padding-top:12px;}
+.pdf-export-root .pie-section{display:flex;align-items:center;gap:28px;margin:14px 0;padding:16px;background:#f7f7f5;border-radius:8px;}
+.pdf-export-root .pie-chart{flex-shrink:0;}
+.pdf-export-root .pie-legend{flex:1;}
+.pdf-export-root .legend-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;}
+.pdf-export-root .legend-dot{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+.pdf-export-root .note-line{font-size:11px;color:#a0a09c;margin:-6px 0 14px;}
+.pdf-export-root .page-break{page-break-before:always;break-before:page;}`;
   document.head.appendChild(style);
   const container=document.createElement('div');
   container.style.cssText='position:fixed;left:-9999px;top:0;';
@@ -3890,26 +4004,53 @@ async function autoSaveReportToDrive(pid){
       // 產生PDF blob
       const pFin=activeFinance().filter(f=>f.projectId===pid);
       const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
-      const exp=pFin.filter(f=>f.ftype==='支出').reduce((s,f)=>s+Number(f.amount||0),0);
-      const profit=income-exp;
       const steps=p.conSteps||{};
+      const activeSteps=p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS;
       const projPunches=db.punches.filter(punch=>punch.projectId===pid);
       const staffMap={};
       projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
-      const staffRows=Object.entries(staffMap).map(([name,ps])=>{const st=calcWorkStats(ps);return`<tr><td>${name}</td><td>${st.days}天</td><td>${st.otHours}h</td></tr>`;}).join('');
+      const staffStats=Object.entries(staffMap).map(([name,ps])=>({name,...calcWorkStats(ps)}));
+      const staffRows=staffStats.map(row=>`<tr><td>${row.name}</td><td>${row.days}天</td><td>${row.otHours}h</td></tr>`).join('');
       const finRows=pFin.map(f=>`<tr><td>${fDate(f.date)}</td><td>${f.ftype}</td><td>${f.expCat||'—'}</td><td>${f.name}</td><td>$${fMoney(f.amount)}</td></tr>`).join('');
+      const personnelCost=staffStats.reduce((s,row)=>{
+        const staff=db.staff.find(x=>x.name===row.name);
+        return s+row.days*((staff&&staff.dailyWage)||0);
+      },0);
+      const expenseCost=pFin.filter(f=>f.ftype==='支出'&&f.expDetail==='費用').reduce((s,f)=>s+Number(f.amount||0),0);
+      const materialCost=pFin.filter(f=>f.ftype==='支出'&&f.expDetail==='材料').reduce((s,f)=>s+Number(f.amount||0),0);
+      const vendorCost=pFin.filter(f=>f.ftype==='支出'&&f.expDetail==='廠商款項').reduce((s,f)=>s+Number(f.amount||0),0);
+      const totalExp4=personnelCost+expenseCost+materialCost+vendorCost;
+      const grossProfit=income-totalExp4;
+      const pieSegments=[
+        {label:'人事',value:personnelCost,color:'#4f7cff'},
+        {label:'費用',value:expenseCost,color:'#f5a623'},
+        {label:'材料',value:materialCost,color:'#7ed321'},
+        {label:'廠商款項',value:vendorCost,color:'#e0507a'}
+      ];
+      const pieSvg=generatePieSVG(pieSegments,160);
+      const legendHtml=pieSegments.map(seg=>`<div style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px"><span style="width:11px;height:11px;border-radius:3px;background:${seg.color};display:inline-block"></span>${seg.label}：$${fMoney(seg.value)}</div>`).join('');
+      const pieTableRows=pieSegments.map(seg=>`<tr><td>${seg.label}</td><td>$${fMoney(seg.value)}</td><td>${totalExp4>0?(seg.value/totalExp4*100).toFixed(1):'0.0'}%</td></tr>`).join('');
       const reportHtml=`<div style="font-family:sans-serif;padding:24px;color:#1a1a18;width:760px;background:#fff;">
 <h1 style="font-size:22px;font-weight:500">${p.name} 專案總表</h1>
 <p style="font-size:13px;color:#6b6b68">業主：${p.client||'—'} ｜ 負責人：${p.leader?sName(p.leader):'—'} ｜ 完工日期：${fDate(today())}</p>
 <h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">財務總覽</h2>
-<p>收入：$${fMoney(income)}　支出：$${fMoney(exp)}　淨利：$${fMoney(profit)}</p>
-<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>日期</th><th>類型</th><th>類別</th><th>項目</th><th>金額</th></tr></thead><tbody>${finRows}</tbody></table>
-<h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">施工進度</h2>
-<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>項目</th><th>狀態</th><th>完成時間</th></tr></thead><tbody>
-${CON_STEPS.map(s=>{const sd=steps[s]||{state:'未開始'};return`<tr><td>${s}</td><td>${sd.state}</td><td>${sd.time?fmtMD(sd.time):'—'}</td></tr>`;}).join('')}
-</tbody></table>
+<p>收入：$${fMoney(income)}　支出（4大類）：$${fMoney(totalExp4)}　毛利：$${fMoney(grossProfit)}</p>
+<div style="display:flex;align-items:center;gap:28px;margin:14px 0;padding:16px;background:#f7f7f5;border-radius:8px;">
+  <div>${pieSvg}</div>
+  <div style="flex:1">${legendHtml}</div>
+</div>
+<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>支出類別</th><th>金額</th><th>佔比</th></tr></thead><tbody>${pieTableRows}</tbody></table>
+<p style="font-size:11px;color:#a0a09c">＊人事成本＝計工天數×日薪自動計算，不含加班時數；費用／材料／廠商款項為實際記帳金額加總</p>
 <h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">施作人員工時</h2>
 <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>人員</th><th>出勤天數</th><th>加班工時</th></tr></thead><tbody>${staffRows||'<tr><td colspan="3">無打卡記錄</td></tr>'}</tbody></table>
+<div style="page-break-before:always;break-before:page;"></div>
+<h1 style="font-size:22px;font-weight:500">${p.name}</h1>
+<h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">收支細項</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>日期</th><th>類型</th><th>類別</th><th>項目</th><th>金額</th></tr></thead><tbody>${finRows}</tbody></table>
+<h2 style="font-size:15px;border-bottom:1px solid #eee;padding-bottom:4px;margin-top:20px">施工進度細項</h2>
+<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th>項目</th><th>狀態</th><th>完成時間</th></tr></thead><tbody>
+${activeSteps.map(s=>{const sd=steps[s]||{state:'未開始'};return`<tr><td>${s}</td><td>${sd.state}</td><td>${sd.time?fmtMD(sd.time):'—'}</td></tr>`;}).join('')}
+</tbody></table>
 <p style="margin-top:32px;font-size:12px;color:#a0a09c">匯出時間：${new Date().toLocaleString('zh-TW')}</p>
 </div>`;
       const container=document.createElement('div');
@@ -3921,7 +4062,8 @@ ${CON_STEPS.map(s=>{const sd=steps[s]||{state:'未開始'};return`<tr><td>${s}</
         filename:`${p.name}_專案總表.pdf`,
         image:{type:'jpeg',quality:0.95},
         html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},
-        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+        pagebreak:{mode:['avoid-all','css','legacy']}
       }).from(container.querySelector('div')).outputPdf('blob');
       document.body.removeChild(container);
       // 上傳PDF到Drive的專案根資料夾
@@ -5517,7 +5659,7 @@ function openAddStaff(){
   editingStaffId=null;
   document.getElementById('sheet-staff-title').textContent='新增員工';
   document.getElementById('sheet-staff-save').textContent='儲存';
-  ['s-name','s-phone','s-address','s-stitle','s-note'].forEach(id=>document.getElementById(id).value='');
+  ['s-name','s-phone','s-address','s-stitle','s-note','s-wage','s-email'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('s-no').value=nextStaffNo();
   setSeg('s-reserve','0');
   openSheet('sheet-staff');
@@ -5532,6 +5674,8 @@ function openEditStaff(sid){
   document.getElementById('s-phone').value=s.phone||'';
   document.getElementById('s-address').value=s.address||'';
   document.getElementById('s-stitle').value=s.stitle||'';
+  document.getElementById('s-wage').value=s.dailyWage||'';
+  document.getElementById('s-email').value=s.email||'';
   document.getElementById('s-note').value=s.note||'';
   setSeg('s-reserve',s.hasReserve?'1':'0');
   openSheet('sheet-staff');
@@ -5540,14 +5684,16 @@ function saveStaff(){
   const name=document.getElementById('s-name').value.trim();
   if(!name)return alert('請輸入員工姓名');
   const hasReserve=document.getElementById('s-reserve').value==='1';
+  const dailyWage=Number(document.getElementById('s-wage').value)||0;
+  const email=document.getElementById('s-email').value.trim();
   if(editingStaffId){
     const s=db.staff.find(x=>x.id===editingStaffId);if(!s)return;
     s.name=name;s.no=document.getElementById('s-no').value;s.phone=document.getElementById('s-phone').value;
     s.address=document.getElementById('s-address').value;s.stitle=document.getElementById('s-stitle').value;s.note=document.getElementById('s-note').value;
-    s.hasReserve=hasReserve;
+    s.hasReserve=hasReserve;s.dailyWage=dailyWage;s.email=email;
     save();if(window.fbSaveStaff)window.fbSaveStaff(s);closeSheet('sheet-staff');renderStaffDetail(editingStaffId);
   } else {
-    const ns={id:uid(),name,no:document.getElementById('s-no').value,phone:document.getElementById('s-phone').value,address:document.getElementById('s-address').value,stitle:document.getElementById('s-stitle').value,note:document.getElementById('s-note').value,createdAt:today(),hasReserve};
+    const ns={id:uid(),name,no:document.getElementById('s-no').value,phone:document.getElementById('s-phone').value,address:document.getElementById('s-address').value,stitle:document.getElementById('s-stitle').value,note:document.getElementById('s-note').value,createdAt:today(),hasReserve,dailyWage,email};
     db.staff.push(ns);
     save();if(window.fbSaveStaff)window.fbSaveStaff(ns);closeSheet('sheet-staff');renderStaff();
   }
