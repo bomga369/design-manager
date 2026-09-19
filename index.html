@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723X">
+<meta name="app-version" content="20260723Y">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1028,6 +1028,20 @@ textarea.form-input{resize:none;min-height:72px;}
 <script>
 const GOOGLE_CLIENT_ID='218974194851-4on6g89eg6qhkftat9nhdbpvvrdtj07k.apps.googleusercontent.com';
 let currentUser=null;
+
+// ── 全站雲端寫入失敗安全網 ──
+// 很多地方呼叫雲端儲存(fbSaveXxx)時沒有自己接錯誤處理，如果那次寫入剛好失敗（網路不穩、連線問題），
+// 畫面上完全不會有任何提示，使用者會以為存成功了，結果之後雲端同步回來，
+// 會用「雲端上舊的版本」蓋掉手機上剛剛的修改，變成「過一陣子資料不見了」。
+// 這裡加一個全站攔截，任何沒被個別接住的失敗，都會在這裡被抓到並提醒使用者。
+let lastSaveFailAlertTime=0;
+window.addEventListener('unhandledrejection',function(e){
+  console.error('未處理的雲端寫入失敗',e.reason);
+  const now=Date.now();
+  if(now-lastSaveFailAlertTime<8000)return; // 節流：8秒內不重複跳出，避免網路不穩時連環跳警告
+  lastSaveFailAlertTime=now;
+  alert('剛剛有一筆資料儲存到雲端失敗了，請檢查網路連線，並回去確認一下剛剛的修改（例如剛編輯的資料）有沒有真的存進去，需要的話重新存一次。');
+});
 
 function parseJwt(token){
   try{
@@ -5705,11 +5719,11 @@ function saveStaff(){
     s.name=name;s.no=document.getElementById('s-no').value;s.phone=document.getElementById('s-phone').value;
     s.address=document.getElementById('s-address').value;s.stitle=document.getElementById('s-stitle').value;s.note=document.getElementById('s-note').value;
     s.hasReserve=hasReserve;s.dailyWage=dailyWage;s.email=email;
-    save();if(window.fbSaveStaff)window.fbSaveStaff(s);closeSheet('sheet-staff');renderStaffDetail(editingStaffId);
+    save();if(window.fbSaveStaff)window.fbSaveStaff(s).catch(err=>{console.error('更新員工資料失敗',err);alert('員工資料儲存失敗，請檢查網路連線後重新編輯儲存一次，不然剛剛的修改可能不會真的存進雲端');});closeSheet('sheet-staff');renderStaffDetail(editingStaffId);
   } else {
     const ns={id:uid(),name,no:document.getElementById('s-no').value,phone:document.getElementById('s-phone').value,address:document.getElementById('s-address').value,stitle:document.getElementById('s-stitle').value,note:document.getElementById('s-note').value,createdAt:today(),hasReserve,dailyWage,email};
     db.staff.push(ns);
-    save();if(window.fbSaveStaff)window.fbSaveStaff(ns);closeSheet('sheet-staff');renderStaff();
+    save();if(window.fbSaveStaff)window.fbSaveStaff(ns).catch(err=>{console.error('新增員工資料失敗',err);alert('員工資料儲存失敗，請檢查網路連線後重新新增一次，不然剛剛的資料可能不會真的存進雲端');});closeSheet('sheet-staff');renderStaff();
   }
   editingStaffId=null;
 }
