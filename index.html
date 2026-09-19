@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723W">
+<meta name="app-version" content="20260723X">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1246,15 +1246,19 @@ function onPunchesSynced(arr){
   migrateOldPunchesToWorkdays();
   refreshPunchDependentViews();
 }
-// ── 一次性遷移：把舊制上下班打卡資料換算成工天數，保留原始紀錄不動，另外產生一份計工紀錄 ──
+// ── 遷移：把舊制上下班打卡資料換算成工天數，保留原始紀錄不動，另外產生一份計工紀錄 ──
+// 用「這個(日期,姓名)是否已經換算過」判斷，不是只靠裝置的localStorage旗標——
+// 這樣就算換裝置登入、或清過瀏覽器資料，也不會把同一批歷史資料重複換算出兩份
 function migrateOldPunchesToWorkdays(){
-  if(localStorage.getItem('dmgr_workday_migration_v1'))return;
-  localStorage.setItem('dmgr_workday_migration_v1','1');
   const oldPunches=db.punches.filter(p=>p.type==='in'||p.type==='out');
   if(!oldPunches.length)return;
+  const alreadyMigrated=new Set(
+    db.punches.filter(p=>p.kind==='workday'&&p.migrated).map(p=>p.date+'|'+p.name)
+  );
   const byKey={};
   oldPunches.forEach(p=>{
     const key=p.date+'|'+p.name;
+    if(alreadyMigrated.has(key))return; // 這天這個人已經換算過了，跳過，避免重複產生
     if(!byKey[key])byKey[key]=[];
     byKey[key].push(p);
   });
