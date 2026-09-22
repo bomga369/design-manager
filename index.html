@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724A">
+<meta name="app-version" content="20260724D">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -71,12 +71,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .qa-fab i{font-size:1.75rem;}
 .qa-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:60;display:none;align-items:flex-end;justify-content:center;}
 .qa-menu-overlay.open{display:flex;}
-.qa-menu{display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:calc(var(--nav-h) + var(--safe-bottom) + 22px);}
-.qa-menu-top{display:flex;gap:20px;}
-.qa-btn{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;}
-.qa-btn i{width:78px;height:66px;border-radius:18px;background:var(--bg2);border:1px solid var(--border);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:1.875rem;box-shadow:0 4px 14px rgba(0,0,0,0.18);}
-.qa-btn span{font-size:0.875rem;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5);}
-.qa-btn-bottom i{background:#ffd60a;color:#3a2e00;border-color:#ffd60a;}
+.qa-menu{display:flex;flex-direction:column;align-items:center;margin-bottom:calc(var(--nav-h) + var(--safe-bottom) + 22px);box-shadow:0 6px 18px rgba(0,0,0,0.22);border-radius:20px;overflow:hidden;}
+.qa-menu-top{display:flex;}
+.qa-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;width:84px;height:74px;background:var(--bg2);border:0.5px solid var(--border);color:var(--gold);}
+.qa-btn i{font-size:1.75rem;}
+.qa-btn span{font-size:0.8125rem;font-weight:600;}
+.qa-btn-bottom{width:168px;background:#ffd60a;color:#3a2e00;border-color:#ffd60a;}
 .page{display:none;}.page.active{display:block;}
 .card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
 .card-inner{padding:1rem;}
@@ -752,8 +752,10 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="entry-date-title">選擇進場日期時間</span><button class="sheet-close" onclick="closeSheet('sheet-entry-date')"><i class="ti ti-x"></i></button></div>
-    <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="entry-date" type="date"></div>
-    <div class="form-group"><label class="form-label">時間 *</label><input class="form-input" id="entry-time" type="time" value="09:00"></div>
+    <div class="form-group" style="display:flex;gap:0.6rem;">
+      <div style="flex:1.3;"><label class="form-label">日期 *</label><input class="form-input" id="entry-date" type="date"></div>
+      <div style="flex:1;"><label class="form-label">時間 *</label><input class="form-input" id="entry-time" type="time" value="09:00" step="600"></div>
+    </div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-entry-date')">取消</button>
       <button class="btn btn-primary" id="entry-date-confirm-btn" onclick="confirmEntryDate()">確認</button>
@@ -766,8 +768,10 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="todo-edit-title">新增待辦事項</span><button class="sheet-close" onclick="closeSheet('sheet-todo-edit')"><i class="ti ti-x"></i></button></div>
     <div id="todo-auto-note" style="display:none;color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">這筆是系統自動產生的，日期時間跟標題要改請回到專案裡調整，這裡可以加寫記錄。</div>
-    <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="todo-date" type="date"></div>
-    <div class="form-group"><label class="form-label">時間 *</label><input class="form-input" id="todo-time" type="time"></div>
+    <div class="form-group" style="display:flex;gap:0.6rem;">
+      <div style="flex:1.3;"><label class="form-label">日期 *</label><input class="form-input" id="todo-date" type="date"></div>
+      <div style="flex:1;"><label class="form-label">時間 *</label><input class="form-input" id="todo-time" type="time" step="600"></div>
+    </div>
     <div class="form-group"><label class="form-label">內容 *</label><input class="form-input" id="todo-text" placeholder="待辦事項內容" autocomplete="off"></div>
     <div class="form-group"><label class="form-label">記錄</label><textarea class="form-input" id="todo-note" placeholder="可以寫一些補充記錄" rows="3"></textarea></div>
     <input type="hidden" id="todo-id" value="">
@@ -1308,6 +1312,10 @@ function onPunchSyncError(){
 }
 function onPunchesSynced(arr){
   window.fbDebugLog('打卡資料同步：收到雲端 '+arr.length+' 筆');
+  if(arr.length===0&&db.punches.length>0){
+    console.warn('收到空的打卡資料快照，暫時忽略，避免計工資料被誤清空');
+    return;
+  }
   arr.sort((a,b)=>(a.time||a.createdAt||'').localeCompare(b.time||b.createdAt||''));
   db.punches=arr;
   save();
@@ -1419,6 +1427,11 @@ function onProjectSyncError(){
 }
 function onProjectsSynced(arr){
   window.fbDebugLog('專案資料同步：收到雲端 '+arr.length+' 筆');
+  if(arr.length===0&&db.projects.length>0){
+    // 防呆：避免暫時性的空白快照把本機正確的專案資料整批清空
+    console.warn('收到空的專案資料快照，暫時忽略，避免資料被誤清空');
+    return;
+  }
   db.projects=arr;
   save();
   refreshProjectDependentViews();
@@ -1505,7 +1518,16 @@ async function runStaffMigration(){
 // ── Firebase 雲端同步（收支）──
 let financeSyncErrorShown=false;
 function onFinanceSyncError(){if(financeSyncErrorShown)return;financeSyncErrorShown=true;alert('收支資料雲端同步權限不足，請聯絡管理者');}
-function onFinanceSynced(arr){db.finance=arr;save();if(currentPage==='finance')renderFinanceHome();if(currentPage==='finance-accounts')renderFinanceAccounts();if(currentPage==='finance-detail')renderFinance();}
+function onFinanceSynced(arr){
+  if(arr.length===0&&db.finance.length>0){
+    console.warn('收到空的收支資料快照，暫時忽略，避免金流資料被誤清空');
+    return;
+  }
+  db.finance=arr;save();
+  if(currentPage==='finance')renderFinanceHome();
+  if(currentPage==='finance-accounts')renderFinanceAccounts();
+  if(currentPage==='finance-detail')renderFinance();
+}
 let reserveFundingSyncErrorShown=false;
 function onReserveFundingSyncError(){if(reserveFundingSyncErrorShown)return;reserveFundingSyncErrorShown=true;alert('備用金資料雲端同步權限不足，請聯絡管理者');}
 function onReserveFundingSynced(arr){db.reserveFunding=arr;save();if(currentPage==='finance')renderFinanceHome();if(currentPage==='finance-accounts')renderFinanceAccounts();if(currentPage==='finance-detail')renderFinance();if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);}
@@ -3363,16 +3385,20 @@ function renderTodos(){
   cleanupExpiredTodos();
   const todos=(db.todos||[]).slice().sort((a,b)=>(a.date+'T'+(a.time||'00:00')).localeCompare(b.date+'T'+(b.time||'00:00')));
   el.innerHTML=todos.length?todos.map(t=>{
+    const isManual=t.type==='manual';
+    const isSetupReminder=t.type==='設定提醒';
     const typeLabel=(t.type==='進場'||t.type==='丈量'||t.type==='簽約')?t.type:'';
-    const label=typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||'');
+    const label=isSetupReminder?`⚠️ ${t.text}．${t.projectName||''}`:(typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||''));
     const shortDate=t.date.slice(5).replace('-','/'); // 不顯示年份，只顯示 月/日
+    const checkAction=isManual?`onclick="event.stopPropagation();deleteTodo('${t.id}')" style="cursor:pointer"`:'';
+    const rowClick=isSetupReminder?`openDetail('${t.projectId}','dashboard')`:`openTodoEdit('${t.id}')`;
     return`<div class="mat-item-wrap" data-key="${t.id}">
       <div class="mat-swipe-actions">
-        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();openTodoEdit('${t.id}')"><i class="ti ti-pencil"></i>編輯</button>
+        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();quickEditTodoTitle('${t.id}')"><i class="ti ti-pencil"></i>編輯</button>
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteTodo('${t.id}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
-      <div class="finance-item" style="cursor:pointer;border-bottom:none;gap:10px;" onclick="openTodoEdit('${t.id}')">
-        <div class="todo-icon"><i class="ti ti-square"></i></div>
+      <div class="finance-item mat-item-card" style="cursor:pointer;background:transparent;border:none;border-radius:0;padding:0.75rem 1rem;justify-content:flex-start;gap:10px;" onclick="${rowClick}">
+        <div class="todo-icon" ${checkAction}><i class="ti ti-square"></i></div>
         <div style="color:var(--text3);font-size:0.8125rem;flex-shrink:0;">${shortDate}</div>
         <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
       </div>
@@ -3380,7 +3406,20 @@ function renderTodos(){
   }).join(''):'<div class="empty" style="padding:1.25rem"><p>目前沒有待辦事項</p></div>';
   attachMatSwipe(el);
 }
+function quickEditTodoTitle(id){
+  const t=db.todos.find(x=>x.id===id);if(!t)return;
+  if(t.type!=='manual'){alert('「進場」「丈量」「簽約」這幾種待辦是系統自動產生的標題，要改內容請回到專案裡調整。');return;}
+  const newText=prompt('修改待辦事項標題',t.text||'');
+  if(newText===null)return;
+  const trimmed=newText.trim();
+  if(!trimmed)return;
+  t.text=trimmed;
+  save();
+  if(window.fbSaveTodo)window.fbSaveTodo(t);
+  renderTodos();
+}
 function renderDashboard(){
+  checkAutoEntryConversions();
   renderWorkdayStatus();
   renderTodos();
   const neg=db.projects.filter(p=>p.type==='洽談中').length;
@@ -3965,14 +4004,57 @@ function confirmEntryDate(){
   if(!p.negStepTimes)p.negStepTimes={};
   p.negStepTimes[stepIndex]=dateVal+'T'+timeVal+':00';
   p.negStep=Math.max(p.negStep||0,stepIndex+1);
-  if(isEntry){
-    p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
-  }
+  // 進場只是先「排定」日期＋建立待辦事項，專案維持洽談中，
+  // 真正轉為施作中，交給 checkAutoEntryConversions() 在進場那天到了才處理
   save();if(window.fbSaveProject)window.fbSaveProject(p);
   upsertAutoTodo(pid,isEntry?'進場':'簽約',dateVal,timeVal);
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
-  if(isEntry)openConstructionSetup(pid);
+}
+// ── 進場日期到了，自動把專案轉為施作中，並清掉對應的待辦事項 ──
+// 因為網頁不會一直在背景執行，這個檢查在每次開啟App、或每次看主頁時都會跑一次，
+// 確保不管進場那天App有沒有開著，回來看的時候都會補上這個轉換
+function checkAutoEntryConversions(){
+  const todayStr=today();
+  const lastIdx=NEG_STEPS.length-1;
+  db.projects.filter(p=>p.type==='洽談中').forEach(p=>{
+    const times=p.negStepTimes||{};
+    const scheduled=times[lastIdx];
+    if(!scheduled)return;
+    if(scheduled.slice(0,10)>todayStr)return; // 還沒到，先不動
+    // 進場時間到了：正式轉為施作中
+    p.type='施作中';
+    if(!p.conSteps)p.conSteps={};
+    if(!p.info)p.info={};
+    save();if(window.fbSaveProject)window.fbSaveProject(p);
+    // 轉為施作中後，對應的「進場」待辦事項自動刪除
+    const todo=(db.todos||[]).find(t=>t.type==='進場'&&t.projectId===p.id);
+    if(todo){
+      db.todos=db.todos.filter(t=>t.id!==todo.id);
+      save();
+      if(window.fbDeleteTodo)window.fbDeleteTodo(todo.id).catch(()=>{});
+      deleteTodoGcalEvent(todo.id);
+    }
+    // 加一筆提醒待辦事項，提醒去設定施工項目／工程款期數；兩個都填好之後會自動消失（見 checkSetupReminderCleared）
+    if(!(p.selectedSteps&&p.selectedSteps.length)&&!(p.paymentSchedule&&p.paymentSchedule.length)){
+      const rec={id:uid(),type:'設定提醒',projectId:p.id,projectName:todoBuildingName(p),date:todayStr,time:'',text:'設定施工項目／工程款期數',createdAt:new Date().toISOString()};
+      db.todos.push(rec);save();
+      if(window.fbSaveTodo)window.fbSaveTodo(rec);
+    }
+  });
+}
+// 「管理項目」「工程款期數」都設定好之後，自動清掉對應的提醒待辦事項
+function checkSetupReminderCleared(pid){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  const hasSteps=p.selectedSteps&&p.selectedSteps.length;
+  const hasSchedule=p.paymentSchedule&&p.paymentSchedule.length;
+  if(!hasSteps||!hasSchedule)return; // 兩個都要有，才算填完
+  const todo=(db.todos||[]).find(t=>t.type==='設定提醒'&&t.projectId===pid);
+  if(!todo)return;
+  db.todos=db.todos.filter(t=>t.id!==todo.id);
+  save();
+  if(window.fbDeleteTodo)window.fbDeleteTodo(todo.id).catch(()=>{});
+  if(currentPage==='dashboard')renderTodos();
 }
 
 // ── 待辦事項：{id, type:'進場'|'丈量'|'manual', date, time, text, projectId, projectName, createdAt} ──
@@ -4033,13 +4115,16 @@ function deleteTodoGcalEvent(todoId){
   });
 }
 function cleanupExpiredTodos(){
-  // 隔天自動刪除：日期已經是「前天以前」的自動清掉（給一天緩衝，避免時區邊界誤刪）
+  // 隔天自動刪除：只適用系統自動產生、跟日期綁定的待辦（進場/丈量/簽約）
+  // 手動建立的待辦不會自動過期，只能手動點方框圖示或左滑刪除
+  // 「設定提醒」也不會因為日期到期，只有填完施工項目＋工程款期數才會自動消失
   if(!db.todos||!db.todos.length)return;
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-1);
   const cutoffStr=cutoff.toISOString().slice(0,10);
-  const expired=db.todos.filter(t=>t.date<cutoffStr);
+  const expired=db.todos.filter(t=>t.type!=='manual'&&t.type!=='設定提醒'&&t.date<cutoffStr);
   if(!expired.length)return;
-  db.todos=db.todos.filter(t=>t.date>=cutoffStr);
+  const expiredIds=new Set(expired.map(t=>t.id));
+  db.todos=db.todos.filter(t=>!expiredIds.has(t.id));
   save();
   expired.forEach(t=>{
     if(window.fbDeleteTodo)window.fbDeleteTodo(t.id).catch(()=>{});
@@ -4215,6 +4300,7 @@ function saveConstructionSetup(){
   if(problems.length&&!confirm('提醒一下：\n\n'+problems.join('\n')+'\n\n已收到的錢不會不見、專案總收入也不會變，只是期別的比對狀態可能會改變。確定要這樣儲存嗎？'))return;
   p.paymentSchedule=schedule;
   save();if(window.fbSaveProject)window.fbSaveProject(p);
+  checkSetupReminderCleared(p.id);
   closeSheet('sheet-construction-setup');
   if(currentPage==='detail')renderDetail(p.id);
 }
@@ -4231,6 +4317,7 @@ function saveManageSteps(){
   const checked=Array.from(document.querySelectorAll('#ms-steps-list .cs-step-check:checked')).map(el=>el.value);
   p.selectedSteps=checked;
   save();if(window.fbSaveProject)window.fbSaveProject(p);
+  checkSetupReminderCleared(p.id);
   closeSheet('sheet-manage-steps');
   if(currentPage==='detail')renderDetail(p.id);
 }
