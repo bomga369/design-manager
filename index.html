@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724D">
+<meta name="app-version" content="20260724E">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3397,10 +3397,12 @@ function renderTodos(){
         <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();quickEditTodoTitle('${t.id}')"><i class="ti ti-pencil"></i>編輯</button>
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteTodo('${t.id}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
-      <div class="finance-item mat-item-card" style="cursor:pointer;background:transparent;border:none;border-radius:0;padding:0.75rem 1rem;justify-content:flex-start;gap:10px;" onclick="${rowClick}">
-        <div class="todo-icon" ${checkAction}><i class="ti ti-square"></i></div>
-        <div style="color:var(--text3);font-size:0.8125rem;flex-shrink:0;">${shortDate}</div>
-        <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+      <div class="mat-item-card" style="background:var(--bg2);" onclick="${rowClick}">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+          <div class="todo-icon" ${checkAction}><i class="ti ti-square"></i></div>
+          <div style="color:var(--text3);font-size:0.8125rem;flex-shrink:0;">${shortDate}</div>
+          <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+        </div>
       </div>
     </div>`;
   }).join(''):'<div class="empty" style="padding:1.25rem"><p>目前沒有待辦事項</p></div>';
