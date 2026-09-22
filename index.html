@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723Z">
+<meta name="app-version" content="20260724A">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -74,8 +74,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .qa-menu{display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:calc(var(--nav-h) + var(--safe-bottom) + 22px);}
 .qa-menu-top{display:flex;gap:20px;}
 .qa-btn{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;}
-.qa-btn i{width:58px;height:58px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 4px 14px rgba(0,0,0,0.18);}
-.qa-btn span{font-size:0.8125rem;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5);}
+.qa-btn i{width:78px;height:66px;border-radius:18px;background:var(--bg2);border:1px solid var(--border);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:1.875rem;box-shadow:0 4px 14px rgba(0,0,0,0.18);}
+.qa-btn span{font-size:0.875rem;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5);}
 .qa-btn-bottom i{background:#ffd60a;color:#3a2e00;border-color:#ffd60a;}
 .page{display:none;}.page.active{display:block;}
 .card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
@@ -144,6 +144,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .finance-total-hero{text-align:center;padding:1.75rem 1rem;background:var(--gold-bg);border-radius:var(--rl);}
 .finance-total-label{color:var(--text3);font-size:0.8125rem;margin-bottom:6px;}
 .finance-total-val{font-size:2.375rem;font-weight:700;letter-spacing:0.5px;}
+.todo-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text3);font-size:1rem;}
 .finance-item:last-child{border-bottom:none;}
 .finance-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .finance-body{flex:1;min-width:0;}
@@ -345,9 +346,6 @@ textarea.form-input{resize:none;min-height:72px;}
       <div class="section-hd"><span>待辦事項</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openTodoEdit()">+ 新增</span></div>
       <div class="card" id="dash-todos" style="margin-bottom:1rem;"></div>
 
-      <div class="punch-grid" style="display:flex;justify-content:center;">
-        <button class="punch-btn work" onclick="punchWorkday()" style="width:50%;background:#ffd60a;color:#3a2e00;"><i class="ti ti-square-rounded-plus"></i>計工</button>
-      </div>
       <div id="punch-status" style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:0.75rem;"></div>
       <div class="stat-grid" id="dash-stats"></div>
 
@@ -753,12 +751,12 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-entry-date">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">選擇進場日期時間<button class="sheet-close" onclick="closeSheet('sheet-entry-date')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title"><span id="entry-date-title">選擇進場日期時間</span><button class="sheet-close" onclick="closeSheet('sheet-entry-date')"><i class="ti ti-x"></i></button></div>
     <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="entry-date" type="date"></div>
     <div class="form-group"><label class="form-label">時間 *</label><input class="form-input" id="entry-time" type="time" value="09:00"></div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-entry-date')">取消</button>
-      <button class="btn btn-primary" onclick="confirmEntryDate()">確認進場</button>
+      <button class="btn btn-primary" id="entry-date-confirm-btn" onclick="confirmEntryDate()">確認</button>
     </div>
   </div>
 </div>
@@ -767,10 +765,13 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="todo-edit-title">新增待辦事項</span><button class="sheet-close" onclick="closeSheet('sheet-todo-edit')"><i class="ti ti-x"></i></button></div>
+    <div id="todo-auto-note" style="display:none;color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">這筆是系統自動產生的，日期時間跟標題要改請回到專案裡調整，這裡可以加寫記錄。</div>
     <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="todo-date" type="date"></div>
     <div class="form-group"><label class="form-label">時間 *</label><input class="form-input" id="todo-time" type="time"></div>
     <div class="form-group"><label class="form-label">內容 *</label><input class="form-input" id="todo-text" placeholder="待辦事項內容" autocomplete="off"></div>
+    <div class="form-group"><label class="form-label">記錄</label><textarea class="form-input" id="todo-note" placeholder="可以寫一些補充記錄" rows="3"></textarea></div>
     <input type="hidden" id="todo-id" value="">
+    <input type="hidden" id="todo-is-auto" value="">
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-todo-edit')">取消</button>
       <button class="btn btn-primary" onclick="saveTodoEdit()">儲存</button>
@@ -1466,7 +1467,17 @@ async function runProjectMigration(){
 // ── Firebase 雲端同步（人事）──
 let staffSyncErrorShown=false;
 function onStaffSyncError(){if(staffSyncErrorShown)return;staffSyncErrorShown=true;alert('人事資料雲端同步權限不足，請聯絡管理者');}
-function onStaffSynced(arr){db.staff=arr;save();if(currentPage==='staff'||currentPage==='staff-detail')renderPage();}
+function onStaffSynced(arr){
+  if(arr.length===0&&db.staff.length>0){
+    // 防呆：雲端偶爾會傳回暫時性的空快照（連線重建、監聽器重新註冊時），
+    // 如果本機已經有資料，先不要用空的蓋掉，避免員工資料被誤清空
+    console.warn('收到空的員工資料快照，暫時忽略，避免資料被誤清空');
+    return;
+  }
+  db.staff=arr;save();
+  if(currentPage==='staff')renderStaff();
+  else if(currentPage==='staff-detail')renderStaffDetail(currentStaffId);
+}
 async function checkStaffMigration(){
   if(!window.fbCheckStaffEmpty)return;
   try{
@@ -3194,16 +3205,17 @@ function sBadge(s){
 function dotHtml(p,clickable=false){
   const step=p.negStep||0;
   const times=p.negStepTimes||{};
-  const lastIdx=NEG_STEPS.length-1; // 「進場」是最後一步
+  const lastIdx=NEG_STEPS.length-1; // 「進場」是最後一步，「簽約」是倒數第二步
+  const contractIdx=lastIdx-1;
   return NEG_STEPS.map((s,i)=>{
     let timeLabel='';
     if(times[i]){
-      timeLabel=fmtMD(times[i])+(i===lastIdx?' '+times[i].slice(11,16):'');
+      timeLabel=fmtMD(times[i])+((i===lastIdx||i===contractIdx)?' '+times[i].slice(11,16):'');
     }
-    const isEntryStep=i===lastIdx;
-    const clickAction=(clickable&&isEntryStep&&i>=step)?`openEntryDatePicker('${p.id}')`:(clickable?`setNegStep('${p.id}',${i+1})`:'');
+    const isPickerStep=i===lastIdx||i===contractIdx;
+    const clickAction=(clickable&&isPickerStep&&i>=step)?`openStepDatePicker('${p.id}',${i})`:(clickable?`setNegStep('${p.id}',${i+1})`:'');
     return`
-    <div class="dot-step"${clickAction?` onclick="${clickAction}" style="cursor:pointer"`:''}>
+    <div class="dot-step"${clickAction?` onclick="event.stopPropagation();${clickAction}" style="cursor:pointer"`:''}>
       <div class="dot-circle ${i<step?'done':''}"></div>
       <div class="dot-label ${i<step?'done':''}">${s}</div>
       <div class="dot-time">${timeLabel}</div>
@@ -3255,8 +3267,9 @@ function renderWorkdayStatus(){
   const el=document.getElementById('punch-status');if(!el)return;
   const todayStr=today();
   const td=db.punches.filter(p=>p.kind==='workday'&&p.date===todayStr);
-  if(!td.length){el.innerHTML='今日尚未計工';return;}
-  el.innerHTML=td.map(p=>{
+  if(!td.length){el.innerHTML='';el.style.display='none';return;}
+  el.style.display='block';
+  el.innerHTML='<div class="section-hd" style="text-align:left">今日計工</div>'+td.map(p=>{
     const label=p.dayType==='half'?'半工':'整工';
     const ot=p.overtimeHours?'＋加班'+p.overtimeHours+'hr':'';
     return `<div style="font-size:13px;line-height:1.8">✅ <b>${p.name}</b>　${pName(p.projectId)}　${label}${ot}</div>`;
@@ -3350,18 +3363,18 @@ function renderTodos(){
   cleanupExpiredTodos();
   const todos=(db.todos||[]).slice().sort((a,b)=>(a.date+'T'+(a.time||'00:00')).localeCompare(b.date+'T'+(b.time||'00:00')));
   el.innerHTML=todos.length?todos.map(t=>{
-    const typeLabel=t.type==='進場'?'進場':t.type==='丈量'?'丈量':'';
+    const typeLabel=(t.type==='進場'||t.type==='丈量'||t.type==='簽約')?t.type:'';
     const label=typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||'');
+    const shortDate=t.date.slice(5).replace('-','/'); // 不顯示年份，只顯示 月/日
     return`<div class="mat-item-wrap" data-key="${t.id}">
       <div class="mat-swipe-actions">
         <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();openTodoEdit('${t.id}')"><i class="ti ti-pencil"></i>編輯</button>
         <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteTodo('${t.id}')"><i class="ti ti-trash"></i>刪除</button>
       </div>
-      <div class="finance-item" style="cursor:pointer;border-bottom:none;" onclick="openTodoEdit('${t.id}')">
-        <div class="finance-body">
-          <div class="finance-name">${fDate(t.date)} ${t.time||''}</div>
-          <div class="finance-meta">${label}</div>
-        </div>
+      <div class="finance-item" style="cursor:pointer;border-bottom:none;gap:10px;" onclick="openTodoEdit('${t.id}')">
+        <div class="todo-icon"><i class="ti ti-square"></i></div>
+        <div style="color:var(--text3);font-size:0.8125rem;flex-shrink:0;">${shortDate}</div>
+        <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
       </div>
     </div>`;
   }).join(''):'<div class="empty" style="padding:1.25rem"><p>目前沒有待辦事項</p></div>';
@@ -3386,7 +3399,7 @@ function renderDashboard(){
       <div class="card-inner" onclick="openDetail('${p.id}','dashboard')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('洽談中')}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}</div>
-        <div class="dot-progress mt2">${dotHtml(p)}</div>
+        <div class="dot-progress mt2">${dotHtml(p,true)}</div>
       </div>
       <div style="padding:0.5rem 1rem;border-top:0.5px solid var(--border);text-align:right;">
         <span onclick="event.stopPropagation();updateTalkTime('${p.id}')" style="font-size:12px;color:var(--blue-text);cursor:pointer;">更新討論時間</span>
@@ -3796,7 +3809,7 @@ function renderDetail(pid){
       <div class="card"><div class="card-inner"><div style="display:flex;flex-wrap:wrap;">${srcHtml}</div></div></div>
       <div class="section-hd">洽談進度</div>
       <div class="card"><div class="card-inner">
-        <div class="dot-progress">${dotHtml(p,true)}</div>
+        <div class="dot-progress">${dotHtml(p)}</div>
         <div class="text-xs text-muted mt2">點擊圓點標記進度，完成時自動記錄日期</div>
       </div></div>
       ${p.type==='洽談中'?`<button class="btn btn-amber" style="width:100%;margin-top:0.5rem" onclick="markNoResponse('${pid}')"><i class="ti ti-clock-off"></i> 標記為無回應</button>`:''}
@@ -3931,30 +3944,35 @@ function updateTalkTime(pid){
   else if(currentPage==='dashboard')renderDashboard();
 }
 
-let entryPickerProjectId=null;
-function openEntryDatePicker(pid){
-  entryPickerProjectId=pid;
+let stepPickerContext=null; // {pid, stepIndex, isEntry}
+function openStepDatePicker(pid,stepIndex){
+  const isEntry=stepIndex===NEG_STEPS.length-1;
+  stepPickerContext={pid,stepIndex,isEntry};
+  document.getElementById('entry-date-title').textContent=isEntry?'選擇進場日期時間':'選擇簽約日期時間';
+  document.getElementById('entry-date-confirm-btn').textContent=isEntry?'確認進場':'確認簽約';
   document.getElementById('entry-date').value=today();
   document.getElementById('entry-time').value='09:00';
   openSheet('sheet-entry-date');
 }
 function confirmEntryDate(){
-  const pid=entryPickerProjectId;
+  if(!stepPickerContext)return;
+  const{pid,stepIndex,isEntry}=stepPickerContext;
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   const dateVal=document.getElementById('entry-date').value;
   const timeVal=document.getElementById('entry-time').value;
   if(!dateVal||!timeVal)return alert('請選擇日期與時間');
   closeSheet('sheet-entry-date');
   if(!p.negStepTimes)p.negStepTimes={};
-  const lastIdx=NEG_STEPS.length-1;
-  p.negStepTimes[lastIdx]=dateVal+'T'+timeVal+':00';
-  p.negStep=NEG_STEPS.length;
-  p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
+  p.negStepTimes[stepIndex]=dateVal+'T'+timeVal+':00';
+  p.negStep=Math.max(p.negStep||0,stepIndex+1);
+  if(isEntry){
+    p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
+  }
   save();if(window.fbSaveProject)window.fbSaveProject(p);
-  upsertAutoTodo(pid,'進場',dateVal,timeVal);
+  upsertAutoTodo(pid,isEntry?'進場':'簽約',dateVal,timeVal);
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
-  openConstructionSetup(pid);
+  if(isEntry)openConstructionSetup(pid);
 }
 
 // ── 待辦事項：{id, type:'進場'|'丈量'|'manual', date, time, text, projectId, projectName, createdAt} ──
@@ -3980,7 +3998,7 @@ function upsertAutoTodo(pid,type,dateVal,timeVal){
 function syncTodoToCalendar(rec){
   ensureDriveAuth(async()=>{
     try{
-      const label=rec.type==='進場'?'進場':rec.type==='丈量'?'丈量':'待辦';
+      const label=(rec.type==='進場'||rec.type==='丈量'||rec.type==='簽約')?rec.type:'待辦';
       const summary=rec.type==='manual'?rec.text:(label+'－'+(rec.projectName||''));
       const body={
         summary,
@@ -4029,37 +4047,59 @@ function cleanupExpiredTodos(){
   });
 }
 function openTodoEdit(id){
+  const dateEl=document.getElementById('todo-date'),timeEl=document.getElementById('todo-time'),textEl=document.getElementById('todo-text');
+  const autoNote=document.getElementById('todo-auto-note');
   if(id){
     const t=db.todos.find(x=>x.id===id);if(!t)return;
-    if(t.type!=='manual'){alert('「進場」「丈量」這兩種待辦事項是系統自動產生的，要改時間請回到專案裡調整，這裡只能編輯手動新增的文字待辦。');return;}
+    const isAuto=t.type!=='manual';
+    document.getElementById('todo-is-auto').value=isAuto?'1':'';
     document.getElementById('todo-edit-title').textContent='編輯待辦事項';
     document.getElementById('todo-id').value=t.id;
-    document.getElementById('todo-date').value=t.date;
-    document.getElementById('todo-time').value=t.time||'';
-    document.getElementById('todo-text').value=t.text||'';
+    dateEl.value=t.date;
+    timeEl.value=t.time||'';
+    textEl.value=isAuto?(t.type+'．'+(t.projectName||'')):(t.text||'');
+    document.getElementById('todo-note').value=t.note||'';
+    dateEl.disabled=isAuto;timeEl.disabled=isAuto;textEl.disabled=isAuto;
+    autoNote.style.display=isAuto?'block':'none';
   } else {
+    document.getElementById('todo-is-auto').value='';
     document.getElementById('todo-edit-title').textContent='新增待辦事項';
     document.getElementById('todo-id').value='';
-    document.getElementById('todo-date').value=today();
-    document.getElementById('todo-time').value='';
-    document.getElementById('todo-text').value='';
+    dateEl.value=today();
+    timeEl.value='';
+    textEl.value='';
+    document.getElementById('todo-note').value='';
+    dateEl.disabled=false;timeEl.disabled=false;textEl.disabled=false;
+    autoNote.style.display='none';
   }
   openSheet('sheet-todo-edit');
 }
 function saveTodoEdit(){
+  const isAuto=document.getElementById('todo-is-auto').value==='1';
+  const id=document.getElementById('todo-id').value;
+  const note=document.getElementById('todo-note').value.trim();
+  if(isAuto){
+    // 自動產生的待辦：日期/時間/標題都鎖住，只能存記錄
+    const rec=db.todos.find(x=>x.id===id);if(!rec)return;
+    rec.note=note;
+    save();
+    if(window.fbSaveTodo)window.fbSaveTodo(rec);
+    closeSheet('sheet-todo-edit');
+    renderTodos();
+    return;
+  }
   const dateVal=document.getElementById('todo-date').value;
   const timeVal=document.getElementById('todo-time').value;
   const text=document.getElementById('todo-text').value.trim();
   if(!dateVal||!timeVal)return alert('請選擇日期與時間');
   if(!text)return alert('請輸入待辦事項內容');
-  const id=document.getElementById('todo-id').value;
   closeSheet('sheet-todo-edit');
   let rec;
   if(id){
     rec=db.todos.find(x=>x.id===id);if(!rec)return;
-    rec.date=dateVal;rec.time=timeVal;rec.text=text;
+    rec.date=dateVal;rec.time=timeVal;rec.text=text;rec.note=note;
   } else {
-    rec={id:uid(),type:'manual',date:dateVal,time:timeVal,text,createdAt:new Date().toISOString()};
+    rec={id:uid(),type:'manual',date:dateVal,time:timeVal,text,note,createdAt:new Date().toISOString()};
     db.todos.push(rec);
   }
   save();
