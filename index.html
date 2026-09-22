@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260723Y">
+<meta name="app-version" content="20260723Z">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -67,6 +67,16 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .nav-tab span{font-size:0.7188rem;font-weight:500;}
 .nav-tab-main i{font-size:1.75rem;}
 .nav-tab-main span{font-size:0.7812rem;font-weight:600;}
+.qa-fab{width:52px;height:52px;border-radius:50%;background:#ffd60a;color:#3a2e00;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(255,214,10,0.45);margin-top:-22px;border:4px solid var(--bg2);}
+.qa-fab i{font-size:1.75rem;}
+.qa-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:60;display:none;align-items:flex-end;justify-content:center;}
+.qa-menu-overlay.open{display:flex;}
+.qa-menu{display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:calc(var(--nav-h) + var(--safe-bottom) + 22px);}
+.qa-menu-top{display:flex;gap:20px;}
+.qa-btn{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;}
+.qa-btn i{width:58px;height:58px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 4px 14px rgba(0,0,0,0.18);}
+.qa-btn span{font-size:0.8125rem;font-weight:600;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5);}
+.qa-btn-bottom i{background:#ffd60a;color:#3a2e00;border-color:#ffd60a;}
 .page{display:none;}.page.active{display:block;}
 .card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
 .card-inner{padding:1rem;}
@@ -131,6 +141,9 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .info-value{font-size:0.9688rem;flex:1;}
 /* 收支 */
 .finance-item{display:flex;align-items:center;padding:0.75rem 1rem;border-bottom:0.5px solid var(--border);gap:0.75rem;}
+.finance-total-hero{text-align:center;padding:1.75rem 1rem;background:var(--gold-bg);border-radius:var(--rl);}
+.finance-total-label{color:var(--text3);font-size:0.8125rem;margin-bottom:6px;}
+.finance-total-val{font-size:2.375rem;font-weight:700;letter-spacing:0.5px;}
 .finance-item:last-child{border-bottom:none;}
 .finance-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .finance-body{flex:1;min-width:0;}
@@ -326,35 +339,29 @@ textarea.form-input{resize:none;min-height:72px;}
 </div>
 
 <div class="scroll-area">
-  <!-- 總覽 -->
+  <!-- 主頁 -->
   <div id="page-dashboard" class="page active">
     <div class="content">
+      <div class="section-hd"><span>待辦事項</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openTodoEdit()">+ 新增</span></div>
+      <div class="card" id="dash-todos" style="margin-bottom:1rem;"></div>
+
       <div class="punch-grid" style="display:flex;justify-content:center;">
         <button class="punch-btn work" onclick="punchWorkday()" style="width:50%;background:#ffd60a;color:#3a2e00;"><i class="ti ti-square-rounded-plus"></i>計工</button>
       </div>
       <div id="punch-status" style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:0.75rem;"></div>
       <div class="stat-grid" id="dash-stats"></div>
-      <div class="section-hd">洽談中專案</div>
-      <div class="card" id="dash-negotiating"></div>
-      <div class="section-hd">施作中專案</div>
-      <div class="card" id="dash-construction"></div>
-    </div>
-  </div>
 
-  <!-- 專案列表 -->
-  <div id="page-projects" class="page">
-    <div class="content">
       <div class="section-hd">洽談中</div>
-      <div id="proj-negotiating"></div>
+      <div id="dash-negotiating"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">施作中</div>
-      <div id="proj-construction"></div>
+      <div id="dash-construction"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">已完工</div>
-      <div id="proj-completed"></div>
+      <div id="dash-completed"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
       <div class="section-hd">無回應</div>
-      <div id="proj-no-response"></div>
+      <div id="dash-no-response"></div>
     </div>
   </div>
 
@@ -364,19 +371,6 @@ textarea.form-input{resize:none;min-height:72px;}
   </div>
 
   <!-- 收支 -->
-  <div id="page-finance" class="page">
-    <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:65vh;gap:2.5rem;">
-      <div style="text-align:center;cursor:pointer;border:1px solid var(--border);border-radius:16px;padding:0.875rem 1.5rem;display:flex;align-items:center;gap:10px;" onclick="showPage('finance-accounts')">
-        <div>
-          <div style="color:var(--text3);font-size:0.75rem;margin-bottom:4px;">帳房總額</div>
-          <div id="finance-home-total" style="font-size:1.375rem;font-weight:700;color:var(--gold);letter-spacing:0.5px;"></div>
-        </div>
-        <i class="ti ti-chevron-right" style="color:var(--text3);font-size:1.125rem;"></i>
-      </div>
-      <div class="topbar-btn-add" style="width:60vw;height:60vw;max-width:220px;max-height:220px;font-size:5rem;background:#ffd60a;color:#3a2e00;" onclick="openFinanceAddSheet()"><i class="ti ti-plus"></i></div>
-    </div>
-  </div>
-
   <div id="page-finance-accounts" class="page">
     <div class="content">
       <div id="finance-accounts-list"></div>
@@ -505,12 +499,22 @@ textarea.form-input{resize:none;min-height:72px;}
 </div>
 
 <nav class="bottom-nav">
-  <div class="nav-tab active" onclick="showPage('dashboard')"><i class="ti ti-layout-dashboard"></i><span>總覽</span></div>
-  <div class="nav-tab" onclick="showPage('finance')"><i class="ti ti-receipt"></i><span>收支</span></div>
-  <div class="nav-tab nav-tab-main" onclick="showPage('projects')"><i class="ti ti-folder"></i><span>專案</span></div>
+  <div class="nav-tab active" onclick="showPage('dashboard')"><i class="ti ti-layout-dashboard"></i><span>主頁</span></div>
+  <div class="nav-tab" onclick="showPage('finance-accounts')"><i class="ti ti-receipt"></i><span>收支</span></div>
+  <div class="nav-tab nav-tab-main" onclick="toggleQuickActionMenu()"><div class="qa-fab"><i class="ti ti-plus"></i></div></div>
   <div class="nav-tab" onclick="showPage('calendar')"><i class="ti ti-tools"></i><span>小工具</span></div>
   <div class="nav-tab" onclick="showPage('staff')"><i class="ti ti-users"></i><span>人事</span></div>
 </nav>
+
+<div id="qa-menu-overlay" class="qa-menu-overlay" onclick="closeQuickActionMenu()">
+  <div class="qa-menu" onclick="event.stopPropagation()">
+    <div class="qa-menu-top">
+      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>收支</span></div>
+      <div class="qa-btn" onclick="closeQuickActionMenu();handleAdd();"><i class="ti ti-folder-plus"></i><span>專案</span></div>
+    </div>
+    <div class="qa-btn qa-btn-bottom" onclick="closeQuickActionMenu();punchWorkday();"><i class="ti ti-square-rounded-plus"></i><span>計工</span></div>
+  </div>
+</div>
 
 <!-- SHEETS -->
 <div class="sheet-overlay" id="sheet-punch">
@@ -727,6 +731,49 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-manage-steps')">取消</button>
       <button class="btn btn-primary" onclick="saveManageSteps()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-file-cat-manage">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">管理檔案分類<button class="sheet-close" onclick="closeSheet('sheet-file-cat-manage')"><i class="ti ti-x"></i></button></div>
+    <div id="file-cat-manage-list"></div>
+    <div class="mat-chip-add-row" style="margin-top:0.5rem;">
+      <input class="form-input" id="file-cat-new-name" placeholder="新增分類名稱" autocomplete="off">
+      <button class="btn btn-sm btn-primary" onclick="addFileCat()">新增</button>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn btn-primary" style="grid-column:1/-1" onclick="closeSheet('sheet-file-cat-manage')">完成</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-entry-date">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">選擇進場日期時間<button class="sheet-close" onclick="closeSheet('sheet-entry-date')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="entry-date" type="date"></div>
+    <div class="form-group"><label class="form-label">時間 *</label><input class="form-input" id="entry-time" type="time" value="09:00"></div>
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-entry-date')">取消</button>
+      <button class="btn btn-primary" onclick="confirmEntryDate()">確認進場</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-todo-edit">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="todo-edit-title">新增待辦事項</span><button class="sheet-close" onclick="closeSheet('sheet-todo-edit')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" id="todo-date" type="date"></div>
+    <div class="form-group"><label class="form-label">時間 *</label><input class="form-input" id="todo-time" type="time"></div>
+    <div class="form-group"><label class="form-label">內容 *</label><input class="form-input" id="todo-text" placeholder="待辦事項內容" autocomplete="off"></div>
+    <input type="hidden" id="todo-id" value="">
+    <div class="sheet-footer">
+      <button class="btn" onclick="closeSheet('sheet-todo-edit')">取消</button>
+      <button class="btn btn-primary" onclick="saveTodoEdit()">儲存</button>
     </div>
   </div>
 </div>
@@ -1241,6 +1288,12 @@ window.onFirebaseReady=function(){
   if(window.fbStartMaterialConfigListener){
     window.fbStartMaterialConfigListener(onMaterialConfigSynced,onMaterialConfigSyncError);
   }
+  if(window.fbStartFileCatsListener){
+    window.fbStartFileCatsListener(onFileCatsSynced,onFileCatsSyncError);
+  }
+  if(window.fbStartTodosListeners){
+    window.fbStartTodosListeners(onTodosSynced,onTodosSyncError);
+  }
   if(window.fbStartToolIconsListener){
     window.fbStartToolIconsListener(onToolIconsSynced,onToolIconsSyncError);
   }
@@ -1546,6 +1599,21 @@ function onMaterialConfigSynced(cfg){
   db.materialConfig=cfg;save();
   if(currentPage==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
 }
+function onFileCatsSyncError(){console.error('檔案分類雲端同步權限不足');}
+function onFileCatsSynced(cfg){
+  if(!cfg||!cfg.cats)return;
+  db.fileCats=cfg.cats;save();
+  if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
+}
+function saveFileCatsConfig(){
+  save();
+  if(window.fbSaveFileCats)window.fbSaveFileCats({cats:db.fileCats});
+}
+function onTodosSyncError(){console.error('待辦事項雲端同步權限不足');}
+function onTodosSynced(arr){
+  db.todos=arr;save();
+  if(currentPage==='dashboard')renderTodos();
+}
 function onToolIconsSyncError(){console.error('小工具圖示雲端同步權限不足');}
 function onToolIconsSynced(icons){
   if(!icons)return;
@@ -1604,10 +1672,10 @@ async function runEventsMigration(){
   }
 }
 
-const NEG_STEPS=['丈量','報價','討論','簽約'];
+const NEG_STEPS=['報價','討論','簽約','進場'];
 const CON_STEPS=['木作-保護','木作-下角料','木作-窗簾盒','木作-包管/樑','木作-冷氣帽','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
-const FILE_CATS=['報價單','合約','保護工程','木作','油漆','燈具','保護拆除','其他'];
+const FILE_CATS_DEFAULT=['文件','木作','系統櫃'];
 
 // 中華民國國定假日（依行政院人事行政總處公告，農曆相關日期每年異動，需逐年更新）
 const TW_HOLIDAYS={
@@ -1662,7 +1730,7 @@ const CITY_DISTRICTS={
 '其他':['其他']
 };
 
-let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
+let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],todos:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
   cats:['專案','薪資','其他帳戶','金額調整'],
   incCats:['專案','其他帳戶','金額調整'],
   sub:{exp:{'專案':['人事','費用','材料','廠商款項'],'人事':['薪資','茶水餐費'],'費用':['社區費用','油資','停車費'],'材料':['材料五金','設備'],'廠商款項':['油漆','系統櫃','水電'],'其他帳戶':['備用金']},inc:{}}
@@ -1692,12 +1760,14 @@ function load(){
   if(!db.accountTransfers)db.accountTransfers=[];
   if(!db.auditLog)db.auditLog=[];
   if(!db.balanceSnapshots)db.balanceSnapshots=[];
+  if(!db.todos)db.todos=[];
   if(!db.financeCats)db.financeCats={cats:['專案','薪資','其他帳戶','金額調整'],incCats:['專案','其他帳戶','金額調整'],sub:{exp:{'專案':['人事','費用','材料','廠商款項'],'人事':['薪資','茶水餐費'],'費用':['社區費用','油資','停車費'],'材料':['材料五金','設備'],'廠商款項':['油漆','系統櫃','水電'],'其他帳戶':['備用金']},inc:{}}};
   if(!db.financeCats.incCats)db.financeCats.incCats=['專案'];
   migrateFinanceCatsSub();
   dedupeFinanceCats(db.financeCats);
   ensureSystemCategories();
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
+  if(!db.fileCats||!db.fileCats.length)db.fileCats=[...FILE_CATS_DEFAULT];
   if(!db.toolIcons)db.toolIcons={};
   if(!db.materials||!db.materials.length){
     db.materials=MATERIAL_SEED_DATA.map(m=>({id:uid(),...m}));
@@ -2498,7 +2568,14 @@ function filterPunchesByPeriod(punches,period,customMonth){
 }
 
 // ── NAV ──
+function toggleQuickActionMenu(){
+  document.getElementById('qa-menu-overlay').classList.toggle('open');
+}
+function closeQuickActionMenu(){
+  document.getElementById('qa-menu-overlay').classList.remove('open');
+}
 function showPage(id,opts={}){
+  closeQuickActionMenu();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const pageEl=document.getElementById('page-'+id);
   pageEl.classList.add('active');
@@ -2506,9 +2583,9 @@ function showPage(id,opts={}){
   if(contentEl)contentEl.scrollTop=0;
   currentPage=id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  const tabMap={dashboard:0,finance:1,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4,workdays:4};
+  const tabMap={dashboard:0,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4,workdays:4};
   if(tabMap[id]!==undefined)document.querySelectorAll('.nav-tab')[tabMap[id]].classList.add('active');
-  const titles={dashboard:'總覽',projects:'專案',finance:'收支管理',calendar:'小工具',staff:'人事'};
+  const titles={dashboard:'主頁',projects:'專案',finance:'收支管理',calendar:'小工具',staff:'人事'};
   const tr=document.getElementById('topbar-right');
   const titleEl=document.getElementById('topbar-title');
   if(id==='detail'){
@@ -2525,11 +2602,8 @@ function showPage(id,opts={}){
   } else if(id==='staff'){
     titleEl.textContent=titles[id];
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openAddStaff()"><i class="ti ti-plus"></i></button>`;
-  } else if(id==='finance'){
-    titleEl.textContent='收支管理';
-    tr.innerHTML='';
   } else if(id==='finance-accounts'){
-    titleEl.innerHTML=`<button onclick="showPage('finance')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>金流帳戶`;
+    titleEl.textContent='收支管理';
     tr.innerHTML='';
   } else if(id==='finance-detail'){
     titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${financeAccountLabel(document.getElementById('finance-filter-project').value||'__andun__')}`;
@@ -2557,7 +2631,6 @@ function showPage(id,opts={}){
   }
   if(id==='dashboard')renderDashboard();
   if(id==='projects')renderProjects();
-  if(id==='finance'){fillAccountSel('f-project',false,false);renderFinanceHome();}
   if(id==='finance-accounts')renderFinanceAccounts();
   if(id==='finance-detail'){fillAccountSel('finance-filter-project',false);onFinanceAccountChange();renderFinance();}
   if(id==='deleted-items')renderDeletedItems();
@@ -2998,7 +3071,13 @@ function renderFinanceHome(){
 function renderFinanceAccounts(){
   const el=document.getElementById('finance-accounts-list');if(!el)return;
   const ids=allAccountIds();
-  el.innerHTML=`<div class="card">${ids.map(id=>{
+  const total=grandTotalBalance();
+  el.innerHTML=`<div class="finance-total-hero">
+    <div class="finance-total-label">帳房總額</div>
+    <div class="finance-total-val ${total>=0?'text-gold':'text-red'}">$${fMoney(total)}</div>
+  </div>
+  <div class="section-hd" style="margin-top:1.25rem">帳戶</div>
+  <div class="card">${ids.map(id=>{
     const bal=accountBalance(id);
     return `<div class="finance-item" style="cursor:pointer;" onclick="goToAccountDetail('${id}')">
       <div class="finance-body"><div class="finance-name">${financeAccountLabel(id)}</div></div>
@@ -3007,9 +3086,7 @@ function renderFinanceAccounts(){
         <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
       </div>
     </div>`;
-  }).join('')}</div>
-  <div class="section-hd" style="margin-top:1rem">帳房總額</div>
-  <div class="card"><div class="finance-item"><div class="finance-body"><div class="finance-name fw500">三帳戶合計</div></div><span class="fw500 text-gold" style="font-size:1.125rem;">$${fMoney(grandTotalBalance())}</span></div></div>`;
+  }).join('')}</div>`;
 }
 function renderDeletedItems(){
   const el=document.getElementById('deleted-items-list');if(!el)return;
@@ -3117,25 +3194,19 @@ function sBadge(s){
 function dotHtml(p,clickable=false){
   const step=p.negStep||0;
   const times=p.negStepTimes||{};
-  const TALK_IDX=2; // 「洽談」是第3個（index 2）
+  const lastIdx=NEG_STEPS.length-1; // 「進場」是最後一步
   return NEG_STEPS.map((s,i)=>{
     let timeLabel='';
-    if(i===0){
-      // 已完成（手動或自動打勾）：顯示實際完成時間；未完成：顯示預約丈量時間
-      if(i<step&&times[0]){
-        timeLabel=fmtMD(times[0])+' '+times[0].slice(11,16);
-      } else if(p.measureDate){
-        timeLabel=fmtMD(p.measureDate)+' '+p.measureDate.slice(11,16);
-      }
-    } else if(times[i]){
-      timeLabel=fmtMD(times[i]);
+    if(times[i]){
+      timeLabel=fmtMD(times[i])+(i===lastIdx?' '+times[i].slice(11,16):'');
     }
+    const isEntryStep=i===lastIdx;
+    const clickAction=(clickable&&isEntryStep&&i>=step)?`openEntryDatePicker('${p.id}')`:(clickable?`setNegStep('${p.id}',${i+1})`:'');
     return`
-    <div class="dot-step"${clickable?` onclick="setNegStep('${p.id}',${i+1})" style="cursor:pointer"`:''}>
+    <div class="dot-step"${clickAction?` onclick="${clickAction}" style="cursor:pointer"`:''}>
       <div class="dot-circle ${i<step?'done':''}"></div>
       <div class="dot-label ${i<step?'done':''}">${s}</div>
       <div class="dot-time">${timeLabel}</div>
-      ${clickable&&i===TALK_IDX?`<div onclick="event.stopPropagation();updateTalkTime('${p.id}')" style="font-size:9px;color:var(--blue-text);cursor:pointer;text-align:center;margin-top:1px;">更新時間</div>`:''}
     </div>${i<NEG_STEPS.length-1?`<div class="dot-line ${i<step?'done':''}"></div>`:''}`;}).join('');
 }
 
@@ -3274,65 +3345,51 @@ function renderPunchStatus(){
 }
 
 // ── DASHBOARD ──
+function renderTodos(){
+  const el=document.getElementById('dash-todos');if(!el)return;
+  cleanupExpiredTodos();
+  const todos=(db.todos||[]).slice().sort((a,b)=>(a.date+'T'+(a.time||'00:00')).localeCompare(b.date+'T'+(b.time||'00:00')));
+  el.innerHTML=todos.length?todos.map(t=>{
+    const typeLabel=t.type==='進場'?'進場':t.type==='丈量'?'丈量':'';
+    const label=typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||'');
+    return`<div class="mat-item-wrap" data-key="${t.id}">
+      <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();openTodoEdit('${t.id}')"><i class="ti ti-pencil"></i>編輯</button>
+        <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteTodo('${t.id}')"><i class="ti ti-trash"></i>刪除</button>
+      </div>
+      <div class="finance-item" style="cursor:pointer;border-bottom:none;" onclick="openTodoEdit('${t.id}')">
+        <div class="finance-body">
+          <div class="finance-name">${fDate(t.date)} ${t.time||''}</div>
+          <div class="finance-meta">${label}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty" style="padding:1.25rem"><p>目前沒有待辦事項</p></div>';
+  attachMatSwipe(el);
+}
 function renderDashboard(){
   renderWorkdayStatus();
+  renderTodos();
   const neg=db.projects.filter(p=>p.type==='洽談中').length;
   const con=db.projects.filter(p=>p.type==='施作中').length;
   document.getElementById('dash-stats').innerHTML=`
     <div class="stat-card"><div class="stat-label">施作中</div><div class="stat-value">${con}</div></div>
     <div class="stat-card"><div class="stat-label">洽談中</div><div class="stat-value">${neg}</div></div>`;
 
-  // 洽談中（含進度時間）
-  const negs=db.projects.filter(p=>p.type==='洽談中');
-  document.getElementById('dash-negotiating').innerHTML=negs.length?negs.map(p=>`
-    <div class="card-row" onclick="openDetail('${p.id}','dashboard')" style="cursor:pointer;flex-direction:column;align-items:flex-start;gap:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-        <div><div class="card-row-title">${p.name}</div><div class="card-row-sub">${p.client||'—'}</div></div>
-        ${sBadge('洽談中')}
-      </div>
-      <div class="dot-progress" style="width:100%">${dotHtml(p)}</div>
-    </div>`).join(''):'<div class="empty"><i class="ti ti-user-off"></i><p>尚無洽談中專案</p></div>';
-
-  // 施作中（含完成時間）
-  const cons=db.projects.filter(p=>p.type==='施作中');
-  document.getElementById('dash-construction').innerHTML=cons.length?cons.map(p=>{
-    const steps=p.conSteps||{};
-    const doneKeys=CON_STEPS.filter(s=>steps[s]&&steps[s].state==='完成');
-    const activeKey=CON_STEPS.find(s=>steps[s]&&steps[s].state==='進行中');
-    const lastDone=doneKeys.length?doneKeys[doneKeys.length-1]:null;
-    const lastLabel=lastDone?(lastDone==='其他'&&p.conOtherLabel?p.conOtherLabel:lastDone):null;
-    const lastTime=lastDone&&steps[lastDone]?steps[lastDone].time:'';
-    const activeLabel=activeKey?(activeKey==='其他'&&p.conOtherLabel?p.conOtherLabel:activeKey):null;
-    const activeTime=activeKey&&steps[activeKey]?steps[activeKey].time:'';
-    return`<div class="card-row" onclick="openDetail('${p.id}','dashboard')" style="cursor:pointer">
-      <div class="card-row-icon" style="background:var(--blue-bg);color:var(--blue-text)"><i class="ti ti-building"></i></div>
-      <div class="card-row-body">
-        <div class="card-row-title">${p.name}</div>
-        <div class="card-row-sub">${p.client||'—'}</div>
-        ${lastLabel?`<div class="text-xs mt1" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
-        ${activeLabel?`<div class="text-xs" style="color:var(--amber)">🔄 ${activeLabel}${activeTime?' · '+fmtMD(activeTime):''}</div>`:''}
-      </div>
-      ${sBadge('施作中')}
-    </div>`;}).join(''):'<div class="empty"><i class="ti ti-building-off"></i><p>尚無施作中專案</p></div>';
-}
-
-function projPhotoCount(p){
-  if(!p.files)return 0;
-  return Object.values(p.files).reduce((s,arr)=>s+(Array.isArray(arr)?arr.length:0),0);
-}
-
-function renderProjects(){
-  const elNeg=document.getElementById('proj-negotiating');
-  const elCon=document.getElementById('proj-construction');
-  const elDone=document.getElementById('proj-completed');
-  const elNor=document.getElementById('proj-no-response');
+  const elNeg=document.getElementById('dash-negotiating');
+  const elCon=document.getElementById('dash-construction');
+  const elDone=document.getElementById('dash-completed');
+  const elNor=document.getElementById('dash-no-response');
   if(!elNeg||!elCon||!elDone||!elNor)return;
   function negCard(p){
     return`<div class="card" style="margin-bottom:0.75rem;">
-      <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
+      <div class="card-inner" onclick="openDetail('${p.id}','dashboard')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('洽談中')}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}</div>
         <div class="dot-progress mt2">${dotHtml(p)}</div>
+      </div>
+      <div style="padding:0.5rem 1rem;border-top:0.5px solid var(--border);text-align:right;">
+        <span onclick="event.stopPropagation();updateTalkTime('${p.id}')" style="font-size:12px;color:var(--blue-text);cursor:pointer;">更新討論時間</span>
       </div>
     </div>`;
   }
@@ -3347,7 +3404,7 @@ function renderProjects(){
     const activeTime=activeKey&&steps[activeKey]?steps[activeKey].time:'';
     const badge=p.type==='已完工'?sBadge('已完工'):sBadge('施作中');
     return`<div class="card" style="margin-bottom:0.75rem;">
-      <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
+      <div class="card-inner" onclick="openDetail('${p.id}','dashboard')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${badge}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}</div>
         ${lastLabel?`<div class="text-xs mt2" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
@@ -3369,7 +3426,7 @@ function renderProjects(){
     const lastLabel=lastDone?(lastDone==='其他'&&p.conOtherLabel?p.conOtherLabel:lastDone):null;
     const lastTime=lastDone&&steps[lastDone]?steps[lastDone].time:'';
     return`<div class="card" style="margin-bottom:0.75rem;">
-      <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
+      <div class="card-inner" onclick="openDetail('${p.id}','dashboard')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.area?p.area+' - ':''}${p.bname||p.name}</div>${sBadge('已完工')}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}</div>
         ${lastLabel?`<div class="text-xs mt2" style="color:var(--green)">✅ ${lastLabel}${lastTime?' · '+fmtMD(lastTime):''}</div>`:''}
@@ -3380,11 +3437,17 @@ function renderProjects(){
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-check-off"></i><p>尚無已完工專案</p></div></div>`;
   elNor.innerHTML=nors.length?nors.map(p=>{
     return`<div class="card" style="margin-bottom:0.75rem;">
-      <div class="card-inner" onclick="openDetail('${p.id}','projects')" style="cursor:pointer">
+      <div class="card-inner" onclick="openDetail('${p.id}','dashboard')" style="cursor:pointer">
         <div class="flex-between"><div style="font-size:17px;font-weight:500">${p.name}</div>${sBadge('無回應')}</div>
         <div class="text-xs text-muted mt1">${p.client||'—'}</div>
       </div>
     </div>`;}).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-mail-off"></i><p>尚無無回應專案</p></div></div>`;
+}
+function renderProjects(){renderDashboard();}
+
+function projPhotoCount(p){
+  if(!p.files)return 0;
+  return Object.values(p.files).reduce((s,arr)=>s+(Array.isArray(arr)?arr.length:0),0);
 }
 
 // ── SAVE PROJECT ──
@@ -3806,9 +3869,9 @@ function renderDetail(pid){
     </div>`;
 
   // 檔案庫
-  const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span></div>
+  const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage()">管理分類</span></div>
     <div class="card">
-      ${FILE_CATS.map(cat=>{
+      ${db.fileCats.map(cat=>{
         return`<div class="file-row">
           <div class="file-icon"><i class="ti ti-folder"></i></div>
           <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div></div>
@@ -3862,8 +3925,156 @@ function saveSourceOther(){
 function updateTalkTime(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!p.negStepTimes)p.negStepTimes={};
-  p.negStepTimes[2]=new Date().toISOString();
-  save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
+  p.negStepTimes[1]=new Date().toISOString(); // 「討論」現在是索引1（丈量拿掉後，報價=0、討論=1、簽約=2、進場=3）
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
+  if(currentPage==='detail')renderDetail(pid);
+  else if(currentPage==='dashboard')renderDashboard();
+}
+
+let entryPickerProjectId=null;
+function openEntryDatePicker(pid){
+  entryPickerProjectId=pid;
+  document.getElementById('entry-date').value=today();
+  document.getElementById('entry-time').value='09:00';
+  openSheet('sheet-entry-date');
+}
+function confirmEntryDate(){
+  const pid=entryPickerProjectId;
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  const dateVal=document.getElementById('entry-date').value;
+  const timeVal=document.getElementById('entry-time').value;
+  if(!dateVal||!timeVal)return alert('請選擇日期與時間');
+  closeSheet('sheet-entry-date');
+  if(!p.negStepTimes)p.negStepTimes={};
+  const lastIdx=NEG_STEPS.length-1;
+  p.negStepTimes[lastIdx]=dateVal+'T'+timeVal+':00';
+  p.negStep=NEG_STEPS.length;
+  p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
+  upsertAutoTodo(pid,'進場',dateVal,timeVal);
+  if(currentPage==='detail')renderDetail(pid);
+  else if(currentPage==='dashboard')renderDashboard();
+  openConstructionSetup(pid);
+}
+
+// ── 待辦事項：{id, type:'進場'|'丈量'|'manual', date, time, text, projectId, projectName, createdAt} ──
+// 自動產生的（進場/丈量）用 type+projectId 當唯一鍵，重複觸發會更新同一筆而不是累加
+function todoBuildingName(p){
+  return p.bname||p.name; // 不顯示地區，只顯示建案/建物名稱
+}
+function upsertAutoTodo(pid,type,dateVal,timeVal){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  if(!db.todos)db.todos=[];
+  let rec=db.todos.find(t=>t.type===type&&t.projectId===pid);
+  if(!rec){
+    rec={id:uid(),type,projectId:pid,projectName:todoBuildingName(p),date:dateVal,time:timeVal,createdAt:new Date().toISOString()};
+    db.todos.push(rec);
+  } else {
+    rec.date=dateVal;rec.time=timeVal;rec.projectName=todoBuildingName(p);
+  }
+  save();
+  if(window.fbSaveTodo)window.fbSaveTodo(rec);
+  syncTodoToCalendar(rec);
+  if(currentPage==='dashboard')renderTodos();
+}
+function syncTodoToCalendar(rec){
+  ensureDriveAuth(async()=>{
+    try{
+      const label=rec.type==='進場'?'進場':rec.type==='丈量'?'丈量':'待辦';
+      const summary=rec.type==='manual'?rec.text:(label+'－'+(rec.projectName||''));
+      const body={
+        summary,
+        description:'安盾工程管理系統 待辦事項自動同步',
+        start:{dateTime:rec.date+'T'+rec.time+':00',timeZone:'Asia/Taipei'},
+        end:{dateTime:rec.date+'T'+rec.time+':00',timeZone:'Asia/Taipei'}
+      };
+      const key='todo|'+rec.id;
+      const existingId=db.punchGcalIds&&db.punchGcalIds[key];
+      let res;
+      if(existingId){
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${existingId}`,{method:'PUT',body:JSON.stringify(body)});
+      } else {
+        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
+      }
+      const data=await res.json();
+      if(data.id&&window.fbSaveGcalId){db.punchGcalIds[key]=data.id;await window.fbSaveGcalId(key,data.id);}
+      else if(data.error){console.error('待辦事項同步日曆失敗',data.error);}
+    }catch(err){console.error('待辦事項同步日曆發生錯誤',err);}
+  });
+}
+function deleteTodoGcalEvent(todoId){
+  const key='todo|'+todoId;
+  const gcalId=db.punchGcalIds&&db.punchGcalIds[key];
+  if(!gcalId)return;
+  ensureDriveAuth(async()=>{
+    try{
+      await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${gcalId}`,{method:'DELETE'});
+    }catch(err){console.error('刪除待辦事項日曆事件失敗',err);}
+    delete db.punchGcalIds[key];
+    if(window.fbDeleteGcalId)window.fbDeleteGcalId(key).catch(()=>{});
+  });
+}
+function cleanupExpiredTodos(){
+  // 隔天自動刪除：日期已經是「前天以前」的自動清掉（給一天緩衝，避免時區邊界誤刪）
+  if(!db.todos||!db.todos.length)return;
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-1);
+  const cutoffStr=cutoff.toISOString().slice(0,10);
+  const expired=db.todos.filter(t=>t.date<cutoffStr);
+  if(!expired.length)return;
+  db.todos=db.todos.filter(t=>t.date>=cutoffStr);
+  save();
+  expired.forEach(t=>{
+    if(window.fbDeleteTodo)window.fbDeleteTodo(t.id).catch(()=>{});
+    deleteTodoGcalEvent(t.id);
+  });
+}
+function openTodoEdit(id){
+  if(id){
+    const t=db.todos.find(x=>x.id===id);if(!t)return;
+    if(t.type!=='manual'){alert('「進場」「丈量」這兩種待辦事項是系統自動產生的，要改時間請回到專案裡調整，這裡只能編輯手動新增的文字待辦。');return;}
+    document.getElementById('todo-edit-title').textContent='編輯待辦事項';
+    document.getElementById('todo-id').value=t.id;
+    document.getElementById('todo-date').value=t.date;
+    document.getElementById('todo-time').value=t.time||'';
+    document.getElementById('todo-text').value=t.text||'';
+  } else {
+    document.getElementById('todo-edit-title').textContent='新增待辦事項';
+    document.getElementById('todo-id').value='';
+    document.getElementById('todo-date').value=today();
+    document.getElementById('todo-time').value='';
+    document.getElementById('todo-text').value='';
+  }
+  openSheet('sheet-todo-edit');
+}
+function saveTodoEdit(){
+  const dateVal=document.getElementById('todo-date').value;
+  const timeVal=document.getElementById('todo-time').value;
+  const text=document.getElementById('todo-text').value.trim();
+  if(!dateVal||!timeVal)return alert('請選擇日期與時間');
+  if(!text)return alert('請輸入待辦事項內容');
+  const id=document.getElementById('todo-id').value;
+  closeSheet('sheet-todo-edit');
+  let rec;
+  if(id){
+    rec=db.todos.find(x=>x.id===id);if(!rec)return;
+    rec.date=dateVal;rec.time=timeVal;rec.text=text;
+  } else {
+    rec={id:uid(),type:'manual',date:dateVal,time:timeVal,text,createdAt:new Date().toISOString()};
+    db.todos.push(rec);
+  }
+  save();
+  if(window.fbSaveTodo)window.fbSaveTodo(rec);
+  syncTodoToCalendar(rec);
+  renderTodos();
+}
+function deleteTodo(id){
+  const t=db.todos.find(x=>x.id===id);if(!t)return;
+  if(!confirm('確定刪除這筆待辦事項？'))return;
+  db.todos=db.todos.filter(x=>x.id!==id);
+  save();
+  if(window.fbDeleteTodo)window.fbDeleteTodo(id).catch(()=>{});
+  deleteTodoGcalEvent(id);
+  renderTodos();
 }
 
 function setNegStep(pid,step){
@@ -3982,6 +4193,54 @@ function saveManageSteps(){
   save();if(window.fbSaveProject)window.fbSaveProject(p);
   closeSheet('sheet-manage-steps');
   if(currentPage==='detail')renderDetail(p.id);
+}
+
+// ── 檔案庫分類管理（可新增/編輯/刪除，預設：文件/木作/系統櫃）──
+function openFileCatManage(){
+  renderFileCatManageList();
+  openSheet('sheet-file-cat-manage');
+}
+function renderFileCatManageList(){
+  document.getElementById('file-cat-manage-list').innerHTML=db.fileCats.length?`<div class="card">${db.fileCats.map(cat=>`
+    <div class="mat-item-wrap" data-key="${cat}">
+      <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();editFileCat('${cat}')"><i class="ti ti-pencil"></i>編輯</button>
+        <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteFileCat('${cat}')"><i class="ti ti-trash"></i>刪除</button>
+      </div>
+      <div class="mat-item-card" style="cursor:default;"><div class="fw500">${cat}</div></div>
+    </div>`).join('')}</div>`:'<div class="empty"><p>尚無分類，新增一個開始使用</p></div>';
+  attachMatSwipe(document.getElementById('file-cat-manage-list'));
+  attachArrayDrag('file-cat-manage-list',newOrder=>{db.fileCats=newOrder;saveFileCatsConfig();},'.mat-item-wrap');
+}
+function addFileCat(){
+  const input=document.getElementById('file-cat-new-name');
+  const name=input.value.trim();
+  if(!name)return;
+  if(db.fileCats.includes(name))return alert('已經有相同名稱的分類了');
+  db.fileCats.push(name);
+  input.value='';
+  saveFileCatsConfig();
+  renderFileCatManageList();
+  if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
+}
+function editFileCat(name){
+  const newName=prompt('修改分類名稱',name);
+  if(newName===null)return;
+  const trimmed=newName.trim();
+  if(!trimmed||trimmed===name)return;
+  if(db.fileCats.includes(trimmed))return alert('已經有相同名稱的分類了');
+  const idx=db.fileCats.indexOf(name);
+  if(idx>=0)db.fileCats[idx]=trimmed;
+  saveFileCatsConfig();
+  renderFileCatManageList();
+  if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
+}
+function deleteFileCat(name){
+  if(!confirm(`確定刪除分類「${name}」？`))return;
+  db.fileCats=db.fileCats.filter(c=>c!==name);
+  saveFileCatsConfig();
+  renderFileCatManageList();
+  if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
 }
 
 function openFinanceForProject(pid){
@@ -4289,29 +4548,10 @@ async function calendarApiFetch(url,options={}){
   return fetch(url,Object.assign({},options,{headers}));
 }
 function syncMeasureToCalendar(p){
-  ensureDriveAuth(async()=>{
-    try{
-      const start=p.measureDate; // e.g. 2026-06-25T09:00:00
-      const startDate=new Date(start);
-      const endDate=new Date(startDate.getTime()+60*60*1000); // 預設1小時
-      const leaderText=p.leader?'負責人：'+sName(p.leader):'尚未指定負責人';
-      const body={
-        summary:'丈量-'+p.name,
-        description:'系統自動同步：'+p.name+' 丈量預約\n'+leaderText,
-        start:{dateTime:startDate.toISOString(),timeZone:'Asia/Taipei'},
-        end:{dateTime:endDate.toISOString(),timeZone:'Asia/Taipei'}
-      };
-      let res;
-      if(p.measureGcalId){
-        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${p.measureGcalId}`,{method:'PUT',body:JSON.stringify(body)});
-      } else {
-        res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events`,{method:'POST',body:JSON.stringify(body)});
-      }
-      const data=await res.json();
-      if(data.id){p.measureGcalId=data.id;save();if(window.fbSaveProject)window.fbSaveProject(p);}
-      else if(data.error){console.error('日曆同步失敗',data.error);}
-    }catch(err){console.error('日曆同步發生錯誤',err);}
-  });
+  if(!p.measureDate)return;
+  const dateVal=p.measureDate.slice(0,10);
+  const timeVal=p.measureDate.slice(11,16)||'09:00';
+  upsertAutoTodo(p.id,'丈量',dateVal,timeVal);
 }
 
 // ── 自動備份至個人 Google Drive ──
@@ -6061,7 +6301,7 @@ try{
   window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
 }
 
-let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null, auditLogUnsub = null, balanceSnapshotsUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null, auditLogUnsub = null, balanceSnapshotsUnsub = null, fileCatsUnsub = null, todosUnsub = null;
 
 if (fbAuth) {
   onAuthStateChanged(fbAuth, (user) => {
@@ -6082,6 +6322,8 @@ if (fbAuth) {
       if (financeCatsUnsub) { financeCatsUnsub(); financeCatsUnsub = null; }
       if (materialsUnsub) { materialsUnsub(); materialsUnsub = null; }
       if (materialConfigUnsub) { materialConfigUnsub(); materialConfigUnsub = null; }
+      if (fileCatsUnsub) { fileCatsUnsub(); fileCatsUnsub = null; }
+      if (todosUnsub) { todosUnsub(); todosUnsub = null; }
       if (toolIconsUnsub) { toolIconsUnsub(); toolIconsUnsub = null; }
       if (window.onFirebaseSignedOut) window.onFirebaseSignedOut();
     }
@@ -6238,6 +6480,14 @@ window.fbStartAccountTransfersListeners = function (onData, onError) {
 window.fbSaveAccountTransfer = function (r) { return setDoc(doc(fbDb, 'accountTransfers', r.id), r); };
 window.fbDeleteAccountTransfer = function (id) { return deleteDoc(doc(fbDb, 'accountTransfers', id)); };
 
+window.fbStartTodosListeners = function (onData, onError) {
+  todosUnsub = onSnapshot(collection(fbDb, 'todos'), (snap) => {
+    const arr = []; snap.forEach(d => arr.push(d.data())); onData(arr);
+  }, (err) => { console.error('待辦事項同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveTodo = function (r) { return setDoc(doc(fbDb, 'todos', r.id), r); };
+window.fbDeleteTodo = function (id) { return deleteDoc(doc(fbDb, 'todos', id)); };
+
 // ── Audit Log（稽核紀錄）──
 window.fbStartAuditLogListeners = function (onData, onError) {
   auditLogUnsub = onSnapshot(collection(fbDb, 'auditLog'), (snap) => {
@@ -6288,6 +6538,13 @@ window.fbStartMaterialConfigListener = function (onData, onError) {
   }, (err) => { console.error('材料設定同步失敗', err); if (onError) onError(err); });
 };
 window.fbSaveMaterialConfig = function (cfg) { return setDoc(doc(fbDb, 'settings', 'materialConfig'), cfg); };
+
+window.fbStartFileCatsListener = function (onData, onError) {
+  fileCatsUnsub = onSnapshot(doc(fbDb, 'settings', 'fileCats'), (snap) => {
+    if (snap.exists()) onData(snap.data());
+  }, (err) => { console.error('檔案分類同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveFileCats = function (cfg) { return setDoc(doc(fbDb, 'settings', 'fileCats'), cfg); };
 
 // ── Tool Icons（小工具自訂圖示，單一文件）──
 window.fbStartToolIconsListener = function (onData, onError) {
