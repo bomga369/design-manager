@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724E">
+<meta name="app-version" content="20260724F">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -73,10 +73,11 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .qa-menu-overlay.open{display:flex;}
 .qa-menu{display:flex;flex-direction:column;align-items:center;margin-bottom:calc(var(--nav-h) + var(--safe-bottom) + 22px);box-shadow:0 6px 18px rgba(0,0,0,0.22);border-radius:20px;overflow:hidden;}
 .qa-menu-top{display:flex;}
-.qa-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;width:84px;height:74px;background:var(--bg2);border:0.5px solid var(--border);color:var(--gold);}
+.qa-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;width:126px;height:74px;background:var(--bg2);border:0.5px solid var(--border);color:var(--gold);}
+.qa-menu-top .qa-btn:first-child{border-right:1.5px solid var(--divider-strong);}
 .qa-btn i{font-size:1.75rem;}
 .qa-btn span{font-size:0.8125rem;font-weight:600;}
-.qa-btn-bottom{width:168px;background:#ffd60a;color:#3a2e00;border-color:#ffd60a;}
+.qa-btn-bottom{width:252px;background:#ffd60a;color:#3a2e00;border-color:#ffd60a;}
 .page{display:none;}.page.active{display:block;}
 .card{background:var(--bg2);border-radius:var(--rl);overflow:hidden;margin-bottom:0.75rem;border:1px solid var(--border);}
 .card-inner{padding:1rem;}
@@ -498,16 +499,16 @@ textarea.form-input{resize:none;min-height:72px;}
 
 <nav class="bottom-nav">
   <div class="nav-tab active" onclick="showPage('dashboard')"><i class="ti ti-layout-dashboard"></i><span>主頁</span></div>
-  <div class="nav-tab" onclick="showPage('finance-accounts')"><i class="ti ti-receipt"></i><span>收支</span></div>
+  <div class="nav-tab" onclick="showPage('finance-accounts')"><i class="ti ti-receipt"></i><span>金流</span></div>
   <div class="nav-tab nav-tab-main" onclick="toggleQuickActionMenu()"><div class="qa-fab"><i class="ti ti-plus"></i></div></div>
-  <div class="nav-tab" onclick="showPage('calendar')"><i class="ti ti-tools"></i><span>小工具</span></div>
+  <div class="nav-tab" onclick="showPage('calendar')"><i class="ti ti-tools"></i><span>工具</span></div>
   <div class="nav-tab" onclick="showPage('staff')"><i class="ti ti-users"></i><span>人事</span></div>
 </nav>
 
 <div id="qa-menu-overlay" class="qa-menu-overlay" onclick="closeQuickActionMenu()">
   <div class="qa-menu" onclick="event.stopPropagation()">
     <div class="qa-menu-top">
-      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>收支</span></div>
+      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>金流</span></div>
       <div class="qa-btn" onclick="closeQuickActionMenu();handleAdd();"><i class="ti ti-folder-plus"></i><span>專案</span></div>
     </div>
     <div class="qa-btn qa-btn-bottom" onclick="closeQuickActionMenu();punchWorkday();"><i class="ti ti-square-rounded-plus"></i><span>計工</span></div>
@@ -546,7 +547,7 @@ textarea.form-input{resize:none;min-height:72px;}
       <label class="form-label">日期 / 時間 *</label>
       <div class="grid2">
         <input class="form-input" id="pe-date" type="date">
-        <input class="form-input" id="pe-time" type="time">
+        <input class="form-input" id="pe-time" type="time" step="600">
       </div>
     </div>
     <input type="hidden" id="pe-id" value="">
@@ -772,8 +773,8 @@ textarea.form-input{resize:none;min-height:72px;}
       <div style="flex:1.3;"><label class="form-label">日期 *</label><input class="form-input" id="todo-date" type="date"></div>
       <div style="flex:1;"><label class="form-label">時間 *</label><input class="form-input" id="todo-time" type="time" step="600"></div>
     </div>
-    <div class="form-group"><label class="form-label">內容 *</label><input class="form-input" id="todo-text" placeholder="待辦事項內容" autocomplete="off"></div>
-    <div class="form-group"><label class="form-label">記錄</label><textarea class="form-input" id="todo-note" placeholder="可以寫一些補充記錄" rows="3"></textarea></div>
+    <div class="form-group"><label class="form-label">標題 *</label><input class="form-input" id="todo-text" placeholder="待辦事項標題" autocomplete="off"></div>
+    <div class="form-group"><label class="form-label">內容</label><textarea class="form-input" id="todo-note" placeholder="可以寫一些補充內容" rows="3"></textarea></div>
     <input type="hidden" id="todo-id" value="">
     <input type="hidden" id="todo-is-auto" value="">
     <div class="sheet-footer">
@@ -2618,7 +2619,7 @@ function showPage(id,opts={}){
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   const tabMap={dashboard:0,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4,workdays:4};
   if(tabMap[id]!==undefined)document.querySelectorAll('.nav-tab')[tabMap[id]].classList.add('active');
-  const titles={dashboard:'主頁',projects:'專案',finance:'收支管理',calendar:'小工具',staff:'人事'};
+  const titles={dashboard:'主頁',projects:'專案',finance:'收支管理',calendar:'工具',staff:'人事'};
   const tr=document.getElementById('topbar-right');
   const titleEl=document.getElementById('topbar-title');
   if(id==='detail'){
@@ -2636,7 +2637,7 @@ function showPage(id,opts={}){
     titleEl.textContent=titles[id];
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openAddStaff()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='finance-accounts'){
-    titleEl.textContent='收支管理';
+    titleEl.textContent='金流';
     tr.innerHTML='';
   } else if(id==='finance-detail'){
     titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${financeAccountLabel(document.getElementById('finance-filter-project').value||'__andun__')}`;
@@ -3227,15 +3228,12 @@ function sBadge(s){
 function dotHtml(p,clickable=false){
   const step=p.negStep||0;
   const times=p.negStepTimes||{};
-  const lastIdx=NEG_STEPS.length-1; // 「進場」是最後一步，「簽約」是倒數第二步
-  const contractIdx=lastIdx-1;
   return NEG_STEPS.map((s,i)=>{
     let timeLabel='';
     if(times[i]){
-      timeLabel=fmtMD(times[i])+((i===lastIdx||i===contractIdx)?' '+times[i].slice(11,16):'');
+      timeLabel=fmtMD(times[i])+' '+times[i].slice(11,16);
     }
-    const isPickerStep=i===lastIdx||i===contractIdx;
-    const clickAction=(clickable&&isPickerStep&&i>=step)?`openStepDatePicker('${p.id}',${i})`:(clickable?`setNegStep('${p.id}',${i+1})`:'');
+    const clickAction=(clickable&&i>=step)?`openStepDatePicker('${p.id}',${i})`:(clickable?`setNegStep('${p.id}',${i+1})`:'');
     return`
     <div class="dot-step"${clickAction?` onclick="event.stopPropagation();${clickAction}" style="cursor:pointer"`:''}>
       <div class="dot-circle ${i<step?'done':''}"></div>
@@ -3387,7 +3385,7 @@ function renderTodos(){
   el.innerHTML=todos.length?todos.map(t=>{
     const isManual=t.type==='manual';
     const isSetupReminder=t.type==='設定提醒';
-    const typeLabel=(t.type==='進場'||t.type==='丈量'||t.type==='簽約')?t.type:'';
+    const typeLabel=(NEG_STEPS.includes(t.type)||t.type==='丈量')?t.type:'';
     const label=isSetupReminder?`⚠️ ${t.text}．${t.projectName||''}`:(typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||''));
     const shortDate=t.date.slice(5).replace('-','/'); // 不顯示年份，只顯示 月/日
     const checkAction=isManual?`onclick="event.stopPropagation();deleteTodo('${t.id}')" style="cursor:pointer"`:'';
@@ -3765,6 +3763,14 @@ function deleteProject(id){
 }
 
 // ── DETAIL ──
+function toggleProjectFinDetail(){
+  const el=document.getElementById('proj-fin-detail-list');
+  const icon=document.getElementById('proj-fin-toggle-icon');
+  if(!el)return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  if(icon)icon.className=isOpen?'ti ti-chevron-down':'ti ti-chevron-up';
+}
 function renderDetail(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!p.info)p.info={};if(!p.notes)p.notes=[];if(!p.files)p.files={};if(!p.conSteps)p.conSteps={};
@@ -3824,19 +3830,28 @@ function renderDetail(pid){
       <div class="stat-card"><div class="stat-label">收入</div><div class="stat-value text-green" style="font-size:18px">$${fMoney(income)}</div></div>
       <div class="stat-card"><div class="stat-label">支出</div><div class="stat-value text-red" style="font-size:18px">$${fMoney(exp)}</div></div>
     </div>
-    ${pFin.length?`<div class="card">${pFin.slice().sort(sortByCreated).map(f=>`
-      <div class="finance-item">
-        <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
-        <div class="finance-body">
-          <div class="finance-name">${fDateTime(f)}</div>
-          <div class="finance-meta">${f.name}${f.expCat?' · '+f.expCat:''}${f.expDetail?' · '+f.expDetail:''}${f.expContent?' · '+f.expContent:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.paidBy?' · 由'+sName(f.paidBy)+'備用金代墊':''}${f.viaAccount?' · 經手：'+financeAccountLabel(f.viaAccount):''}${f.note?' · '+f.note:''}</div>
-        </div>
-        <span class="fw500 ${f.ftype==='收入'?'text-green':'text-red'}">${f.ftype==='收入'?'+':'-'}$${fMoney(f.amount)}</span>
-      </div>`).join('')}</div>`:''}`;
+    ${pFin.length?`<div class="card" style="cursor:pointer;margin-bottom:0;" onclick="toggleProjectFinDetail()">
+      <div class="finance-item" style="border-bottom:none;justify-content:space-between;">
+        <div class="finance-name fw500">收支明細（共 ${pFin.length} 筆）</div>
+        <i class="ti ti-chevron-down" id="proj-fin-toggle-icon"></i>
+      </div>
+    </div>
+    <div id="proj-fin-detail-list" style="display:none;">
+      <div class="card">${pFin.slice().sort(sortByCreated).map(f=>`
+        <div class="finance-item">
+          <div class="finance-dot" style="background:${f.ftype==='收入'?'var(--green)':'var(--red)'}"></div>
+          <div class="finance-body">
+            <div class="finance-name">${fDateTime(f)}</div>
+            <div class="finance-meta">${f.name}${f.expCat?' · '+f.expCat:''}${f.expDetail?' · '+f.expDetail:''}${f.expContent?' · '+f.expContent:''}${f.incCat?' · '+f.incCat:''}${f.staffName?' · '+f.staffName:''}${f.paidBy?' · 由'+sName(f.paidBy)+'備用金代墊':''}${f.viaAccount?' · 經手：'+financeAccountLabel(f.viaAccount):''}${f.note?' · '+f.note:''}</div>
+          </div>
+          <span class="fw500 ${f.ftype==='收入'?'text-green':'text-red'}">${f.ftype==='收入'?'+':'-'}$${fMoney(f.amount)}</span>
+        </div>`).join('')}</div>
+    </div>`:''}`;
   }
 
   // 進度
   let progressHtml='';
+  let efficiencyHtml='';
   if(isNeg){
     const src=p.negSource||'';
     const srcHtml=SOURCES.map(s=>{
@@ -3857,7 +3872,7 @@ function renderDetail(pid){
       ${p.type==='無回應'?`<button class="btn btn-ghost" style="width:100%;margin-top:0.5rem" onclick="restoreNeg('${pid}')"><i class="ti ti-refresh"></i> 恢復為洽談中</button>`:''}`;
   } else if(isCon){
     const steps=p.conSteps||{};
-    // 施作效率區塊
+    // 施作效率區塊（獨立出來，移到頁面最下方）
     const projPunches=db.punches.filter(punch=>punch.projectId===pid);
     const staffMap={};
     projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
@@ -3872,12 +3887,13 @@ function renderDetail(pid){
         <div class="eff-name">${name}</div>
         <div class="eff-val">${st.days}天${st.otHours>0?' +'+st.otHours+'h加班':''}</div>
       </div>`;}).join('');
-
-    progressHtml=`
+    efficiencyHtml=`
       <div class="section-hd">施作效率</div>
       <div class="card">
         ${staffNames.length?effRows+`<div class="eff-row" style="background:var(--bg2)"><div class="eff-name fw500">合計</div><div class="eff-val fw500">${totalEffMins}天${totalOTHours>0?' +'+totalOTHours+'h加班':''}</div></div>`:'<div class="empty" style="padding:1.5rem"><i class="ti ti-users-off"></i><p>尚無打卡記錄</p></div>'}
-      </div>
+      </div>`;
+
+    progressHtml=`
       <div class="section-hd"><span>施工進度</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openManageSteps('${pid}')">管理項目</span></div>
       <div class="card">
         ${(p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS).map(s=>{
@@ -3935,8 +3951,8 @@ function renderDetail(pid){
     </div>`;
 
   const middleHtml=isNeg
-    ? `${infoHtml}${progressHtml}${notesHtml}`
-    : `${infoHtml}${scheduleHtml}${finHtml}${notesHtml}${progressHtml}`;
+    ? `${infoHtml}${progressHtml}`
+    : `${infoHtml}${scheduleHtml}${finHtml}${progressHtml}`;
 
   document.getElementById('detail-content').innerHTML=`
     <div class="flex-between" style="margin-bottom:0.5rem">
@@ -3946,6 +3962,7 @@ function renderDetail(pid){
     ${p.note?`<div class="text-sm text-muted mt1">${p.note}</div>`:''}
     ${middleHtml}
     ${filesHtml}
+    ${efficiencyHtml}
     <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteProject('${pid}')"><i class="ti ti-trash"></i> 刪除此專案</button>`;
 }
 
@@ -3988,16 +4005,17 @@ function updateTalkTime(pid){
 let stepPickerContext=null; // {pid, stepIndex, isEntry}
 function openStepDatePicker(pid,stepIndex){
   const isEntry=stepIndex===NEG_STEPS.length-1;
-  stepPickerContext={pid,stepIndex,isEntry};
-  document.getElementById('entry-date-title').textContent=isEntry?'選擇進場日期時間':'選擇簽約日期時間';
-  document.getElementById('entry-date-confirm-btn').textContent=isEntry?'確認進場':'確認簽約';
+  const stepName=NEG_STEPS[stepIndex];
+  stepPickerContext={pid,stepIndex,isEntry,stepName};
+  document.getElementById('entry-date-title').textContent='選擇'+stepName+'日期時間';
+  document.getElementById('entry-date-confirm-btn').textContent='確認'+stepName;
   document.getElementById('entry-date').value=today();
   document.getElementById('entry-time').value='09:00';
   openSheet('sheet-entry-date');
 }
 function confirmEntryDate(){
   if(!stepPickerContext)return;
-  const{pid,stepIndex,isEntry}=stepPickerContext;
+  const{pid,stepIndex,isEntry,stepName}=stepPickerContext;
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   const dateVal=document.getElementById('entry-date').value;
   const timeVal=document.getElementById('entry-time').value;
@@ -4009,7 +4027,7 @@ function confirmEntryDate(){
   // 進場只是先「排定」日期＋建立待辦事項，專案維持洽談中，
   // 真正轉為施作中，交給 checkAutoEntryConversions() 在進場那天到了才處理
   save();if(window.fbSaveProject)window.fbSaveProject(p);
-  upsertAutoTodo(pid,isEntry?'進場':'簽約',dateVal,timeVal);
+  upsertAutoTodo(pid,stepName,dateVal,timeVal);
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
 }
@@ -4082,7 +4100,7 @@ function upsertAutoTodo(pid,type,dateVal,timeVal){
 function syncTodoToCalendar(rec){
   ensureDriveAuth(async()=>{
     try{
-      const label=(rec.type==='進場'||rec.type==='丈量'||rec.type==='簽約')?rec.type:'待辦';
+      const label=(NEG_STEPS.includes(rec.type)||rec.type==='丈量')?rec.type:'待辦';
       const summary=rec.type==='manual'?rec.text:(label+'－'+(rec.projectName||''));
       const body={
         summary,
@@ -4179,7 +4197,7 @@ function saveTodoEdit(){
   const timeVal=document.getElementById('todo-time').value;
   const text=document.getElementById('todo-text').value.trim();
   if(!dateVal||!timeVal)return alert('請選擇日期與時間');
-  if(!text)return alert('請輸入待辦事項內容');
+  if(!text)return alert('請輸入待辦事項標題');
   closeSheet('sheet-todo-edit');
   let rec;
   if(id){
