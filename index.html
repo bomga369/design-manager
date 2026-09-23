@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724F">
+<meta name="app-version" content="20260724H">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -146,6 +146,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .finance-total-label{color:var(--text3);font-size:0.8125rem;margin-bottom:6px;}
 .finance-total-val{font-size:2.375rem;font-weight:700;letter-spacing:0.5px;}
 .todo-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text3);font-size:1rem;}
+.wds-row{display:grid;grid-template-columns:20px 1fr 1fr 1fr auto;align-items:center;gap:8px;font-size:13px;padding:4px 0;text-align:left;}
+.wds-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wds-area,.wds-trade{color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wds-extra{color:var(--gold-text);font-size:12px;white-space:nowrap;}
 .finance-item:last-child{border-bottom:none;}
 .finance-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .finance-body{flex:1;min-width:0;}
@@ -444,12 +448,29 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
   </div>
 
+  <div id="page-quotes" class="page">
+    <div class="content">
+      <div class="flex-between" style="margin-bottom:0.75rem;">
+        <button class="btn btn-primary" style="flex:1;" onclick="pickQuoteFiles()"><i class="ti ti-upload"></i> 上傳報價單</button>
+        <button class="btn" style="flex:1;" onclick="downloadAllQuotes()"><i class="ti ti-download"></i> 全部下載</button>
+      </div>
+      <div id="quotes-list"></div>
+    </div>
+  </div>
+
   <!-- 小工具 -->
   <div id="page-calendar" class="page">
     <div class="content">
-      <div class="flex-between"><div class="section-hd" style="margin-bottom:0;">小工具</div><span id="tool-settings-btn" style="display:none;color:var(--gold);cursor:pointer;font-size:0.8125rem;align-items:center;gap:4px;" onclick="openToolSettings()"><i class="ti ti-settings"></i>設定</span></div>
+      <div class="flex-between"><div class="section-hd" style="margin-bottom:0;">工具</div><span id="tool-settings-btn" style="display:none;color:var(--gold);cursor:pointer;font-size:0.8125rem;align-items:center;gap:4px;" onclick="openToolSettings()"><i class="ti ti-settings"></i>設定</span></div>
       <div style="color:var(--text3);font-size:0.75rem;margin:2px 0 10px;" id="tool-reorder-hint">長按圖示可拖曳調整排列順序</div>
       <div class="tool-grid" id="tool-grid"></div>
+      <div class="card" style="margin-top:0.75rem;cursor:pointer;" onclick="openQuotesTool()">
+        <div class="card-inner" style="display:flex;align-items:center;gap:0.75rem;">
+          <div class="staff-avatar" style="background:var(--gold-bg);color:var(--gold-text)"><i class="ti ti-file-invoice"></i></div>
+          <div style="flex:1"><div class="text-sm fw500">報價單</div><div class="text-xs text-muted">上傳圖片檔，隨時可下載（單張或全部）</div></div>
+          <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+        </div>
+      </div>
       <input type="file" id="tool-icon-input" accept="image/*" style="display:none" onchange="onToolIconPicked(event)">
       <div class="section-hd" style="margin-top:1rem">行事曆</div>
       <div onclick="handleCalCardClick(event)">
@@ -1297,6 +1318,9 @@ window.onFirebaseReady=function(){
   if(window.fbStartFileCatsListener){
     window.fbStartFileCatsListener(onFileCatsSynced,onFileCatsSyncError);
   }
+  if(window.fbStartQuotesListener){
+    window.fbStartQuotesListener(onQuotesSynced,onQuotesSyncError);
+  }
   if(window.fbStartTodosListeners){
     window.fbStartTodosListeners(onTodosSynced,onTodosSyncError);
   }
@@ -1633,10 +1657,28 @@ function onMaterialConfigSynced(cfg){
   db.materialConfig=cfg;save();
   if(currentPage==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
 }
+function onQuotesSyncError(){console.error('報價單雲端同步權限不足');}
+function onQuotesSynced(cfg){
+  if(!cfg||!cfg.files)return;
+  db.quotes=cfg.files;save();
+  if(currentPage==='quotes')renderQuotes();
+}
 function onFileCatsSyncError(){console.error('檔案分類雲端同步權限不足');}
 function onFileCatsSynced(cfg){
   if(!cfg||!cfg.cats)return;
   db.fileCats=cfg.cats;save();
+  ensureFileCatSurvey();
+  if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
+}
+// 補上「場勘」分類（既有使用者雲端資料已經存在fileCats時，光改預設值不會自動加上，需要主動補）
+// 排在「文件」前面；如果找不到「文件」就放最前面
+function ensureFileCatSurvey(){
+  if(!db.fileCats)db.fileCats=[];
+  if(db.fileCats.includes('場勘'))return;
+  const idx=db.fileCats.indexOf('文件');
+  if(idx>=0)db.fileCats.splice(idx,0,'場勘');
+  else db.fileCats.unshift('場勘');
+  saveFileCatsConfig();
   if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
 }
 function saveFileCatsConfig(){
@@ -1709,7 +1751,7 @@ async function runEventsMigration(){
 const NEG_STEPS=['報價','討論','簽約','進場'];
 const CON_STEPS=['木作-保護','木作-下角料','木作-窗簾盒','木作-包管/樑','木作-冷氣帽','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
-const FILE_CATS_DEFAULT=['文件','木作','系統櫃'];
+const FILE_CATS_DEFAULT=['場勘','文件','木作','系統櫃'];
 
 // 中華民國國定假日（依行政院人事行政總處公告，農曆相關日期每年異動，需逐年更新）
 const TW_HOLIDAYS={
@@ -1764,7 +1806,7 @@ const CITY_DISTRICTS={
 '其他':['其他']
 };
 
-let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],todos:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
+let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],todos:[],quotes:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
   cats:['專案','薪資','其他帳戶','金額調整'],
   incCats:['專案','其他帳戶','金額調整'],
   sub:{exp:{'專案':['人事','費用','材料','廠商款項'],'人事':['薪資','茶水餐費'],'費用':['社區費用','油資','停車費'],'材料':['材料五金','設備'],'廠商款項':['油漆','系統櫃','水電'],'其他帳戶':['備用金']},inc:{}}
@@ -1802,6 +1844,8 @@ function load(){
   ensureSystemCategories();
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.fileCats||!db.fileCats.length)db.fileCats=[...FILE_CATS_DEFAULT];
+  else ensureFileCatSurvey();
+  if(!db.quotes)db.quotes=[];
   if(!db.toolIcons)db.toolIcons={};
   if(!db.materials||!db.materials.length){
     db.materials=MATERIAL_SEED_DATA.map(m=>({id:uid(),...m}));
@@ -2371,6 +2415,20 @@ function fillProjectSel(selId){
   el.innerHTML=projects.length?projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''):'<option value="">目前無施作中專案</option>';
   if(val&&projects.some(p=>p.id===val))el.value=val;
 }
+// 計工用：專案選單依「最近一次計工時間」排序，越常/越近用的排越前面
+function fillProjectSelByRecentPunch(selId){
+  const el=document.getElementById(selId);if(!el)return;
+  const val=el.value;
+  const projects=db.projects.filter(p=>p.type==='施作中');
+  const lastPunchTime={};
+  db.punches.filter(p=>p.kind==='workday').forEach(p=>{
+    const t=p.createdAt||p.date;
+    if(!lastPunchTime[p.projectId]||t>lastPunchTime[p.projectId])lastPunchTime[p.projectId]=t;
+  });
+  const sorted=projects.slice().sort((a,b)=>(lastPunchTime[b.id]||'').localeCompare(lastPunchTime[a.id]||''));
+  el.innerHTML=sorted.length?sorted.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''):'<option value="">目前無施作中專案</option>';
+  if(val&&sorted.some(p=>p.id===val))el.value=val;
+}
 function refreshFinanceCategories(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
@@ -2617,7 +2675,7 @@ function showPage(id,opts={}){
   if(contentEl)contentEl.scrollTop=0;
   currentPage=id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  const tabMap={dashboard:0,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,staff:4,workdays:4};
+  const tabMap={dashboard:0,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,quotes:3,staff:4,workdays:4};
   if(tabMap[id]!==undefined)document.querySelectorAll('.nav-tab')[tabMap[id]].classList.add('active');
   const titles={dashboard:'主頁',projects:'專案',finance:'收支管理',calendar:'工具',staff:'人事'};
   const tr=document.getElementById('topbar-right');
@@ -2654,6 +2712,9 @@ function showPage(id,opts={}){
   } else if(id==='workdays'){
     titleEl.innerHTML=`<button onclick="showPage('staff')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>本月工時`;
     tr.innerHTML=`<button class="topbar-btn-add" style="background:#ffd60a;color:#3a2e00;" onclick="openWorkdayEdit()"><i class="ti ti-plus"></i></button>`;
+  } else if(id==='quotes'){
+    titleEl.innerHTML=`<button onclick="showPage('calendar')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>報價單`;
+    tr.innerHTML='';
   } else if(id==='materials'){
     titleEl.innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>材料成本表`;
     tr.innerHTML=`<button class="topbar-btn-add" onclick="openAddMaterial()"><i class="ti ti-plus"></i></button>`;
@@ -2671,6 +2732,7 @@ function showPage(id,opts={}){
   if(id==='audit-log')renderAuditLog();
   if(id==='balance-snapshots')renderBalanceSnapshots();
   if(id==='workdays')renderWorkdays();
+  if(id==='quotes')renderQuotes();
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();renderToolGrid();}
   if(id==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
   if(id==='staff')renderStaff();
@@ -3252,7 +3314,7 @@ function fillNameSel(selId){
 
 // ── 計工打卡（簡化版：一天一次，預設整工，例外事後在「本月工時」修改）──
 function punchWorkday(){
-  fillProjectSel('punch-project');
+  fillProjectSelByRecentPunch('punch-project');
   fillNameSel('punch-name');
   const nameEl=document.getElementById('punch-name');
   const myStaff=currentUser&&currentUser.email?db.staff.find(s=>s.email&&s.email.toLowerCase()===currentUser.email.toLowerCase()):null;
@@ -3289,11 +3351,22 @@ function renderWorkdayStatus(){
   const td=db.punches.filter(p=>p.kind==='workday'&&p.date===todayStr);
   if(!td.length){el.innerHTML='';el.style.display='none';return;}
   el.style.display='block';
-  el.innerHTML='<div class="section-hd" style="text-align:left">今日計工</div>'+td.map(p=>{
-    const label=p.dayType==='half'?'半工':'整工';
-    const ot=p.overtimeHours?'＋加班'+p.overtimeHours+'hr':'';
-    return `<div style="font-size:13px;line-height:1.8">✅ <b>${p.name}</b>　${pName(p.projectId)}　${label}${ot}</div>`;
+  const rows=td.map(p=>{
+    const proj=db.projects.find(x=>x.id===p.projectId);
+    const staff=db.staff.find(x=>x.name===p.name);
+    const area=proj?(proj.area||proj.name||'—'):'—';
+    const trade=staff&&staff.stitle?staff.stitle:'—';
+    const dayLabel=p.dayType==='half'?'半工':'整工';
+    const ot=p.overtimeHours?'+'+p.overtimeHours+'h':'';
+    return`<div class="wds-row">
+      <span class="wds-check">✅</span>
+      <span class="wds-name">${p.name}</span>
+      <span class="wds-area">${area}</span>
+      <span class="wds-trade">${trade}</span>
+      <span class="wds-extra">${dayLabel}${ot}</span>
+    </div>`;
   }).join('');
+  el.innerHTML='<div class="section-hd" style="text-align:left">今日計工</div>'+rows;
 }
 function punch(type){
   pendingPunchType=type;
@@ -4027,7 +4100,9 @@ function confirmEntryDate(){
   // 進場只是先「排定」日期＋建立待辦事項，專案維持洽談中，
   // 真正轉為施作中，交給 checkAutoEntryConversions() 在進場那天到了才處理
   save();if(window.fbSaveProject)window.fbSaveProject(p);
-  upsertAutoTodo(pid,stepName,dateVal,timeVal);
+  // 只有簽約、進場（最後兩個步驟）點選時間後才建立待辦事項；報價、討論只記錄時間，不進待辦事項
+  const isContractOrEntry=stepIndex>=NEG_STEPS.length-2;
+  if(isContractOrEntry)upsertAutoTodo(pid,stepName,dateVal,timeVal);
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
 }
@@ -4640,6 +4715,110 @@ const DRIVE_SCOPE='https://www.googleapis.com/auth/drive';
 const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events';
 const GOOGLE_SCOPES=DRIVE_SCOPE+' '+CALENDAR_SCOPE;
 const SHARED_ROOT_FOLDER_ID='1Qh9Z1uISphuymrgiBMNraTh0DnBFzFsX'; // 共用「工程管理系統」資料夾（Drive 資料夾本身名稱可自行更改，不影響此 ID 連結）
+
+// ── 報價單（工具內：上傳圖片檔，可單張或全部下載）──
+let quotesFolderIdCache=null;
+async function ensureQuotesFolderId(){
+  if(quotesFolderIdCache)return quotesFolderIdCache;
+  quotesFolderIdCache=await findOrCreateFolderShared('報價單',SHARED_ROOT_FOLDER_ID);
+  return quotesFolderIdCache;
+}
+function openQuotesTool(){showPage('quotes');}
+function renderQuotes(){
+  const el=document.getElementById('quotes-list');if(!el)return;
+  el.innerHTML=db.quotes.length?`<div class="card">${db.quotes.map(q=>`
+    <div class="finance-item">
+      <div class="finance-body"><div class="finance-name">${q.name}</div><div class="finance-meta">${fDate(q.uploadedAt.slice(0,10))}</div></div>
+      <button class="btn btn-sm btn-primary" onclick="downloadQuoteFile('${q.id}')"><i class="ti ti-download"></i></button>
+      <button class="btn btn-sm btn-ghost" onclick="deleteQuoteFile('${q.id}')"><i class="ti ti-trash"></i></button>
+    </div>`).join('')}</div>`:'<div class="empty" style="padding:1.5rem"><i class="ti ti-file-off"></i><p>尚未上傳任何報價單</p></div>';
+}
+function pickQuoteFiles(){
+  ensureDriveAuth(()=>{
+    const input=document.createElement('input');
+    input.type='file';
+    input.multiple=true;
+    input.accept='image/*';
+    input.onchange=async()=>{
+      const fileList=Array.from(input.files);
+      if(!fileList.length)return;
+      let folderId;
+      try{ folderId=await ensureQuotesFolderId(); }catch(e){ alert('建立資料夾發生錯誤：'+e.message); return; }
+      let successCount=0;
+      for(const file of fileList){
+        const ok=await uploadOneQuoteFile(folderId,file);
+        if(ok)successCount++;
+      }
+      save();
+      if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes});
+      if(successCount>0)alert(`✅ 已成功上傳 ${successCount} 張報價單`);
+      renderQuotes();
+    };
+    input.click();
+  });
+}
+async function uploadOneQuoteFile(folderId,file){
+  try{
+    const metadata={name:file.name,parents:[folderId]};
+    const form=new FormData();
+    form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+    form.append('file',file);
+    const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+driveAccessToken},
+      body:form
+    });
+    const result=await res.json();
+    if(result.id){
+      db.quotes.push({id:uid(),name:result.name,driveId:result.id,uploadedAt:new Date().toISOString()});
+      return true;
+    } else {
+      console.error('報價單上傳失敗',JSON.stringify(result));
+      alert('上傳失敗：'+(result.error&&result.error.message||JSON.stringify(result)));
+      return false;
+    }
+  }catch(e){
+    alert('上傳發生錯誤：'+e.message);
+    return false;
+  }
+}
+async function downloadQuoteBlob(q){
+  const res=await fetch(`https://www.googleapis.com/drive/v3/files/${q.driveId}?alt=media`,{
+    headers:{'Authorization':'Bearer '+driveAccessToken}
+  });
+  if(!res.ok)throw new Error('下載失敗（HTTP '+res.status+'）');
+  const blob=await res.blob();
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=q.name;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+function downloadQuoteFile(id){
+  const q=db.quotes.find(x=>x.id===id);if(!q)return;
+  ensureDriveAuth(()=>{
+    downloadQuoteBlob(q).catch(e=>alert('下載失敗：'+e.message));
+  });
+}
+function downloadAllQuotes(){
+  if(!db.quotes.length)return alert('目前沒有報價單可以下載');
+  if(!confirm(`確定要下載全部 ${db.quotes.length} 張報價單嗎？（瀏覽器會依序跳出多個下載）`))return;
+  ensureDriveAuth(async()=>{
+    for(const q of db.quotes){
+      try{ await downloadQuoteBlob(q); }catch(e){ console.error('下載失敗',q.name,e); }
+      await new Promise(r=>setTimeout(r,500)); // 間隔一下，避免瀏覽器擋下多重下載
+    }
+  });
+}
+function deleteQuoteFile(id){
+  const q=db.quotes.find(x=>x.id===id);if(!q)return;
+  if(!confirm(`確定刪除「${q.name}」？（只會從清單移除，Drive裡的原始檔案不會被刪除）`))return;
+  db.quotes=db.quotes.filter(x=>x.id!==id);
+  save();
+  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes});
+  renderQuotes();
+}
 const SHARED_CALENDAR_ID='6f1dbb6876ceb869a98c8f8bc77661191cc7bf7f80b5b3dbaa6bfcc093532bbd@group.calendar.google.com'; // 團隊共用日曆
 let driveAccessToken=null;
 let tokenClient=null;
@@ -5814,7 +5993,7 @@ function renderStaffDetail(sid){
       ${(()=>{
         const wdPunches=periodPunches.filter(p=>p.kind==='workday');
         if(!wdPunches.length)return'<div class="empty" style="padding:1.5rem"><i class="ti ti-clock-off"></i><p>此期間無計工紀錄</p></div>';
-        return[...wdPunches].sort(sortByCreated).slice(0,30).map(p=>{
+        return[...wdPunches].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,30).map(p=>{
           const dayLabel=p.dayType==='half'?'半工':'整工';
           return`<div class="card-row" onclick="openWorkdayEdit('${p.id}')" style="cursor:pointer">
           <div class="card-row-icon" style="background:var(--gold-bg);color:var(--gold-text)">
@@ -6448,7 +6627,7 @@ try{
   window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
 }
 
-let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null, auditLogUnsub = null, balanceSnapshotsUnsub = null, fileCatsUnsub = null, todosUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null, auditLogUnsub = null, balanceSnapshotsUnsub = null, fileCatsUnsub = null, todosUnsub = null, quotesUnsub = null;
 
 if (fbAuth) {
   onAuthStateChanged(fbAuth, (user) => {
@@ -6470,6 +6649,7 @@ if (fbAuth) {
       if (materialsUnsub) { materialsUnsub(); materialsUnsub = null; }
       if (materialConfigUnsub) { materialConfigUnsub(); materialConfigUnsub = null; }
       if (fileCatsUnsub) { fileCatsUnsub(); fileCatsUnsub = null; }
+      if (quotesUnsub) { quotesUnsub(); quotesUnsub = null; }
       if (todosUnsub) { todosUnsub(); todosUnsub = null; }
       if (toolIconsUnsub) { toolIconsUnsub(); toolIconsUnsub = null; }
       if (window.onFirebaseSignedOut) window.onFirebaseSignedOut();
@@ -6692,6 +6872,13 @@ window.fbStartFileCatsListener = function (onData, onError) {
   }, (err) => { console.error('檔案分類同步失敗', err); if (onError) onError(err); });
 };
 window.fbSaveFileCats = function (cfg) { return setDoc(doc(fbDb, 'settings', 'fileCats'), cfg); };
+
+window.fbStartQuotesListener = function (onData, onError) {
+  quotesUnsub = onSnapshot(doc(fbDb, 'settings', 'quotes'), (snap) => {
+    if (snap.exists()) onData(snap.data());
+  }, (err) => { console.error('報價單同步失敗', err); if (onError) onError(err); });
+};
+window.fbSaveQuotes = function (cfg) { return setDoc(doc(fbDb, 'settings', 'quotes'), cfg); };
 
 // ── Tool Icons（小工具自訂圖示，單一文件）──
 window.fbStartToolIconsListener = function (onData, onError) {
