@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724I">
+<meta name="app-version" content="20260724J">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -146,9 +146,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .finance-total-label{color:var(--text3);font-size:0.8125rem;margin-bottom:6px;}
 .finance-total-val{font-size:2.375rem;font-weight:700;letter-spacing:0.5px;}
 .todo-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text3);font-size:1rem;}
-.wds-row{display:grid;grid-template-columns:20px 1fr 1fr 1fr auto;align-items:center;gap:8px;font-size:13px;padding:4px 0;text-align:left;}
+.wds-row{display:grid;grid-template-columns:20px 1fr 1.6fr 0.8fr auto;align-items:center;gap:8px;font-size:13px;padding:4px 0;text-align:left;}
 .wds-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.wds-area,.wds-trade{color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wds-area{color:var(--text3);white-space:normal;word-break:break-word;line-height:1.3;}
+.wds-trade{color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wds-extra{color:var(--gold-text);font-size:12px;white-space:nowrap;}
 .quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
@@ -487,13 +488,6 @@ textarea.form-input{resize:none;min-height:72px;}
       <div class="flex-between"><div class="section-hd" style="margin-bottom:0;">工具</div><span id="tool-settings-btn" style="display:none;color:var(--gold);cursor:pointer;font-size:0.8125rem;align-items:center;gap:4px;" onclick="openToolSettings()"><i class="ti ti-settings"></i>設定</span></div>
       <div style="color:var(--text3);font-size:0.75rem;margin:2px 0 10px;" id="tool-reorder-hint">長按圖示可拖曳調整排列順序</div>
       <div class="tool-grid" id="tool-grid"></div>
-      <div class="card" style="margin-top:0.75rem;cursor:pointer;" onclick="openQuotesTool()">
-        <div class="card-inner" style="display:flex;align-items:center;gap:0.75rem;">
-          <div class="staff-avatar" style="background:var(--gold-bg);color:var(--gold-text)"><i class="ti ti-file-invoice"></i></div>
-          <div style="flex:1"><div class="text-sm fw500">報價單</div><div class="text-xs text-muted">上傳圖片檔，隨時可下載（單張或全部）</div></div>
-          <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
-        </div>
-      </div>
       <input type="file" id="tool-icon-input" accept="image/*" style="display:none" onchange="onToolIconPicked(event)">
       <div class="section-hd" style="margin-top:1rem">行事曆</div>
       <div onclick="handleCalCardClick(event)">
@@ -2771,7 +2765,8 @@ const TOOLS=[
   {id:'protect',name:'保護工程',url:'https://spiffy-panda-0f24c1.netlify.app',emoji:'🛡️'},
   {id:'accap',name:'冷氣帽',url:'https://resilient-longma-7142ca.netlify.app',emoji:'❄️'},
   {id:'material',name:'材料成本查詢',url:'https://candid-belekoy-8230c8.netlify.app',emoji:'🪵'},
-  {id:'ceiling',name:'天花板角材計算',url:'https://boisterous-snickerdoodle-113d94.netlify.app',emoji:'📐'}
+  {id:'ceiling',name:'天花板角材計算',url:'https://boisterous-snickerdoodle-113d94.netlify.app',emoji:'📐'},
+  {id:'quotes',name:'報價單',url:'__internal_quotes__',emoji:'📋'}
 ];
 let currentToolIconId=null;
 function getToolOrder(){
@@ -2914,6 +2909,7 @@ function attachToolReorder(){
 }
 function openTool(id){
   const t=TOOLS.find(x=>x.id===id);if(!t)return;
+  if(t.url==='__internal_quotes__'){showPage('quotes');return;}
   window.open(t.url,'_blank');
 }
 function openToolSettings(){
@@ -4060,6 +4056,8 @@ function renderDetail(pid){
     ${filesHtml}
     ${efficiencyHtml}
     <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteProject('${pid}')"><i class="ti ti-trash"></i> 刪除此專案</button>`;
+  const detailContentEl=document.getElementById('page-detail')?.querySelector('.content');
+  if(detailContentEl)detailContentEl.scrollTop=0;
 }
 
 // ── 洽談相關 ──
@@ -4142,14 +4140,13 @@ function confirmEntryDate(){
 // 因為網頁不會一直在背景執行，這個檢查在每次開啟App、或每次看主頁時都會跑一次，
 // 確保不管進場那天App有沒有開著，回來看的時候都會補上這個轉換
 function checkAutoEntryConversions(){
-  const now=new Date();
+  const todayStr=today();
   const lastIdx=NEG_STEPS.length-1;
   db.projects.filter(p=>p.type==='洽談中').forEach(p=>{
     const times=p.negStepTimes||{};
     const scheduled=times[lastIdx];
     if(!scheduled)return;
-    if(new Date(scheduled)>now)return; // 還沒到設定的時間點，先不動
-    const todayStr=today();
+    if(scheduled.slice(0,10)>todayStr)return; // 還沒到，先不動
     // 進場時間到了：正式轉為施作中
     p.type='施作中';
     if(!p.conSteps)p.conSteps={};
@@ -4770,14 +4767,46 @@ function renderQuotes(){
     return;
   }
   el.innerHTML=`<div class="quote-grid">${db.quotes.map(q=>`
-    <div class="quote-tile" onclick="openQuotePreview('${q.id}')">
+    <div class="quote-tile" data-qid="${q.id}">
       <div class="quote-thumb-placeholder" id="quote-ph-${q.id}"><i class="ti ti-photo"></i></div>
       <img class="quote-thumb-img" id="quote-thumb-${q.id}" style="display:none;" alt="${q.name}">
-      <button class="quote-tile-del" onclick="event.stopPropagation();deleteQuoteFile('${q.id}')"><i class="ti ti-trash"></i></button>
       <div class="quote-tile-name">${q.name}</div>
     </div>`).join('')}</div>`;
   ensureDriveAuth(()=>{
     db.quotes.forEach(q=>loadQuoteThumb(q));
+  });
+  attachQuoteTileEvents();
+}
+// 每個縮圖：輕點開預覽；長按（500ms）跳出刪除確認，避免誤刪
+function attachQuoteTileEvents(){
+  document.querySelectorAll('#quotes-list .quote-tile').forEach(tile=>{
+    const id=tile.getAttribute('data-qid');
+    let pressTimer=null,longPressed=false,startX=0,startY=0;
+    const clear=()=>{if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}};
+    tile.addEventListener('touchstart',e=>{
+      longPressed=false;
+      startX=e.touches[0].clientX;startY=e.touches[0].clientY;
+      pressTimer=setTimeout(()=>{longPressed=true;deleteQuoteFile(id);},500);
+    },{passive:true});
+    tile.addEventListener('touchmove',e=>{
+      if(!pressTimer)return;
+      const dx=Math.abs(e.touches[0].clientX-startX),dy=Math.abs(e.touches[0].clientY-startY);
+      if(dx>10||dy>10)clear(); // 手指滑動視為捲動，不是長按
+    },{passive:true});
+    tile.addEventListener('touchend',()=>{
+      clear();
+      if(!longPressed)openQuotePreview(id);
+    });
+    // 桌機滑鼠退回：直接點擊開預覽，長按用滑鼠按住模擬
+    tile.addEventListener('mousedown',()=>{
+      longPressed=false;
+      pressTimer=setTimeout(()=>{longPressed=true;deleteQuoteFile(id);},500);
+    });
+    tile.addEventListener('mouseup',()=>{
+      clear();
+      if(!longPressed)openQuotePreview(id);
+    });
+    tile.addEventListener('mouseleave',clear);
   });
 }
 async function loadQuoteThumb(q){
@@ -4820,6 +4849,31 @@ function openQuotePreview(id){
   }
   document.getElementById('quote-preview-overlay').classList.add('open');
 }
+// 預覽左右滑動切換上一張／下一張
+function showAdjacentQuote(dir){
+  if(!currentPreviewQuoteId||!db.quotes.length)return;
+  const idx=db.quotes.findIndex(x=>x.id===currentPreviewQuoteId);
+  if(idx<0)return;
+  const nextIdx=(idx+dir+db.quotes.length)%db.quotes.length;
+  openQuotePreview(db.quotes[nextIdx].id);
+}
+// 預覽畫面左右滑動：往左滑下一張，往右滑上一張
+function setupQuotePreviewSwipe(){
+  const el=document.getElementById('quote-preview-overlay');
+  if(!el)return;
+  let startX=0,startY=0;
+  el.addEventListener('touchstart',e=>{
+    startX=e.touches[0].clientX;startY=e.touches[0].clientY;
+  },{passive:true});
+  el.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-startX;
+    const dy=e.changedTouches[0].clientY-startY;
+    if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){
+      showAdjacentQuote(dx<0?1:-1);
+    }
+  },{passive:true});
+}
+setupQuotePreviewSwipe();
 function closeQuotePreview(){
   document.getElementById('quote-preview-overlay').classList.remove('open');
   currentPreviewQuoteId=null;
