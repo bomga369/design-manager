@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724J">
+<meta name="app-version" content="20260724K">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -537,7 +537,7 @@ textarea.form-input{resize:none;min-height:72px;}
 
 <nav class="bottom-nav">
   <div class="nav-tab active" onclick="showPage('dashboard')"><i class="ti ti-layout-dashboard"></i><span>主頁</span></div>
-  <div class="nav-tab" onclick="showPage('finance-accounts')"><i class="ti ti-receipt"></i><span>金流</span></div>
+  <div class="nav-tab" onclick="showPage('finance-accounts')"><i class="ti ti-receipt"></i><span>帳務</span></div>
   <div class="nav-tab nav-tab-main" onclick="toggleQuickActionMenu()"><div class="qa-fab"><i class="ti ti-plus"></i></div></div>
   <div class="nav-tab" onclick="showPage('calendar')"><i class="ti ti-tools"></i><span>工具</span></div>
   <div class="nav-tab" onclick="showPage('staff')"><i class="ti ti-users"></i><span>人事</span></div>
@@ -546,7 +546,7 @@ textarea.form-input{resize:none;min-height:72px;}
 <div id="qa-menu-overlay" class="qa-menu-overlay" onclick="closeQuickActionMenu()">
   <div class="qa-menu" onclick="event.stopPropagation()">
     <div class="qa-menu-top">
-      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>金流</span></div>
+      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>帳務</span></div>
       <div class="qa-btn" onclick="closeQuickActionMenu();handleAdd();"><i class="ti ti-folder-plus"></i><span>專案</span></div>
     </div>
     <div class="qa-btn qa-btn-bottom" onclick="closeQuickActionMenu();punchWorkday();"><i class="ti ti-square-rounded-plus"></i><span>計工</span></div>
@@ -2688,8 +2688,8 @@ function showPage(id,opts={}){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const pageEl=document.getElementById('page-'+id);
   pageEl.classList.add('active');
-  const contentEl=pageEl.querySelector('.content');
-  if(contentEl)contentEl.scrollTop=0;
+  const scrollAreaEl=document.querySelector('.scroll-area');
+  if(scrollAreaEl)scrollAreaEl.scrollTop=0;
   currentPage=id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   const tabMap={dashboard:0,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,quotes:3,staff:4,workdays:4};
@@ -2712,7 +2712,7 @@ function showPage(id,opts={}){
     titleEl.textContent=titles[id];
     tr.innerHTML=`<button class="topbar-btn primary" onclick="openAddStaff()"><i class="ti ti-plus"></i></button>`;
   } else if(id==='finance-accounts'){
-    titleEl.textContent='金流';
+    titleEl.textContent='帳務';
     tr.innerHTML='';
   } else if(id==='finance-detail'){
     titleEl.innerHTML=`<button onclick="showPage('finance-accounts')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${financeAccountLabel(document.getElementById('finance-filter-project').value||'__andun__')}`;
@@ -3532,9 +3532,6 @@ function renderDashboard(){
         <div class="text-xs text-muted mt1">${p.client||'—'}</div>
         <div class="dot-progress mt2">${dotHtml(p,true)}</div>
       </div>
-      <div style="padding:0.5rem 1rem;border-top:0.5px solid var(--border);text-align:right;">
-        <span onclick="event.stopPropagation();updateTalkTime('${p.id}')" style="font-size:12px;color:var(--blue-text);cursor:pointer;">更新討論時間</span>
-      </div>
     </div>`;
   }
   function conCard(p){
@@ -4056,8 +4053,8 @@ function renderDetail(pid){
     ${filesHtml}
     ${efficiencyHtml}
     <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteProject('${pid}')"><i class="ti ti-trash"></i> 刪除此專案</button>`;
-  const detailContentEl=document.getElementById('page-detail')?.querySelector('.content');
-  if(detailContentEl)detailContentEl.scrollTop=0;
+  const scrollAreaEl=document.querySelector('.scroll-area');
+  if(scrollAreaEl)scrollAreaEl.scrollTop=0;
 }
 
 // ── 洽談相關 ──
@@ -4855,7 +4852,25 @@ function showAdjacentQuote(dir){
   const idx=db.quotes.findIndex(x=>x.id===currentPreviewQuoteId);
   if(idx<0)return;
   const nextIdx=(idx+dir+db.quotes.length)%db.quotes.length;
-  openQuotePreview(db.quotes[nextIdx].id);
+  const imgEl=document.getElementById('quote-preview-img');
+  if(!imgEl){openQuotePreview(db.quotes[nextIdx].id);return;}
+  // 目前圖片往滑動方向滑出＋淡出
+  imgEl.style.transition='transform 0.22s ease-in, opacity 0.22s ease-in';
+  imgEl.style.transform=`translateX(${dir>0?'-60%':'60%'})`;
+  imgEl.style.opacity='0';
+  setTimeout(()=>{
+    openQuotePreview(db.quotes[nextIdx].id);
+    // 新圖片從對側直接定位（不做transition），再立即動畫滑回中間
+    imgEl.style.transition='none';
+    imgEl.style.transform=`translateX(${dir>0?'60%':'-60%'})`;
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        imgEl.style.transition='transform 0.25s ease-out, opacity 0.25s ease-out';
+        imgEl.style.transform='translateX(0)';
+        imgEl.style.opacity='1';
+      });
+    });
+  },220);
 }
 // 預覽畫面左右滑動：往左滑下一張，往右滑上一張
 function setupQuotePreviewSwipe(){
