@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724H">
+<meta name="app-version" content="20260724I">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -150,6 +150,18 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .wds-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wds-area,.wds-trade{color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wds-extra{color:var(--gold-text);font-size:12px;white-space:nowrap;}
+.quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
+.quote-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:1.75rem;}
+.quote-thumb-img{width:100%;height:100%;object-fit:cover;display:block;}
+.quote-tile-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.55);color:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;z-index:2;}
+.quote-tile-name{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;font-size:0.6875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.quote-preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;}
+.quote-preview-overlay.open{display:flex;}
+.quote-preview-overlay img{max-width:94vw;max-height:78vh;object-fit:contain;}
+.quote-preview-bar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;color:#fff;}
+.quote-preview-bar span{font-size:0.875rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60vw;}
+.quote-preview-bar button{background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;cursor:pointer;}
 .finance-item:last-child{border-bottom:none;}
 .finance-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .finance-body{flex:1;min-width:0;}
@@ -456,6 +468,17 @@ textarea.form-input{resize:none;min-height:72px;}
       </div>
       <div id="quotes-list"></div>
     </div>
+  </div>
+
+  <div class="quote-preview-overlay" id="quote-preview-overlay" onclick="closeQuotePreview()">
+    <div class="quote-preview-bar">
+      <span id="quote-preview-name"></span>
+      <div style="display:flex;gap:10px;">
+        <button onclick="event.stopPropagation();downloadCurrentPreviewQuote()"><i class="ti ti-download"></i></button>
+        <button onclick="event.stopPropagation();closeQuotePreview()"><i class="ti ti-x"></i></button>
+      </div>
+    </div>
+    <img id="quote-preview-img" onclick="event.stopPropagation()">
   </div>
 
   <!-- 小工具 -->
@@ -3354,7 +3377,7 @@ function renderWorkdayStatus(){
   const rows=td.map(p=>{
     const proj=db.projects.find(x=>x.id===p.projectId);
     const staff=db.staff.find(x=>x.name===p.name);
-    const area=proj?(proj.area||proj.name||'—'):'—';
+    const area=proj?(proj.area?proj.area+(proj.bname?'-'+proj.bname:''):(proj.bname||proj.name||'—')):'—';
     const trade=staff&&staff.stitle?staff.stitle:'—';
     const dayLabel=p.dayType==='half'?'半工':'整工';
     const ot=p.overtimeHours?'+'+p.overtimeHours+'h':'';
@@ -4030,7 +4053,7 @@ function renderDetail(pid){
   document.getElementById('detail-content').innerHTML=`
     <div class="flex-between" style="margin-bottom:0.5rem">
       <div><div style="font-size:18px;font-weight:500">${p.area?p.area+' - ':''}${p.bname||p.name}</div><div class="text-xs text-muted mt1">${p.client||'—'}</div></div>
-      ${sBadge(p.type)}
+      ${p.type==='施作中'?`<span class="badge badge-blue" style="cursor:pointer;" onclick="revertToNegotiating('${pid}')">施作中</span>`:sBadge(p.type)}
     </div>
     ${p.note?`<div class="text-sm text-muted mt1">${p.note}</div>`:''}
     ${middleHtml}
@@ -4049,6 +4072,15 @@ function markNoResponse(pid){
 function restoreNeg(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   p.type='洽談中';save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
+}
+// 施作中的專案，點右上角「施作中」標籤可以退回洽談中
+function revertToNegotiating(pid){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  if(!confirm(`確定要把「${p.name}」從施作中退回洽談中嗎？`))return;
+  p.type='洽談中';
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
+  if(currentPage==='detail')renderDetail(pid);
+  else if(currentPage==='dashboard')renderDashboard();
 }
 function setSource(pid,src){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
@@ -4110,13 +4142,14 @@ function confirmEntryDate(){
 // 因為網頁不會一直在背景執行，這個檢查在每次開啟App、或每次看主頁時都會跑一次，
 // 確保不管進場那天App有沒有開著，回來看的時候都會補上這個轉換
 function checkAutoEntryConversions(){
-  const todayStr=today();
+  const now=new Date();
   const lastIdx=NEG_STEPS.length-1;
   db.projects.filter(p=>p.type==='洽談中').forEach(p=>{
     const times=p.negStepTimes||{};
     const scheduled=times[lastIdx];
     if(!scheduled)return;
-    if(scheduled.slice(0,10)>todayStr)return; // 還沒到，先不動
+    if(new Date(scheduled)>now)return; // 還沒到設定的時間點，先不動
+    const todayStr=today();
     // 進場時間到了：正式轉為施作中
     p.type='施作中';
     if(!p.conSteps)p.conSteps={};
@@ -4305,18 +4338,23 @@ function setNegStep(pid,step){
   if(p.negStep>prev){
     for(let i=prev;i<p.negStep;i++)p.negStepTimes[i]=new Date().toISOString();
   } else if(p.negStep<prev){
-    for(let i=p.negStep;i<prev;i++)delete p.negStepTimes[i];
-  }
-  let justConverted=false;
-  if(p.negStep===NEG_STEPS.length){
-    if(confirm('簽約完成！是否將此專案轉為「施作中」？')){
-      p.type='施作中';if(!p.conSteps)p.conSteps={};if(!p.info)p.info={};
-      justConverted=true;
+    for(let i=p.negStep;i<prev;i++){
+      delete p.negStepTimes[i];
+      // 簽約／進場（最後兩步）取消勾選時，同步刪除對應的待辦事項
+      if(i>=NEG_STEPS.length-2){
+        const stepName=NEG_STEPS[i];
+        const todo=(db.todos||[]).find(t=>t.type===stepName&&t.projectId===pid);
+        if(todo){
+          db.todos=db.todos.filter(t=>t.id!==todo.id);
+          if(window.fbDeleteTodo)window.fbDeleteTodo(todo.id).catch(()=>{});
+          deleteTodoGcalEvent(todo.id);
+        }
+      }
     }
   }
   save();if(window.fbSaveProject)window.fbSaveProject(p);renderDetail(pid);
+  if(currentPage==='dashboard')renderTodos();
   document.getElementById('topbar-title').innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>${p.name}`;
-  if(justConverted)openConstructionSetup(pid);
 }
 
 // ── 施作專案設定（施工項目勾選＋工程款期數）──
@@ -4724,14 +4762,70 @@ async function ensureQuotesFolderId(){
   return quotesFolderIdCache;
 }
 function openQuotesTool(){showPage('quotes');}
+let quoteBlobUrlCache={};
 function renderQuotes(){
   const el=document.getElementById('quotes-list');if(!el)return;
-  el.innerHTML=db.quotes.length?`<div class="card">${db.quotes.map(q=>`
-    <div class="finance-item">
-      <div class="finance-body"><div class="finance-name">${q.name}</div><div class="finance-meta">${fDate(q.uploadedAt.slice(0,10))}</div></div>
-      <button class="btn btn-sm btn-primary" onclick="downloadQuoteFile('${q.id}')"><i class="ti ti-download"></i></button>
-      <button class="btn btn-sm btn-ghost" onclick="deleteQuoteFile('${q.id}')"><i class="ti ti-trash"></i></button>
-    </div>`).join('')}</div>`:'<div class="empty" style="padding:1.5rem"><i class="ti ti-file-off"></i><p>尚未上傳任何報價單</p></div>';
+  if(!db.quotes.length){
+    el.innerHTML='<div class="empty" style="padding:1.5rem"><i class="ti ti-file-off"></i><p>尚未上傳任何報價單</p></div>';
+    return;
+  }
+  el.innerHTML=`<div class="quote-grid">${db.quotes.map(q=>`
+    <div class="quote-tile" onclick="openQuotePreview('${q.id}')">
+      <div class="quote-thumb-placeholder" id="quote-ph-${q.id}"><i class="ti ti-photo"></i></div>
+      <img class="quote-thumb-img" id="quote-thumb-${q.id}" style="display:none;" alt="${q.name}">
+      <button class="quote-tile-del" onclick="event.stopPropagation();deleteQuoteFile('${q.id}')"><i class="ti ti-trash"></i></button>
+      <div class="quote-tile-name">${q.name}</div>
+    </div>`).join('')}</div>`;
+  ensureDriveAuth(()=>{
+    db.quotes.forEach(q=>loadQuoteThumb(q));
+  });
+}
+async function loadQuoteThumb(q){
+  const imgEl=document.getElementById('quote-thumb-'+q.id);
+  const phEl=document.getElementById('quote-ph-'+q.id);
+  if(!imgEl)return;
+  try{
+    let url=quoteBlobUrlCache[q.id];
+    if(!url){
+      const res=await fetch(`https://www.googleapis.com/drive/v3/files/${q.driveId}?alt=media`,{headers:{'Authorization':'Bearer '+driveAccessToken}});
+      if(!res.ok)throw new Error('載入失敗（HTTP '+res.status+'）');
+      const blob=await res.blob();
+      url=URL.createObjectURL(blob);
+      quoteBlobUrlCache[q.id]=url;
+    }
+    imgEl.src=url;
+    imgEl.style.display='block';
+    if(phEl)phEl.style.display='none';
+  }catch(e){
+    console.error('報價單縮圖載入失敗',q.name,e);
+    if(phEl)phEl.innerHTML='<i class="ti ti-alert-circle"></i>';
+  }
+}
+let currentPreviewQuoteId=null;
+function openQuotePreview(id){
+  const q=db.quotes.find(x=>x.id===id);if(!q)return;
+  currentPreviewQuoteId=id;
+  document.getElementById('quote-preview-name').textContent=q.name;
+  const url=quoteBlobUrlCache[id];
+  const imgEl=document.getElementById('quote-preview-img');
+  if(url){
+    imgEl.src=url;
+  } else {
+    imgEl.removeAttribute('src');
+    ensureDriveAuth(()=>{
+      loadQuoteThumb(q).then(()=>{
+        if(currentPreviewQuoteId===id&&quoteBlobUrlCache[id])imgEl.src=quoteBlobUrlCache[id];
+      });
+    });
+  }
+  document.getElementById('quote-preview-overlay').classList.add('open');
+}
+function closeQuotePreview(){
+  document.getElementById('quote-preview-overlay').classList.remove('open');
+  currentPreviewQuoteId=null;
+}
+function downloadCurrentPreviewQuote(){
+  if(currentPreviewQuoteId)downloadQuoteFile(currentPreviewQuoteId);
 }
 function pickQuoteFiles(){
   ensureDriveAuth(()=>{
@@ -4817,6 +4911,7 @@ function deleteQuoteFile(id){
   db.quotes=db.quotes.filter(x=>x.id!==id);
   save();
   if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes});
+  if(quoteBlobUrlCache[id]){URL.revokeObjectURL(quoteBlobUrlCache[id]);delete quoteBlobUrlCache[id];}
   renderQuotes();
 }
 const SHARED_CALENDAR_ID='6f1dbb6876ceb869a98c8f8bc77661191cc7bf7f80b5b3dbaa6bfcc093532bbd@group.calendar.google.com'; // 團隊共用日曆
