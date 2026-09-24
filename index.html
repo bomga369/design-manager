@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724Q">
+<meta name="app-version" content="20260724R">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -253,7 +253,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .date-field-placeholder{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:1rem;pointer-events:none;}
 .date-field-wrap.has-value .date-field-placeholder{display:none;}
 .wheel-picker-wrap{position:relative;display:flex;align-items:center;justify-content:center;height:200px;gap:4px;}
-.wheel-col{height:200px;width:70px;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;text-align:center;}
+.wheel-col{height:200px;width:70px;overflow-y:scroll;scroll-snap-type:y proximity;-webkit-overflow-scrolling:touch;text-align:center;}
 .wheel-col::-webkit-scrollbar{display:none;}
 .wheel-col-pad{height:80px;}
 .wheel-item{height:40px;line-height:40px;font-size:1.25rem;color:var(--text3);scroll-snap-align:center;}
@@ -684,13 +684,15 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
     <div class="form-group" id="p-measure-group" style="display:none;">
       <label class="form-label">場勘時間</label>
-      <div class="date-field-wrap" id="p-measure-date-wrap" style="margin-bottom:0.5rem;">
-        <input class="form-input" id="p-measure-date" type="date" onchange="onMeasureDateChange()">
-        <span class="date-field-placeholder" id="p-measure-date-ph">(日期)</span>
-      </div>
-      <div class="form-input" id="p-measure-time-display" onclick="openTimeWheel()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
-        <span id="p-measure-time-text">09:00</span>
-        <i class="ti ti-clock text-muted"></i>
+      <div style="display:flex;gap:0.6rem;">
+        <div class="date-field-wrap" id="p-measure-date-wrap" style="flex:1.3;">
+          <input class="form-input" id="p-measure-date" type="date" onchange="onMeasureDateChange()">
+          <span class="date-field-placeholder" id="p-measure-date-ph">(日期)</span>
+        </div>
+        <div class="form-input" id="p-measure-time-display" onclick="openTimeWheel()" style="flex:1;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+          <span id="p-measure-time-text">09:00</span>
+          <i class="ti ti-clock text-muted"></i>
+        </div>
       </div>
       <input type="hidden" id="p-measure-time" value="09:00">
     </div>
@@ -2489,7 +2491,7 @@ function refreshFinanceCategories(){
   const expCats=useCustomCats?andunCats():FIN_EXP_CATS_PROJECT;
   // 備用金帳戶（Wallace/Mark）跟安盾-中國信託共用同一套收入分類，另外多一個「補款」（公司撥入備用金）專屬選項
   const incCats=reserve?andunIncCats():(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
-  expSel.innerHTML=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  expSel.innerHTML=expCats.map(c=>`<option value="${c}"${c==='其他帳戶'?' style="display:none"':''}>${c}</option>`).join('');
   incSel.innerHTML=incCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   if(expCats.includes(expVal))expSel.value=expVal;
   if(incCats.includes(incVal))incSel.value=incVal;
@@ -3550,7 +3552,7 @@ function renderTodos(){
     const label=isSetupReminder?`⚠️ ${t.text}．${t.projectName||''}`:(typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||''));
     const shortDate=t.date.slice(5).replace('-','/'); // 不顯示年份，只顯示 月/日
     const checkAction=isManual?`onclick="event.stopPropagation();deleteTodo('${t.id}')" style="cursor:pointer"`:'';
-    const rowClick=isSetupReminder?`openDetail('${t.projectId}','dashboard')`:`openTodoEdit('${t.id}')`;
+    const rowClick=isSetupReminder?`openDetail('${t.projectId}','dashboard');openConstructionSetup('${t.projectId}')`:`openTodoEdit('${t.id}')`;
     return`<div class="mat-item-wrap" data-key="${t.id}">
       <div class="mat-swipe-actions">
         <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();quickEditTodoTitle('${t.id}')"><i class="ti ti-pencil"></i>編輯</button>
@@ -4166,7 +4168,20 @@ function revertToNegotiating(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!confirm(`確定要把「${p.name}」從施作中退回洽談中嗎？`))return;
   p.type='洽談中';
+  // 清掉進場的紀錄，不然一重新整理，自動轉換邏輯會馬上又把專案抓回施作中
+  const lastIdx=NEG_STEPS.length-1;
+  if(p.negStepTimes){
+    delete p.negStepTimes[lastIdx];
+    if((p.negStep||0)>lastIdx)p.negStep=lastIdx;
+  }
   save();if(window.fbSaveProject)window.fbSaveProject(p);
+  // 順便清掉可能殘留的進場待辦事項
+  const todo=(db.todos||[]).find(t=>t.type==='進場'&&t.projectId===pid);
+  if(todo){
+    db.todos=db.todos.filter(t=>t.id!==todo.id);
+    if(window.fbDeleteTodo)window.fbDeleteTodo(todo.id).catch(()=>{});
+    deleteTodoGcalEvent(todo.id);
+  }
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
 }
@@ -4283,7 +4298,10 @@ function upsertAutoTodo(pid,type,dateVal,timeVal){
   if(!db.todos)db.todos=[];
   let rec=db.todos.find(t=>t.type===type&&t.projectId===pid);
   if(!rec){
-    rec={id:uid(),type,projectId:pid,projectName:todoBuildingName(p),date:dateVal,time:timeVal,createdAt:new Date().toISOString()};
+    // 用固定式ID（類型+專案決定），不用隨機ID：
+    // 這樣同一個步驟反覆取消/重新設定，永遠對應同一份雲端文件，
+    // 就算同步時序上有落差，也不會產生兩筆重複但ID不同的待辦事項
+    rec={id:'step-'+type+'-'+pid,type,projectId:pid,projectName:todoBuildingName(p),date:dateVal,time:timeVal,createdAt:new Date().toISOString()};
     db.todos.push(rec);
   } else {
     rec.date=dateVal;rec.time=timeVal;rec.projectName=todoBuildingName(p);
@@ -5276,21 +5294,18 @@ async function ensureProjectFolderPath(p,cat){
 
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  // 先同步開一個空白分頁，保留住「使用者剛點擊」這個合法性，
+  // 不然等非同步的資料夾確認跑完才開，會被iOS Safari的彈出視窗攔截機制擋掉，導致「點了沒反應」
+  const newTab=window.open('','_blank');
   ensureDriveAuth(async()=>{
     const id=await ensureProjectFolderPath(p,cat);
     renderDetail(pid);
-    // iOS 優先嘗試開啟 Drive App，失敗則降回網頁版
-    const appUrl=`googledrive://folders/${id}`;
     const webUrl=`https://drive.google.com/drive/folders/${id}`;
-    const iframe=document.createElement('iframe');
-    iframe.style.display='none';
-    document.body.appendChild(iframe);
-    iframe.src=appUrl;
-    setTimeout(()=>{
-      document.body.removeChild(iframe);
-      // 如果 App 沒打開（頁面還在前景），就開網頁版
-      if(!document.hidden)window.open(webUrl,'_blank');
-    },1500);
+    if(newTab&&!newTab.closed){
+      newTab.location.href=webUrl;
+    } else {
+      window.open(webUrl,'_blank'); // 空白分頁被擋掉的話，退回原本方式再試一次
+    }
   });
 }
 
@@ -5303,8 +5318,9 @@ function pickDriveFile(pid,cat){
       const fileList=Array.from(input.files);
       if(!fileList.length)return;
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
-      // 先確認資料夾路徑（若Drive被清空，會自動清除p.files舊記錄）
-      try{ await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); return; }
+      // 先確認資料夾路徑（若Drive被清空，會自動清除p.files舊記錄）—只確認這一次，folderId後面重複使用
+      let folderId;
+      try{ folderId=await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); return; }
       // 確認後再檢查重複（此時p.files已是最新狀態）
       const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
       const duplicates=fileList.filter(f=>existingNames.includes(f.name));
@@ -5314,7 +5330,7 @@ function pickDriveFile(pid,cat){
       }
       let successCount=0;
       for(const file of fileList){
-        const ok=await uploadOneFile(p,cat,file);
+        const ok=await uploadOneFile(p,cat,file,folderId);
         if(ok)successCount++;
       }
       save();if(window.fbSaveProject)window.fbSaveProject(p);
@@ -5325,9 +5341,9 @@ function pickDriveFile(pid,cat){
   });
 }
 
-async function uploadOneFile(p,cat,file){
+async function uploadOneFile(p,cat,file,folderId){
   try{
-    const folderId=await ensureProjectFolderPath(p,cat);
+    if(!folderId)folderId=await ensureProjectFolderPath(p,cat);
     const metadata={name:file.name,parents:[folderId]};
     const form=new FormData();
     form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
