@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724K">
+<meta name="app-version" content="20260724L">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -546,7 +546,7 @@ textarea.form-input{resize:none;min-height:72px;}
 <div id="qa-menu-overlay" class="qa-menu-overlay" onclick="closeQuickActionMenu()">
   <div class="qa-menu" onclick="event.stopPropagation()">
     <div class="qa-menu-top">
-      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>帳務</span></div>
+      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>收支</span></div>
       <div class="qa-btn" onclick="closeQuickActionMenu();handleAdd();"><i class="ti ti-folder-plus"></i><span>專案</span></div>
     </div>
     <div class="qa-btn qa-btn-bottom" onclick="closeQuickActionMenu();punchWorkday();"><i class="ti ti-square-rounded-plus"></i><span>計工</span></div>
@@ -793,7 +793,12 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-title"><span id="entry-date-title">選擇進場日期時間</span><button class="sheet-close" onclick="closeSheet('sheet-entry-date')"><i class="ti ti-x"></i></button></div>
     <div class="form-group" style="display:flex;gap:0.6rem;">
       <div style="flex:1.3;"><label class="form-label">日期 *</label><input class="form-input" id="entry-date" type="date"></div>
-      <div style="flex:1;"><label class="form-label">時間 *</label><input class="form-input" id="entry-time" type="time" value="09:00" step="600"></div>
+      <div style="flex:1;"><label class="form-label">時間 *</label>
+        <div class="form-input" id="entry-time-display" onclick="openTimeWheelFor(document.getElementById('entry-time').value,(v)=>{document.getElementById('entry-time').value=v;document.getElementById('entry-time-text').textContent=v;})" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+          <span id="entry-time-text">09:00</span>
+        </div>
+        <input type="hidden" id="entry-time" value="09:00">
+      </div>
     </div>
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-entry-date')">取消</button>
@@ -809,7 +814,12 @@ textarea.form-input{resize:none;min-height:72px;}
     <div id="todo-auto-note" style="display:none;color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">這筆是系統自動產生的，日期時間跟標題要改請回到專案裡調整，這裡可以加寫記錄。</div>
     <div class="form-group" style="display:flex;gap:0.6rem;">
       <div style="flex:1.3;"><label class="form-label">日期 *</label><input class="form-input" id="todo-date" type="date"></div>
-      <div style="flex:1;"><label class="form-label">時間 *</label><input class="form-input" id="todo-time" type="time" step="600"></div>
+      <div style="flex:1;"><label class="form-label">時間 *</label>
+        <div class="form-input" id="todo-time-display" onclick="openTimeWheelFor(document.getElementById('todo-time').value,(v)=>{document.getElementById('todo-time').value=v;document.getElementById('todo-time-text').textContent=v;})" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+          <span id="todo-time-text">09:00</span>
+        </div>
+        <input type="hidden" id="todo-time" value="09:00">
+      </div>
     </div>
     <div class="form-group"><label class="form-label">標題 *</label><input class="form-input" id="todo-text" placeholder="待辦事項標題" autocomplete="off"></div>
     <div class="form-group"><label class="form-label">內容</label><textarea class="form-input" id="todo-note" placeholder="可以寫一些補充內容" rows="3"></textarea></div>
@@ -3051,13 +3061,18 @@ function updateWheelHighlight(colEl){
   const idx=Math.round(colEl.scrollTop/40);
   colEl.querySelectorAll('.wheel-item').forEach((el,i)=>el.classList.toggle('center',i===idx));
 }
-function openTimeWheel(){
+let timeWheelOnConfirm=null;
+function openTimeWheelFor(currentValue,onConfirm){
   const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
   const mins=Array.from({length:6},(_,i)=>String(i*10).padStart(2,'0')); // 10分鐘為一個單位:00/10/20/30/40/50
-  const [curH,curM]=getMeasureTime().split(':');
+  const [curH,curM]=(currentValue||'09:00').split(':');
   buildWheelCol(document.getElementById('wheel-hour'),hours,curH||'09');
   buildWheelCol(document.getElementById('wheel-minute'),mins,nearestTenMin(curM||'0'));
+  timeWheelOnConfirm=onConfirm;
   openSheet('sheet-time-wheel');
+}
+function openTimeWheel(){
+  openTimeWheelFor(getMeasureTime(),(hhmm)=>{setMeasureTime(hhmm);});
 }
 function getWheelCenterValue(colEl){
   const idx=Math.round(colEl.scrollTop/40);
@@ -3067,8 +3082,8 @@ function getWheelCenterValue(colEl){
 function confirmTimeWheel(){
   const hh=getWheelCenterValue(document.getElementById('wheel-hour'));
   const mm=getWheelCenterValue(document.getElementById('wheel-minute'));
-  setMeasureTime(hh+':'+mm);
   closeSheet('sheet-time-wheel');
+  if(timeWheelOnConfirm)timeWheelOnConfirm(hh+':'+mm);
 }
 function openDetail(pid,from){prevPage=from||'projects';currentProjectId=pid;showPage('detail');}
 
@@ -4111,6 +4126,7 @@ function openStepDatePicker(pid,stepIndex){
   document.getElementById('entry-date-confirm-btn').textContent='確認'+stepName;
   document.getElementById('entry-date').value=today();
   document.getElementById('entry-time').value='09:00';
+  document.getElementById('entry-time-text').textContent='09:00';
   openSheet('sheet-entry-date');
 }
 function confirmEntryDate(){
@@ -4255,6 +4271,7 @@ function cleanupExpiredTodos(){
 }
 function openTodoEdit(id){
   const dateEl=document.getElementById('todo-date'),timeEl=document.getElementById('todo-time'),textEl=document.getElementById('todo-text');
+  const timeTextEl=document.getElementById('todo-time-text'),timeDisplayEl=document.getElementById('todo-time-display');
   const autoNote=document.getElementById('todo-auto-note');
   if(id){
     const t=db.todos.find(x=>x.id===id);if(!t)return;
@@ -4264,19 +4281,25 @@ function openTodoEdit(id){
     document.getElementById('todo-id').value=t.id;
     dateEl.value=t.date;
     timeEl.value=t.time||'';
+    timeTextEl.textContent=t.time||'09:00';
     textEl.value=isAuto?(t.type+'．'+(t.projectName||'')):(t.text||'');
     document.getElementById('todo-note').value=t.note||'';
-    dateEl.disabled=isAuto;timeEl.disabled=isAuto;textEl.disabled=isAuto;
+    dateEl.disabled=isAuto;textEl.disabled=isAuto;
+    timeDisplayEl.style.pointerEvents=isAuto?'none':'auto';
+    timeDisplayEl.style.opacity=isAuto?'0.6':'1';
     autoNote.style.display=isAuto?'block':'none';
   } else {
     document.getElementById('todo-is-auto').value='';
     document.getElementById('todo-edit-title').textContent='新增待辦事項';
     document.getElementById('todo-id').value='';
     dateEl.value=today();
-    timeEl.value='';
+    timeEl.value='09:00';
+    timeTextEl.textContent='09:00';
     textEl.value='';
     document.getElementById('todo-note').value='';
-    dateEl.disabled=false;timeEl.disabled=false;textEl.disabled=false;
+    dateEl.disabled=false;textEl.disabled=false;
+    timeDisplayEl.style.pointerEvents='auto';
+    timeDisplayEl.style.opacity='1';
     autoNote.style.display='none';
   }
   openSheet('sheet-todo-edit');
