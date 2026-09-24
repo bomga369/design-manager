@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724R">
+<meta name="app-version" content="20260724T">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3324,10 +3324,15 @@ function chooseFinanceType(type){
     setSeg('f-type',actualType);
     toggleFinanceCat(actualType);
     document.getElementById('f-type-segmented').style.display='none'; // 上一層已經選過類型了，這裡不重複顯示
-    if(type==='轉帳'){
+    const isTransfer=type==='轉帳';
+    if(isTransfer){
       document.getElementById('f-expense-cat').value='其他帳戶';
       onExpenseCatChange();
     }
+    // 轉帳畫面精簡：只留帳戶選擇／金額／轉帳給／日期，其他都先藏起來（純畫面隱藏，底層欄位值不變，不影響金流計算）
+    if(isTransfer)document.getElementById('f-expense-cat-group').style.display='none';
+    const noteGrp=document.getElementById('f-note').closest('.form-group');
+    if(noteGrp)noteGrp.style.display=isTransfer?'none':'block';
   },200); // 等選擇彈窗關閉動畫結束，接著開表單，形成翻頁銜接的感覺
 }
 function openFinanceAddSheet(){
@@ -3347,6 +3352,7 @@ function openReserveEntry(staffId){
   fillAccountSel('f-project',false,false);
   document.getElementById('f-project').value='__reserve_'+staffId+'__';
   document.getElementById('f-type-segmented').style.display='flex';
+  { const ng=document.getElementById('f-note').closest('.form-group'); if(ng)ng.style.display='block'; }
   setSeg('f-type','收入');
   onFinanceAccountChange();
   document.getElementById('f-date').value=today();
@@ -4168,6 +4174,7 @@ function revertToNegotiating(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!confirm(`確定要把「${p.name}」從施作中退回洽談中嗎？`))return;
   p.type='洽談中';
+  p._revertedFromCon=true; // 明確標記，避免自動轉換邏輯又把它抓回施作中
   // 清掉進場的紀錄，不然一重新整理，自動轉換邏輯會馬上又把專案抓回施作中
   const lastIdx=NEG_STEPS.length-1;
   if(p.negStepTimes){
@@ -4233,6 +4240,7 @@ function confirmEntryDate(){
   if(!p.negStepTimes)p.negStepTimes={};
   p.negStepTimes[stepIndex]=dateVal+'T'+timeVal+':00';
   p.negStep=Math.max(p.negStep||0,stepIndex+1);
+  if(isEntry)delete p._revertedFromCon; // 重新設定進場時間，代表要恢復正常流程，清掉退回旗標
   // 進場只是先「排定」日期＋建立待辦事項，專案維持洽談中，
   // 真正轉為施作中，交給 checkAutoEntryConversions() 在進場那天到了才處理
   save();if(window.fbSaveProject)window.fbSaveProject(p);
@@ -4249,6 +4257,7 @@ function checkAutoEntryConversions(){
   const todayStr=today();
   const lastIdx=NEG_STEPS.length-1;
   db.projects.filter(p=>p.type==='洽談中').forEach(p=>{
+    if(p._revertedFromCon)return; // 明確標記過「剛從施作中退回」的專案，不再自動轉換，除非重新點過進場
     const times=p.negStepTimes||{};
     const scheduled=times[lastIdx];
     if(!scheduled)return;
@@ -4658,6 +4667,7 @@ function openFinanceForProject(pid){
   document.getElementById('sheet-finance-title').textContent='新增收支項目';
   document.getElementById('sheet-finance-save-btn').textContent='儲存';
   document.getElementById('f-type-segmented').style.display='flex';
+  { const ng=document.getElementById('f-note').closest('.form-group'); if(ng)ng.style.display='block'; }
   fillAccountSel('f-project',false,false);
   const proj=db.projects.find(p=>p.id===pid);
   const sel=document.getElementById('f-project');
@@ -5294,8 +5304,7 @@ async function ensureProjectFolderPath(p,cat){
 
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  // 先同步開一個空白分頁，保留住「使用者剛點擊」這個合法性，
-  // 不然等非同步的資料夾確認跑完才開，會被iOS Safari的彈出視窗攔截機制擋掉，導致「點了沒反應」
+  // 先同步嘗試開一個空白分頁，保留住「使用者剛點擊」這個合法性
   const newTab=window.open('','_blank');
   ensureDriveAuth(async()=>{
     const id=await ensureProjectFolderPath(p,cat);
@@ -5304,7 +5313,9 @@ function openDriveFolder(pid,cat){
     if(newTab&&!newTab.closed){
       newTab.location.href=webUrl;
     } else {
-      window.open(webUrl,'_blank'); // 空白分頁被擋掉的話，退回原本方式再試一次
+      // 加到主畫面的PWA（獨立視窗模式）常常沒辦法真的開出新分頁，newTab會是null，
+      // 這種情況改成直接在目前畫面導航過去，這是PWA環境下最可靠的方式
+      window.location.href=webUrl;
     }
   });
 }
@@ -5682,6 +5693,7 @@ function editFinance(id){
   document.getElementById('sheet-finance-title').textContent='編輯收支項目';
   document.getElementById('sheet-finance-save-btn').textContent='儲存修改';
   document.getElementById('f-type-segmented').style.display='flex';
+  { const ng=document.getElementById('f-note').closest('.form-group'); if(ng)ng.style.display='block'; }
 
   // 決定表單上「帳戶選擇」要帶入哪個值：優先用 viaAccount（實際經手帳戶），否則用 projectId 本身
   const acctForForm=rec.viaAccount||rec.projectId;
