@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724V">
+<meta name="app-version" content="20260724W">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2478,6 +2478,7 @@ function fillProjectSelByRecentPunch(selId){
   el.innerHTML=sorted.length?sorted.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''):'<option value="">目前無施作中專案</option>';
   if(val&&sorted.some(p=>p.id===val))el.value=val;
 }
+let _allowTransferCatOption=false; // 只有轉帳快速新增流程會暫時設為true，方便程式化選取「其他帳戶」
 function refreshFinanceCategories(){
   const acct=document.getElementById('f-project').value;
   const reserve=isReserveAccount(acct);
@@ -2489,10 +2490,13 @@ function refreshFinanceCategories(){
   const expSel=document.getElementById('f-expense-cat');
   const incSel=document.getElementById('f-income-cat');
   const expVal=expSel.value,incVal=incSel.value;
-  const expCats=useCustomCats?andunCats():FIN_EXP_CATS_PROJECT;
+  let expCats=useCustomCats?andunCats():FIN_EXP_CATS_PROJECT;
+  // 一般流程下，「其他帳戶」整個從清單排除（不是CSS隱藏——iOS原生選單不會遵守option的display:none，
+  // 隱藏了還是選得到，所以改成真的不放進清單裡），只有轉帳快速新增流程會暫時允許
+  if(!_allowTransferCatOption)expCats=expCats.filter(c=>c!=='其他帳戶');
   // 備用金帳戶（Wallace/Mark）跟安盾-中國信託共用同一套收入分類，另外多一個「補款」（公司撥入備用金）專屬選項
   const incCats=reserve?andunIncCats():(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
-  expSel.innerHTML=expCats.map(c=>`<option value="${c}"${c==='其他帳戶'?' style="display:none"':''}>${c}</option>`).join('');
+  expSel.innerHTML=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   incSel.innerHTML=incCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   if(expCats.includes(expVal))expSel.value=expVal;
   if(incCats.includes(incVal))incSel.value=incVal;
@@ -3322,20 +3326,16 @@ function chooseFinanceType(type){
   setTimeout(()=>{
     openFinanceAddSheet(); // 沿用原本邏輯：帳戶/日期初始化完全不變
     const actualType=type==='轉帳'?'支出':type;
+    const isTransfer=type==='轉帳';
+    _allowTransferCatOption=isTransfer; // 只有轉帳流程才暫時允許「其他帳戶」出現在分類清單裡
     setSeg('f-type',actualType);
     toggleFinanceCat(actualType);
     document.getElementById('f-type-segmented').style.display='none'; // 上一層已經選過類型了，這裡不重複顯示
-    const isTransfer=type==='轉帳';
     if(isTransfer){
       document.getElementById('f-expense-cat').value='其他帳戶';
       onExpenseCatChange();
-    } else if(actualType==='支出'&&document.getElementById('f-expense-cat').value==='其他帳戶'){
-      // 清掉上次轉帳流程殘留的「其他帳戶」選擇，避免這次明明是一般支出，卻意外帶出轉帳給欄位
-      const expSel=document.getElementById('f-expense-cat');
-      const firstVisible=[...expSel.options].find(o=>o.value!=='其他帳戶');
-      if(firstVisible)expSel.value=firstVisible.value;
-      onExpenseCatChange();
     }
+    _allowTransferCatOption=false; // 用完立刻關掉，避免影響之後任何一般支出/收入流程
     // 轉帳畫面精簡：只留帳戶選擇／金額／轉帳給／日期，其他都先藏起來（純畫面隱藏，底層欄位值不變，不影響金流計算）
     if(isTransfer)document.getElementById('f-expense-cat-group').style.display='none';
     const noteGrp=document.getElementById('f-note').closest('.form-group');
@@ -5724,7 +5724,9 @@ function editFinance(id){
   }
   sel.value=acctForForm;
   setSeg('f-type',rec.ftype);
+  _allowTransferCatOption=(rec.ftype==='支出'&&rec.expCat==='其他帳戶'); // 編輯的是轉帳紀錄的話，暫時允許這個分類出現
   onFinanceAccountChange();
+  _allowTransferCatOption=false;
 
   const reserve=isReserveAccount(acctForForm);
   const isAndunLike=reserve||acctForForm==='__andun__';
