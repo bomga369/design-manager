@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724W">
+<meta name="app-version" content="20260724X">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -160,6 +160,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .fin-type-info{flex:1;min-width:0;}
 .fin-type-name{font-size:1.0625rem;font-weight:600;}
 .fin-type-sub{font-size:0.8125rem;color:var(--text3);margin-top:2px;}
+.acct-card-row{display:flex;align-items:center;gap:0.5rem;}
+.acct-card{position:relative;flex:1;background:var(--bg2);border:1.5px solid var(--border);border-radius:18px;padding:1.1rem 0.75rem;display:flex;flex-direction:column;align-items:center;gap:0.4rem;min-height:90px;justify-content:center;text-align:center;}
+.acct-card-icon{font-size:1.5rem;color:var(--gold);}
+.acct-card-name{font-size:0.9375rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+.acct-card-select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;}
+.acct-card-arrow{flex-shrink:0;font-size:1.375rem;color:var(--gold);display:flex;align-items:center;justify-content:center;}
 .quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
 .quote-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:1.75rem;}
@@ -894,7 +900,22 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="sheet-finance-title">新增收支項目</span><button class="sheet-close" onclick="closeSheet('sheet-finance')"><i class="ti ti-x"></i></button></div>
-    <div class="form-group"><label class="form-label">帳戶選擇 *</label><select class="form-input" id="f-project" onchange="onFinanceAccountChange()"></select></div>
+    <div class="form-group">
+      <label class="form-label" id="acct-card-label">帳戶選擇 *</label>
+      <div class="acct-card-row">
+        <div class="acct-card">
+          <div class="acct-card-icon"><i class="ti ti-building-bank"></i></div>
+          <div class="acct-card-name" id="acct-card-from-text">請選擇</div>
+          <select class="acct-card-select" id="f-project" onchange="onFinanceAccountChange()"></select>
+        </div>
+        <div class="acct-card-arrow" id="acct-card-arrow" style="display:none;"><i class="ti ti-arrow-right"></i></div>
+        <div class="acct-card" id="acct-card-to-wrap" style="display:none;">
+          <div class="acct-card-icon"><i class="ti ti-building-bank"></i></div>
+          <div class="acct-card-name" id="acct-card-to-text">請選擇</div>
+          <select class="acct-card-select" id="f-cat-transfer-target" onchange="syncAcctCardDisplay()"></select>
+        </div>
+      </div>
+    </div>
     <div class="form-group"><label class="form-label">類型</label>
       <div class="segmented" id="f-type-segmented">
         <div class="seg-btn active" data-val="支出" onclick="selectSeg(this,'f-type','支出');toggleFinanceCat('支出')">支出（付款）</div>
@@ -914,7 +935,6 @@ textarea.form-input{resize:none;min-height:72px;}
       <select class="form-input" id="f-expense-cat" onchange="onExpenseCatChange()"></select>
     </div>
     <div class="form-group" id="f-cat-project-group" style="display:none;"><label class="form-label">選擇專案 *</label><select class="form-input" id="f-cat-project" onchange="onCatProjectChange()"></select></div>
-    <div class="form-group" id="f-cat-transfer-group" style="display:none;"><label class="form-label">轉帳給 *</label><select class="form-input" id="f-cat-transfer-target"></select></div>
     <div class="form-group" id="f-expense-detail-group" style="display:none;">
       <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;"><span id="f-expense-detail-label">支出項目</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openSubcatManage(document.getElementById('f-expense-cat').value)">管理項目</span></label>
       <select class="form-input" id="f-expense-detail" onchange="onExpenseDetailChange()"></select>
@@ -2521,6 +2541,10 @@ function updateCatDependentUI(){
     incDetGrp.style.display='none';
     expContGrp.style.display='none';
     incContGrp.style.display='none';
+    document.getElementById('acct-card-arrow').style.display='none';
+    document.getElementById('acct-card-to-wrap').style.display='none';
+    document.getElementById('acct-card-label').textContent='帳戶選擇 *';
+    syncAcctCardDisplay();
     toggleFinanceStaff();
     return;
   }
@@ -2529,18 +2553,22 @@ function updateCatDependentUI(){
   const needProject=cat==='專案';
   const isTransferCat=t==='支出'&&cat==='其他帳戶';
 
-  // 選擇專案／轉帳給 這兩個共用欄位，依目前是支出還是收入，動態搬到對應類別下方，
+  // 選擇專案 這個欄位，依目前是支出還是收入，動態搬到對應類別下方，
   // 避免收入模式時「選擇專案」跑到「收入類別」上面
   const catGrpEl=document.getElementById(t==='支出'?'f-expense-cat-group':'f-income-cat-group');
   catGrpEl.insertAdjacentElement('afterend',projGrp);
-  const transferGrp=document.getElementById('f-cat-transfer-group');
-  projGrp.insertAdjacentElement('afterend',transferGrp);
 
   projGrp.style.display=needProject?'block':'none';
   if(needProject)fillProjectSel('f-cat-project');
 
-  transferGrp.style.display=isTransferCat?'block':'none';
+  // 轉帳給：整合在頂部的帳戶卡片列裡（箭頭＋第二張卡片），不是獨立欄位
+  const arrowEl=document.getElementById('acct-card-arrow');
+  const toWrapEl=document.getElementById('acct-card-to-wrap');
+  arrowEl.style.display=isTransferCat?'flex':'none';
+  toWrapEl.style.display=isTransferCat?'flex':'none';
+  document.getElementById('acct-card-label').textContent=isTransferCat?'轉帳':'帳戶選擇 *';
   if(isTransferCat)fillTransferTargetSel();
+  syncAcctCardDisplay();
 
   const subs=cat?andunSubcats(cat,t==='支出'?'exp':'inc'):[];
   const detGrp=t==='支出'?expDetGrp:incDetGrp;
@@ -2571,6 +2599,14 @@ function fillTransferTargetSel(){
   const others=allAccountIds().filter(id=>id!==acct);
   sel.innerHTML=others.map(id=>`<option value="${id}">${financeAccountLabel(id)}</option>`).join('');
   if(others.includes(val))sel.value=val;
+}
+function syncAcctCardDisplay(){
+  const fromVal=document.getElementById('f-project').value;
+  const fromText=document.getElementById('acct-card-from-text');
+  if(fromText)fromText.textContent=fromVal?financeAccountLabel(fromVal):'請選擇';
+  const toSel=document.getElementById('f-cat-transfer-target');
+  const toText=document.getElementById('acct-card-to-text');
+  if(toText)toText.textContent=toSel.value?financeAccountLabel(toSel.value):'請選擇';
 }
 // 不論「薪資」出現在支出類別／支出項目／支出內容哪一層，都會觸發人員選單，
 // 這樣專案裡誰做了多少人事成本才看得清楚。可以跟專案選單同時顯示。
