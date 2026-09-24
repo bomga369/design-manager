@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724X">
+<meta name="app-version" content="20260724Z">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -899,7 +899,7 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-finance">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title"><span id="sheet-finance-title">新增收支項目</span><button class="sheet-close" onclick="closeSheet('sheet-finance')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title"><span id="sheet-finance-title">新增收支項目</span><button class="sheet-close" onclick="cancelFinanceSheet()"><i class="ti ti-x"></i></button></div>
     <div class="form-group">
       <label class="form-label" id="acct-card-label">帳戶選擇 *</label>
       <div class="acct-card-row">
@@ -959,7 +959,7 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="f-date" type="date"></div>
     <div class="form-group"><label class="form-label">備註</label><input class="form-input" id="f-note" placeholder="補充說明" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="sheet-footer">
-      <button class="btn" onclick="closeSheet('sheet-finance')">取消</button>
+      <button class="btn" onclick="cancelFinanceSheet()">取消</button>
       <button class="btn btn-primary" id="sheet-finance-save-btn" onclick="saveFinance()">儲存</button>
     </div>
   </div>
@@ -2512,8 +2512,10 @@ function refreshFinanceCategories(){
   const expVal=expSel.value,incVal=incSel.value;
   let expCats=useCustomCats?andunCats():FIN_EXP_CATS_PROJECT;
   // 一般流程下，「其他帳戶」整個從清單排除（不是CSS隱藏——iOS原生選單不會遵守option的display:none，
-  // 隱藏了還是選得到，所以改成真的不放進清單裡），只有轉帳快速新增流程會暫時允許
-  if(!_allowTransferCatOption)expCats=expCats.filter(c=>c!=='其他帳戶');
+  // 隱藏了還是選得到，所以改成真的不放進清單裡）。
+  // 轉帳快速新增的「初次設定」或「目前本來就是轉帳分類中途」（例如轉帳流程中換了FROM帳戶）都要保留這個選項，
+  // 不然換帳戶時分類清單重建，目前值對不上清單，會被迫還原成預設值，整個轉帳畫面狀態就跑掉了
+  if(!_allowTransferCatOption&&expVal!=='其他帳戶')expCats=expCats.filter(c=>c!=='其他帳戶');
   // 備用金帳戶（Wallace/Mark）跟安盾-中國信託共用同一套收入分類，另外多一個「補款」（公司撥入備用金）專屬選項
   const incCats=reserve?andunIncCats():(acct==='__andun__'?andunIncCats():FIN_INC_CATS_PROJECT);
   expSel.innerHTML=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -3357,10 +3359,12 @@ function goToAccountDetail(acctId){
 function openFinanceQuickAddSelector(){
   openSheet('sheet-finance-type-select');
 }
+let _financeOpenedViaTypeSelect=false; // 追蹤這次開表單是不是從支出/收入/轉帳選擇畫面進來的
 function chooseFinanceType(type){
   closeSheet('sheet-finance-type-select');
   setTimeout(()=>{
     openFinanceAddSheet(); // 沿用原本邏輯：帳戶/日期初始化完全不變
+    _financeOpenedViaTypeSelect=true;
     const actualType=type==='轉帳'?'支出':type;
     const isTransfer=type==='轉帳';
     _allowTransferCatOption=isTransfer; // 只有轉帳流程才暫時允許「其他帳戶」出現在分類清單裡
@@ -3377,6 +3381,15 @@ function chooseFinanceType(type){
     const noteGrp=document.getElementById('f-note').closest('.form-group');
     if(noteGrp)noteGrp.style.display=isTransfer?'none':'block';
   },200); // 等選擇彈窗關閉動畫結束，接著開表單，形成翻頁銜接的感覺
+}
+// 取消收支表單：如果是從支出/收入/轉帳選擇畫面進來的，取消時回到那個畫面重新選（可能選錯了想改），
+// 不是從那裡進來的（編輯既有紀錄、專案內記帳等），維持原本行為，直接關掉
+function cancelFinanceSheet(){
+  const shouldReturnToTypeSelect=_financeOpenedViaTypeSelect;
+  closeSheet('sheet-finance');
+  if(shouldReturnToTypeSelect){
+    setTimeout(()=>openSheet('sheet-finance-type-select'),200);
+  }
 }
 function openFinanceAddSheet(){
   editingFinanceId=null;
@@ -3396,6 +3409,7 @@ function openReserveEntry(staffId){
   document.getElementById('f-project').value='__reserve_'+staffId+'__';
   document.getElementById('f-type-segmented').style.display='flex';
   { const ng=document.getElementById('f-note').closest('.form-group'); if(ng)ng.style.display='block'; }
+  _financeOpenedViaTypeSelect=false; // 這幾個入口不是從支出/收入/轉帳選擇畫面進來的，取消要直接關閉，不用回那個畫面
   setSeg('f-type','收入');
   onFinanceAccountChange();
   document.getElementById('f-date').value=today();
@@ -4727,6 +4741,7 @@ function openFinanceForProject(pid){
   document.getElementById('sheet-finance-save-btn').textContent='儲存';
   document.getElementById('f-type-segmented').style.display='flex';
   { const ng=document.getElementById('f-note').closest('.form-group'); if(ng)ng.style.display='block'; }
+  _financeOpenedViaTypeSelect=false; // 這幾個入口不是從支出/收入/轉帳選擇畫面進來的，取消要直接關閉，不用回那個畫面
   fillAccountSel('f-project',false,false);
   const proj=db.projects.find(p=>p.id===pid);
   const sel=document.getElementById('f-project');
@@ -5748,6 +5763,7 @@ function editFinance(id){
   document.getElementById('sheet-finance-save-btn').textContent='儲存修改';
   document.getElementById('f-type-segmented').style.display='flex';
   { const ng=document.getElementById('f-note').closest('.form-group'); if(ng)ng.style.display='block'; }
+  _financeOpenedViaTypeSelect=false; // 這幾個入口不是從支出/收入/轉帳選擇畫面進來的，取消要直接關閉，不用回那個畫面
 
   // 決定表單上「帳戶選擇」要帶入哪個值：優先用 viaAccount（實際經手帳戶），否則用 projectId 本身
   const acctForForm=rec.viaAccount||rec.projectId;
