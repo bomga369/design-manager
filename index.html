@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724U">
+<meta name="app-version" content="20260724V">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -241,6 +241,7 @@ textarea.form-input{resize:none;min-height:72px;}
 .seg-btn.active{background:var(--bg);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.1);}
 #f-type-segmented .seg-btn.active{background:#ffd60a;color:#3a2e00;font-weight:700;box-shadow:0 1px 4px rgba(255,214,10,0.5);}
 .sheet-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:flex-end;}
+#sheet-time-wheel{z-index:220;}
 .sheet-overlay.open{display:flex;}
 .sheet{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:0 1rem calc(1rem + var(--safe-bottom));animation:slideUp 0.25s ease;}
 @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
@@ -3327,6 +3328,12 @@ function chooseFinanceType(type){
     const isTransfer=type==='轉帳';
     if(isTransfer){
       document.getElementById('f-expense-cat').value='其他帳戶';
+      onExpenseCatChange();
+    } else if(actualType==='支出'&&document.getElementById('f-expense-cat').value==='其他帳戶'){
+      // 清掉上次轉帳流程殘留的「其他帳戶」選擇，避免這次明明是一般支出，卻意外帶出轉帳給欄位
+      const expSel=document.getElementById('f-expense-cat');
+      const firstVisible=[...expSel.options].find(o=>o.value!=='其他帳戶');
+      if(firstVisible)expSel.value=firstVisible.value;
       onExpenseCatChange();
     }
     // 轉帳畫面精簡：只留帳戶選擇／金額／轉帳給／日期，其他都先藏起來（純畫面隱藏，底層欄位值不變，不影響金流計算）
