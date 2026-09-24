@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724Z">
+<meta name="app-version" content="20260725B">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -166,6 +166,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .acct-card-name{font-size:0.9375rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
 .acct-card-select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;}
 .acct-card-arrow{flex-shrink:0;font-size:1.375rem;color:var(--gold);display:flex;align-items:center;justify-content:center;}
+.date-card-wrap{position:relative;}
+.date-card-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer;}
 .quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
 .quote-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:1.75rem;}
@@ -810,7 +812,12 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title"><span id="entry-date-title">選擇進場日期時間</span><button class="sheet-close" onclick="closeSheet('sheet-entry-date')"><i class="ti ti-x"></i></button></div>
     <div class="form-group" style="display:flex;gap:0.6rem;">
-      <div style="flex:1.3;"><label class="form-label">日期 *</label><input class="form-input" id="entry-date" type="date"></div>
+      <div style="flex:1.3;"><label class="form-label">日期 *</label>
+        <div class="date-card-wrap">
+          <div class="form-input" style="display:flex;align-items:center;"><span id="entry-date-text">選擇日期</span></div>
+          <input class="date-card-input" id="entry-date" type="date" onchange="syncEntryDateDisplay()">
+        </div>
+      </div>
       <div style="flex:1;"><label class="form-label">時間 *</label>
         <div class="form-input" id="entry-time-display" onclick="openTimeWheelFor(document.getElementById('entry-time').value,(v)=>{document.getElementById('entry-time').value=v;document.getElementById('entry-time-text').textContent=v;})" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
           <span id="entry-time-text">09:00</span>
@@ -2563,6 +2570,10 @@ function updateCatDependentUI(){
   projGrp.style.display=needProject?'block':'none';
   if(needProject)fillProjectSel('f-cat-project');
 
+  // 轉帳流程下，支出類別欄位整個隱藏（已經內定是其他帳戶，不需要使用者看到/選擇）。
+  // 這裡統一控制、每次都重新判斷，不管換幾次帳戶都會持續保持隱藏，不會像之前只在初次設定時生效
+  if(t==='支出')catGrpEl.style.display=isTransferCat?'none':'block';
+
   // 轉帳給：整合在頂部的帳戶卡片列裡（箭頭＋第二張卡片），不是獨立欄位
   const arrowEl=document.getElementById('acct-card-arrow');
   const toWrapEl=document.getElementById('acct-card-to-wrap');
@@ -3377,7 +3388,7 @@ function chooseFinanceType(type){
     }
     _allowTransferCatOption=false; // 用完立刻關掉，避免影響之後任何一般支出/收入流程
     // 轉帳畫面精簡：只留帳戶選擇／金額／轉帳給／日期，其他都先藏起來（純畫面隱藏，底層欄位值不變，不影響金流計算）
-    if(isTransfer)document.getElementById('f-expense-cat-group').style.display='none';
+    // 支出類別欄位的隱藏已經移到 updateCatDependentUI() 統一自我維持控制，這裡不用再設一次
     const noteGrp=document.getElementById('f-note').closest('.form-group');
     if(noteGrp)noteGrp.style.display=isTransfer?'none':'block';
   },200); // 等選擇彈窗關閉動畫結束，接著開表單，形成翻頁銜接的感覺
@@ -4298,9 +4309,18 @@ function openStepDatePicker(pid,stepIndex){
   document.getElementById('entry-date-title').textContent='選擇'+stepName+'日期時間';
   document.getElementById('entry-date-confirm-btn').textContent='確認'+stepName;
   document.getElementById('entry-date').value=today();
+  syncEntryDateDisplay();
   document.getElementById('entry-time').value='09:00';
   document.getElementById('entry-time-text').textContent='09:00';
   openSheet('sheet-entry-date');
+}
+function syncEntryDateDisplay(){
+  const val=document.getElementById('entry-date').value;
+  const textEl=document.getElementById('entry-date-text');
+  if(!textEl)return;
+  if(!val){textEl.textContent='選擇日期';return;}
+  const d=new Date(val+'T00:00:00');
+  textEl.textContent=(d.getMonth()+1)+'/'+d.getDate();
 }
 function confirmEntryDate(){
   if(!stepPickerContext)return;
@@ -4317,9 +4337,24 @@ function confirmEntryDate(){
   // 進場只是先「排定」日期＋建立待辦事項，專案維持洽談中，
   // 真正轉為施作中，交給 checkAutoEntryConversions() 在進場那天到了才處理
   save();if(window.fbSaveProject)window.fbSaveProject(p);
-  // 場勘、簽約、進場點選時間後才建立待辦事項；報價、討論只記錄時間，不進待辦事項
+  // 場勘、簽約、進場點選時間後才建立待辦事項；報價、討論只記錄時間，不進待辦事項。
+  // 但如果選的時間已經是過去（代表在補紀錄，不是排定未來），就不用建待辦提醒了，反正事情已經發生過了
   const TODO_SYNCED_STEPS=['場勘','簽約','進場'];
-  if(TODO_SYNCED_STEPS.includes(stepName))upsertAutoTodo(pid,stepName,dateVal,timeVal);
+  const isBackfill=new Date(dateVal+'T'+timeVal+':00')<new Date();
+  if(TODO_SYNCED_STEPS.includes(stepName)){
+    if(!isBackfill){
+      upsertAutoTodo(pid,stepName,dateVal,timeVal);
+    } else {
+      // 補紀錄：順便清掉這個步驟原本可能已經存在的待辦事項（例如原本排未來、後來改成過去時間）
+      const todo=(db.todos||[]).find(t=>t.type===stepName&&t.projectId===pid);
+      if(todo){
+        db.todos=db.todos.filter(t=>t.id!==todo.id);
+        if(window.fbDeleteTodo)window.fbDeleteTodo(todo.id).catch(()=>{});
+        deleteTodoGcalEvent(todo.id);
+        if(currentPage==='dashboard')renderTodos();
+      }
+    }
+  }
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
 }
