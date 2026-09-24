@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724L">
+<meta name="app-version" content="20260724O">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -674,7 +674,7 @@ textarea.form-input{resize:none;min-height:72px;}
       </select>
     </div>
     <div class="form-group" id="p-measure-group" style="display:none;">
-      <label class="form-label">丈量時間</label>
+      <label class="form-label">場勘時間</label>
       <div class="date-field-wrap" id="p-measure-date-wrap" style="margin-bottom:0.5rem;">
         <input class="form-input" id="p-measure-date" type="date" onchange="onMeasureDateChange()">
         <span class="date-field-placeholder" id="p-measure-date-ph">(日期)</span>
@@ -697,7 +697,7 @@ textarea.form-input{resize:none;min-height:72px;}
 <div class="sheet-overlay" id="sheet-time-wheel">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">選擇丈量時間<button class="sheet-close" onclick="closeSheet('sheet-time-wheel')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title">選擇場勘時間<button class="sheet-close" onclick="closeSheet('sheet-time-wheel')"><i class="ti ti-x"></i></button></div>
     <div class="wheel-picker-wrap">
       <div class="wheel-col" id="wheel-hour"></div>
       <div class="wheel-colon">:</div>
@@ -1045,7 +1045,7 @@ textarea.form-input{resize:none;min-height:72px;}
 </div>
 
 <div class="migrate-banner" id="measure-reminder-banner" style="display:none;background:var(--blue-bg);border-color:var(--blue-text)">
-  <div class="migrate-banner-title" style="color:var(--blue-text)">📐 近期丈量提醒</div>
+  <div class="migrate-banner-title" style="color:var(--blue-text)">📐 近期場勘提醒</div>
   <div id="measure-reminder-content" class="migrate-banner-sub"></div>
   <div class="migrate-banner-actions">
     <button class="btn" onclick="document.getElementById('measure-reminder-banner').style.display='none'">知道了</button>
@@ -1250,7 +1250,7 @@ function reauthorizeGoogle(){
   driveAccessToken=null;
   ensureDriveAuth(()=>{
     document.getElementById('drive-auth-banner').style.display='none';
-    alert('✅ Google 日曆與 Drive 授權完成！之後打卡和新增丈量都會自動同步。');
+    alert('✅ Google 日曆與 Drive 授權完成！之後打卡和新增場勘都會自動同步。');
     checkAutoBackup();
   });
 }
@@ -1258,7 +1258,7 @@ function dodriveAuthFromBanner(){
   document.getElementById('drive-auth-banner').style.display='none';
   driveAccessToken=null;
   ensureDriveAuth(()=>{
-    alert('✅ 授權完成！之後打卡和新增丈量都會自動同步到 Google 日曆。');
+    alert('✅ 授權完成！之後打卡和新增場勘都會自動同步到 Google 日曆。');
     checkAutoBackup();
   });
 }
@@ -1714,6 +1714,10 @@ function saveFileCatsConfig(){
 }
 function onTodosSyncError(){console.error('待辦事項雲端同步權限不足');}
 function onTodosSynced(arr){
+  if(arr.length===0&&db.todos.length>0){
+    console.warn('收到空的待辦事項快照，暫時忽略，避免資料被誤清空');
+    return;
+  }
   db.todos=arr;save();
   if(currentPage==='dashboard')renderTodos();
 }
@@ -1775,7 +1779,7 @@ async function runEventsMigration(){
   }
 }
 
-const NEG_STEPS=['報價','討論','簽約','進場'];
+const NEG_STEPS=['場勘','報價','討論','簽約','進場'];
 const CON_STEPS=['木作-保護','木作-下角料','木作-窗簾盒','木作-包管/樑','木作-冷氣帽','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
 const FILE_CATS_DEFAULT=['場勘','文件','木作','系統櫃'];
@@ -1885,22 +1889,6 @@ function load(){
   localFinanceAtStartup=db.finance?JSON.parse(JSON.stringify(db.finance)):[];
   localEventsAtStartup=db.events?JSON.parse(JSON.stringify(db.events)):[];
   localMaterialsAtStartup=db.materials?JSON.parse(JSON.stringify(db.materials)):[];
-  autoCompleteMeasureSteps();
-}
-function autoCompleteMeasureSteps(){
-  const now=new Date();
-  let changed=false;
-  (db.projects||[]).forEach(p=>{
-    if(p.type==='洽談中'&&p.measureDate&&(p.negStep||0)<1){
-      if(new Date(p.measureDate)<=now){
-        if(!p.negStepTimes)p.negStepTimes={};
-        p.negStep=1;
-        p.negStepTimes[0]=p.measureDate;
-        changed=true;
-      }
-    }
-  });
-  if(changed)save();
 }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
@@ -3488,7 +3476,7 @@ function renderPunchStatus(){
 function renderTodos(){
   const el=document.getElementById('dash-todos');if(!el)return;
   cleanupExpiredTodos();
-  const todos=(db.todos||[]).slice().sort((a,b)=>(a.date+'T'+(a.time||'00:00')).localeCompare(b.date+'T'+(b.time||'00:00')));
+  const todos=(db.todos||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)||((a.sortIndex||0)-(b.sortIndex||0)));
   el.innerHTML=todos.length?todos.map(t=>{
     const isManual=t.type==='manual';
     const isSetupReminder=t.type==='設定提醒';
@@ -3512,10 +3500,21 @@ function renderTodos(){
     </div>`;
   }).join(''):'<div class="empty" style="padding:1.25rem"><p>目前沒有待辦事項</p></div>';
   attachMatSwipe(el);
+  attachArrayDrag('dash-todos',reorderTodos,'.mat-item-wrap');
+}
+// 長按拖曳排序：只有「同一天」的項目才會真的照拖曳後的順序顯示，
+// 跨日拖曳不會改變日期優先排序的結果（重新渲染時會自動排回正確的日期順序）
+function reorderTodos(newOrderIds){
+  newOrderIds.forEach((id,i)=>{
+    const t=db.todos.find(x=>x.id===id);
+    if(t){t.sortIndex=i;if(window.fbSaveTodo)window.fbSaveTodo(t).catch(()=>{});}
+  });
+  save();
+  renderTodos();
 }
 function quickEditTodoTitle(id){
   const t=db.todos.find(x=>x.id===id);if(!t)return;
-  if(t.type!=='manual'){alert('「進場」「丈量」「簽約」這幾種待辦是系統自動產生的標題，要改內容請回到專案裡調整。');return;}
+  if(t.type!=='manual'){alert('「進場」「場勘」「簽約」這幾種待辦是系統自動產生的標題，要改內容請回到專案裡調整。');return;}
   const newText=prompt('修改待辦事項標題',t.text||'');
   if(newText===null)return;
   const trimmed=newText.trim();
@@ -3527,6 +3526,7 @@ function quickEditTodoTitle(id){
 }
 function renderDashboard(){
   checkAutoEntryConversions();
+  checkCalendarDeletedTodos();
   renderWorkdayStatus();
   renderTodos();
   const neg=db.projects.filter(p=>p.type==='洽談中').length;
@@ -3569,10 +3569,16 @@ function renderDashboard(){
       </div>
     </div>`;
   }
-  const negs=db.projects.filter(p=>p.type==='洽談中');
+  function latestPunchDate(pid){
+    const punches=db.punches.filter(p=>p.kind==='workday'&&p.projectId===pid);
+    if(!punches.length)return '';
+    return punches.reduce((max,p)=>p.date>max?p.date:max,'');
+  }
+  const byRecentPunch=(a,b)=>latestPunchDate(b.id).localeCompare(latestPunchDate(a.id));
+  const negs=db.projects.filter(p=>p.type==='洽談中').sort(byRecentPunch);
   const nors=db.projects.filter(p=>p.type==='無回應');
-  const cons=db.projects.filter(p=>p.type==='施作中');
-  const done=db.projects.filter(p=>p.type==='已完工');
+  const cons=db.projects.filter(p=>p.type==='施作中').sort(byRecentPunch);
+  const done=db.projects.filter(p=>p.type==='已完工').sort(byRecentPunch);
   elNeg.innerHTML=negs.length?negs.map(negCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-user-off"></i><p>尚無洽談中專案</p></div></div>`;
   elCon.innerHTML=cons.length?cons.map(conCard).join(''):`<div class="card"><div class="empty" style="padding:1.5rem"><i class="ti ti-building-off"></i><p>尚無施作中專案</p></div></div>`;
   elDone.innerHTML=done.length?done.map(p=>{
@@ -3702,7 +3708,7 @@ function exportProjectReport(pid,btnEl){
   const profit=income-exp;
   const steps=p.conSteps||{};
   // 施工進度只顯示這個專案有勾選的項目；沒設定過(undefined)的舊專案，向下相容顯示全部
-  const activeSteps=p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS;
+  const activeSteps=p.selectedSteps||[];
   const projPunches=db.punches.filter(punch=>punch.projectId===pid);
   const staffMap={};
   projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
@@ -3861,9 +3867,15 @@ function deleteProject(id){
   db.projects=db.projects.filter(p=>p.id!==id);
   const toDeleteFinance=db.finance.filter(f=>f.projectId===id).map(f=>f.id);
   db.finance=db.finance.filter(f=>f.projectId!==id);
+  const toDeleteTodos=(db.todos||[]).filter(t=>t.projectId===id);
+  db.todos=(db.todos||[]).filter(t=>t.projectId!==id);
   save();showPage(prevPage);
   if(window.fbDeleteProject)window.fbDeleteProject(id).catch(err=>console.error('刪除雲端專案資料失敗',err));
   if(window.fbDeleteFinance)toDeleteFinance.forEach(fid=>window.fbDeleteFinance(fid).catch(err=>console.error('刪除雲端收支失敗',err)));
+  toDeleteTodos.forEach(t=>{
+    if(window.fbDeleteTodo)window.fbDeleteTodo(t.id).catch(err=>console.error('刪除雲端待辦事項失敗',err));
+    deleteTodoGcalEvent(t.id);
+  });
 }
 
 // ── DETAIL ──
@@ -3906,7 +3918,7 @@ function renderDetail(pid){
     ${isCon?`<div class="info-row"><span class="info-label">車位</span><span class="info-value">${p.info.parking||'—'}</span></div>`:''}
     <div class="info-row"><span class="info-label">負責人</span><span class="info-value">${p.leader?sName(p.leader):'—'}</span></div>
     <div class="info-row"><span class="info-label">油漆色號</span><span class="info-value" style="white-space:pre-wrap">${p.info.paint||'—'}</span></div>
-    ${p.info.remark?`<div class="info-row"><span class="info-label">備註</span><span class="info-value" style="white-space:pre-wrap">${p.info.remark}</span></div>`:''}
+    <div class="info-row"><span class="info-label">備註</span><span class="info-value" style="white-space:pre-wrap">${p.info.remark||'—'}</span></div>
   </div></div>`;
 
   // 工程款期數（施作中才顯示，且有設定過才顯示）——橫向進度條樣式，簡化為未匯款/已完成
@@ -4000,7 +4012,7 @@ function renderDetail(pid){
     progressHtml=`
       <div class="section-hd"><span>施工進度</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openManageSteps('${pid}')">管理項目</span></div>
       <div class="card">
-        ${(p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS).map(s=>{
+        ${(p.selectedSteps||[]).map(s=>{
           const sd=steps[s]||{state:'未開始'};
           const state=sd.state||'未開始';
           return`<div class="task-list-item">
@@ -4111,7 +4123,7 @@ function saveSourceOther(){
 function updateTalkTime(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   if(!p.negStepTimes)p.negStepTimes={};
-  p.negStepTimes[1]=new Date().toISOString(); // 「討論」現在是索引1（丈量拿掉後，報價=0、討論=1、簽約=2、進場=3）
+  p.negStepTimes[2]=new Date().toISOString(); // 「討論」現在是索引2（場勘=0、報價=1、討論=2、簽約=3、進場=4）
   save();if(window.fbSaveProject)window.fbSaveProject(p);
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
@@ -4143,9 +4155,9 @@ function confirmEntryDate(){
   // 進場只是先「排定」日期＋建立待辦事項，專案維持洽談中，
   // 真正轉為施作中，交給 checkAutoEntryConversions() 在進場那天到了才處理
   save();if(window.fbSaveProject)window.fbSaveProject(p);
-  // 只有簽約、進場（最後兩個步驟）點選時間後才建立待辦事項；報價、討論只記錄時間，不進待辦事項
-  const isContractOrEntry=stepIndex>=NEG_STEPS.length-2;
-  if(isContractOrEntry)upsertAutoTodo(pid,stepName,dateVal,timeVal);
+  // 場勘、簽約、進場點選時間後才建立待辦事項；報價、討論只記錄時間，不進待辦事項
+  const TODO_SYNCED_STEPS=['場勘','簽約','進場'];
+  if(TODO_SYNCED_STEPS.includes(stepName))upsertAutoTodo(pid,stepName,dateVal,timeVal);
   if(currentPage==='detail')renderDetail(pid);
   else if(currentPage==='dashboard')renderDashboard();
 }
@@ -4250,6 +4262,39 @@ function deleteTodoGcalEvent(todoId){
     }catch(err){console.error('刪除待辦事項日曆事件失敗',err);}
     delete db.punchGcalIds[key];
     if(window.fbDeleteGcalId)window.fbDeleteGcalId(key).catch(()=>{});
+  });
+}
+// ── 反向同步：如果待辦事項對應的Google日曆事件被直接從日曆刪掉了，App這邊也要跟著刪除 ──
+// 節流：同一次瀏覽階段最多5分鐘檢查一次，避免每次看主頁都打一輪日曆API
+let lastGcalDeleteCheckTime=0;
+function checkCalendarDeletedTodos(){
+  const now=Date.now();
+  if(now-lastGcalDeleteCheckTime<5*60*1000)return; // 5分鐘內檢查過就跳過
+  const todosWithGcal=(db.todos||[]).filter(t=>db.punchGcalIds&&db.punchGcalIds['todo|'+t.id]);
+  if(!todosWithGcal.length)return;
+  lastGcalDeleteCheckTime=now;
+  ensureDriveAuth(async()=>{
+    let anyDeleted=false;
+    for(const t of todosWithGcal){
+      const key='todo|'+t.id;
+      const gcalId=db.punchGcalIds[key];
+      try{
+        const res=await calendarApiFetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(SHARED_CALENDAR_ID)}/events/${gcalId}`,{method:'GET'});
+        let isDeleted=(res.status===404||res.status===410);
+        if(!isDeleted&&res.ok){
+          const data=await res.json();
+          if(data.status==='cancelled')isDeleted=true; // Google日曆有時用cancelled狀態表示已刪除，不是直接404
+        }
+        if(isDeleted){
+          db.todos=(db.todos||[]).filter(x=>x.id!==t.id);
+          if(window.fbDeleteTodo)window.fbDeleteTodo(t.id).catch(()=>{});
+          delete db.punchGcalIds[key];
+          if(window.fbDeleteGcalId)window.fbDeleteGcalId(key).catch(()=>{});
+          anyDeleted=true;
+        }
+      }catch(err){console.error('檢查日曆事件狀態失敗',t.id,err);}
+    }
+    if(anyDeleted){save();if(currentPage==='dashboard')renderTodos();}
   });
 }
 function cleanupExpiredTodos(){
@@ -4357,8 +4402,9 @@ function setNegStep(pid,step){
   } else if(p.negStep<prev){
     for(let i=p.negStep;i<prev;i++){
       delete p.negStepTimes[i];
-      // 簽約／進場（最後兩步）取消勾選時，同步刪除對應的待辦事項
-      if(i>=NEG_STEPS.length-2){
+      // 場勘／簽約／進場取消勾選時，同步刪除對應的待辦事項
+      const TODO_SYNCED_STEPS=['場勘','簽約','進場'];
+      if(TODO_SYNCED_STEPS.includes(NEG_STEPS[i])){
         const stepName=NEG_STEPS[i];
         const todo=(db.todos||[]).find(t=>t.type===stepName&&t.projectId===pid);
         if(todo){
@@ -4458,7 +4504,7 @@ let currentSetupProjectId=null;
 function openManageSteps(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   currentSetupProjectId=pid;
-  const current=p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS;
+  const current=p.selectedSteps||[];
   renderStepCheckboxes('ms-steps-list',current);
   openSheet('sheet-manage-steps');
 }
@@ -4568,7 +4614,7 @@ async function autoSaveReportToDrive(pid){
       const pFin=activeFinance().filter(f=>f.projectId===pid);
       const income=pFin.filter(f=>f.ftype==='收入').reduce((s,f)=>s+Number(f.amount||0),0);
       const steps=p.conSteps||{};
-      const activeSteps=p.selectedSteps!==undefined?p.selectedSteps:CON_STEPS;
+      const activeSteps=p.selectedSteps||[];
       const projPunches=db.punches.filter(punch=>punch.projectId===pid);
       const staffMap={};
       projPunches.forEach(punch=>{if(!staffMap[punch.name])staffMap[punch.name]=[];staffMap[punch.name].push(punch);});
@@ -5064,7 +5110,12 @@ function syncMeasureToCalendar(p){
   if(!p.measureDate)return;
   const dateVal=p.measureDate.slice(0,10);
   const timeVal=p.measureDate.slice(11,16)||'09:00';
-  upsertAutoTodo(p.id,'丈量',dateVal,timeVal);
+  // 場勘是洽談的第一步（索引0），記錄時間並標記完成
+  if(!p.negStepTimes)p.negStepTimes={};
+  p.negStepTimes[0]=p.measureDate;
+  p.negStep=Math.max(p.negStep||0,1);
+  save();if(window.fbSaveProject)window.fbSaveProject(p);
+  upsertAutoTodo(p.id,'場勘',dateVal,timeVal);
 }
 
 // ── 自動備份至個人 Google Drive ──
@@ -6609,11 +6660,11 @@ function syncPunchToCalendar(dateKey,name,projectId){
 
 function getAutoEvents(){
   const auto=[];
-  // 1) 洽談中專案的丈量預約日期
+  // 1) 洽談中專案的場勘預約日期
   db.projects.forEach(p=>{
     if(p.type==='洽談中'&&p.measureDate){
       const d=p.measureDate.slice(0,10);
-      auto.push({id:'auto-measure-'+p.id,title:'丈量-'+p.name,date:d,projectId:p.id,type:'丈量',auto:true,time:p.measureDate.slice(11,16)});
+      auto.push({id:'auto-measure-'+p.id,title:'場勘-'+p.name,date:d,projectId:p.id,type:'場勘',auto:true,time:p.measureDate.slice(11,16)});
     }
   });
   // 2) 每日打卡記錄（同一人同一天同一專案合併成一筆）
@@ -6687,7 +6738,7 @@ function renderCalEvents(){
     evs=evs.filter(e=>e.date&&e.date>=startDate&&e.date<=endDate);
   }
   evs=[...evs].sort((a,b)=>a.date?.localeCompare(b.date||''));
-  const typeIcon={'丈量':'ti-ruler-2','打卡':'ti-clock-check'};
+  const typeIcon={'場勘':'ti-ruler-2','丈量':'ti-ruler-2','打卡':'ti-clock-check'};
   document.getElementById('cal-events-list').innerHTML=evs.length?evs.map(e=>`
     <div class="card-row" style="cursor:default">
       <div class="card-row-icon"><i class="ti ${e.auto?(typeIcon[e.type]||'ti-bolt'):'ti-calendar-event'}"></i></div>
