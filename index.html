@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724O">
+<meta name="app-version" content="20260724Q">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -151,6 +151,15 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .wds-area{color:var(--text3);white-space:normal;word-break:break-word;line-height:1.3;}
 .wds-trade{color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wds-extra{color:var(--gold-text);font-size:12px;white-space:nowrap;}
+.fin-type-card{display:flex;align-items:center;gap:0.875rem;padding:0.9rem 1rem;border:1px solid var(--border);border-radius:var(--rl);margin-bottom:0.75rem;cursor:pointer;background:var(--bg2);animation:finTypeIn 0.3s ease both;}
+.fin-type-card:nth-child(2){animation-delay:0.06s;}
+.fin-type-card:nth-child(3){animation-delay:0.12s;}
+.fin-type-card:nth-child(4){animation-delay:0.18s;}
+@keyframes finTypeIn{from{opacity:0;transform:translateY(10px) rotateX(-8deg);}to{opacity:1;transform:translateY(0) rotateX(0);}}
+.fin-type-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.375rem;flex-shrink:0;}
+.fin-type-info{flex:1;min-width:0;}
+.fin-type-name{font-size:1.0625rem;font-weight:600;}
+.fin-type-sub{font-size:0.8125rem;color:var(--text3);margin-top:2px;}
 .quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
 .quote-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:1.75rem;}
@@ -546,7 +555,7 @@ textarea.form-input{resize:none;min-height:72px;}
 <div id="qa-menu-overlay" class="qa-menu-overlay" onclick="closeQuickActionMenu()">
   <div class="qa-menu" onclick="event.stopPropagation()">
     <div class="qa-menu-top">
-      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceAddSheet();"><i class="ti ti-receipt-2"></i><span>收支</span></div>
+      <div class="qa-btn" onclick="closeQuickActionMenu();openFinanceQuickAddSelector();"><i class="ti ti-receipt-2"></i><span>收支</span></div>
       <div class="qa-btn" onclick="closeQuickActionMenu();handleAdd();"><i class="ti ti-folder-plus"></i><span>專案</span></div>
     </div>
     <div class="qa-btn qa-btn-bottom" onclick="closeQuickActionMenu();punchWorkday();"><i class="ti ti-square-rounded-plus"></i><span>計工</span></div>
@@ -852,6 +861,28 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-footer">
       <button class="btn" onclick="closeSheet('sheet-task-other')">取消</button>
       <button class="btn btn-primary" onclick="saveCustomStep()">新增</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheet-finance-type-select">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">新增收支<button class="sheet-close" onclick="closeSheet('sheet-finance-type-select')"><i class="ti ti-x"></i></button></div>
+    <div class="fin-type-card" onclick="chooseFinanceType('支出')">
+      <div class="fin-type-icon" style="background:var(--red-bg);color:var(--red-text)"><i class="ti ti-arrow-up-right"></i></div>
+      <div class="fin-type-info"><div class="fin-type-name">支出</div><div class="fin-type-sub">付款、採購、薪資...</div></div>
+      <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+    </div>
+    <div class="fin-type-card" onclick="chooseFinanceType('收入')">
+      <div class="fin-type-icon" style="background:var(--green-bg);color:var(--green)"><i class="ti ti-arrow-down-left"></i></div>
+      <div class="fin-type-info"><div class="fin-type-name">收入</div><div class="fin-type-sub">工程款、退款...</div></div>
+      <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+    </div>
+    <div class="fin-type-card" onclick="chooseFinanceType('轉帳')">
+      <div class="fin-type-icon" style="background:var(--gold-bg);color:var(--gold-text)"><i class="ti ti-transfer"></i></div>
+      <div class="fin-type-info"><div class="fin-type-name">轉帳</div><div class="fin-type-sub">公司帳戶與備用金互轉</div></div>
+      <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
     </div>
   </div>
 </div>
@@ -3279,6 +3310,24 @@ function goToAccountDetail(acctId){
   document.getElementById('finance-filter-project').value=acctId;
   showPage('finance-detail');
 }
+// ── 收支快速新增：先選支出/收入/轉帳，再進到原本的表單（原表單邏輯完全不變）──
+function openFinanceQuickAddSelector(){
+  openSheet('sheet-finance-type-select');
+}
+function chooseFinanceType(type){
+  closeSheet('sheet-finance-type-select');
+  setTimeout(()=>{
+    openFinanceAddSheet(); // 沿用原本邏輯：帳戶/日期初始化完全不變
+    const actualType=type==='轉帳'?'支出':type;
+    setSeg('f-type',actualType);
+    toggleFinanceCat(actualType);
+    document.getElementById('f-type-segmented').style.display='none'; // 上一層已經選過類型了，這裡不重複顯示
+    if(type==='轉帳'){
+      document.getElementById('f-expense-cat').value='其他帳戶';
+      onExpenseCatChange();
+    }
+  },200); // 等選擇彈窗關閉動畫結束，接著開表單，形成翻頁銜接的感覺
+}
 function openFinanceAddSheet(){
   editingFinanceId=null;
   document.getElementById('sheet-finance-title').textContent='新增收支項目';
@@ -3295,6 +3344,7 @@ function openFinanceAddSheet(){
 function openReserveEntry(staffId){
   fillAccountSel('f-project',false,false);
   document.getElementById('f-project').value='__reserve_'+staffId+'__';
+  document.getElementById('f-type-segmented').style.display='flex';
   setSeg('f-type','收入');
   onFinanceAccountChange();
   document.getElementById('f-date').value=today();
@@ -3476,7 +3526,23 @@ function renderPunchStatus(){
 function renderTodos(){
   const el=document.getElementById('dash-todos');if(!el)return;
   cleanupExpiredTodos();
-  const todos=(db.todos||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)||((a.sortIndex||0)-(b.sortIndex||0)));
+  let todos=(db.todos||[]).slice();
+  // 同一個專案、同一天，如果有多個洽談步驟的待辦事項，只保留最後（最接近進場）的那一個
+  const stepGroups={};
+  todos.forEach(t=>{
+    if(!NEG_STEPS.includes(t.type))return;
+    const key=t.projectId+'|'+t.date;
+    if(!stepGroups[key])stepGroups[key]=[];
+    stepGroups[key].push(t);
+  });
+  const idsToHide=new Set();
+  Object.values(stepGroups).forEach(group=>{
+    if(group.length<2)return;
+    group.sort((a,b)=>NEG_STEPS.indexOf(b.type)-NEG_STEPS.indexOf(a.type));
+    group.slice(1).forEach(t=>idsToHide.add(t.id)); // 只留步驟順序最後的那一筆，其餘同天的步驟隱藏（不刪除資料，只是不重複顯示）
+  });
+  todos=todos.filter(t=>!idsToHide.has(t.id));
+  todos.sort((a,b)=>a.date.localeCompare(b.date)||((a.sortIndex||0)-(b.sortIndex||0)));
   el.innerHTML=todos.length?todos.map(t=>{
     const isManual=t.type==='manual';
     const isSetupReminder=t.type==='設定提醒';
@@ -4272,8 +4338,11 @@ function checkCalendarDeletedTodos(){
   if(now-lastGcalDeleteCheckTime<5*60*1000)return; // 5分鐘內檢查過就跳過
   const todosWithGcal=(db.todos||[]).filter(t=>db.punchGcalIds&&db.punchGcalIds['todo|'+t.id]);
   if(!todosWithGcal.length)return;
+  // 這是背景自動檢查，不是使用者主動觸發的動作，Google服務還沒準備好時要安靜跳過，
+  // 不能用 ensureDriveAuth（那個沒準備好時會跳出阻斷性的alert，剛登入時很容易發生，會卡住畫面）
+  if(!driveAccessToken)return; // 還沒有授權（例如剛登入、靜默授權還沒跑完），先跳過，下次renderDashboard再檢查
   lastGcalDeleteCheckTime=now;
-  ensureDriveAuth(async()=>{
+  (async()=>{
     let anyDeleted=false;
     for(const t of todosWithGcal){
       const key='todo|'+t.id;
@@ -4295,7 +4364,7 @@ function checkCalendarDeletedTodos(){
       }catch(err){console.error('檢查日曆事件狀態失敗',t.id,err);}
     }
     if(anyDeleted){save();if(currentPage==='dashboard')renderTodos();}
-  });
+  })();
 }
 function cleanupExpiredTodos(){
   // 隔天自動刪除：只適用系統自動產生、跟日期綁定的待辦（進場/丈量/簽約）
@@ -4570,6 +4639,7 @@ function openFinanceForProject(pid){
   editingFinanceId=null;
   document.getElementById('sheet-finance-title').textContent='新增收支項目';
   document.getElementById('sheet-finance-save-btn').textContent='儲存';
+  document.getElementById('f-type-segmented').style.display='flex';
   fillAccountSel('f-project',false,false);
   const proj=db.projects.find(p=>p.id===pid);
   const sel=document.getElementById('f-project');
@@ -5595,6 +5665,7 @@ function editFinance(id){
   editingFinanceId=id;
   document.getElementById('sheet-finance-title').textContent='編輯收支項目';
   document.getElementById('sheet-finance-save-btn').textContent='儲存修改';
+  document.getElementById('f-type-segmented').style.display='flex';
 
   // 決定表單上「帳戶選擇」要帶入哪個值：優先用 viaAccount（實際經手帳戶），否則用 projectId 本身
   const acctForForm=rec.viaAccount||rec.projectId;
