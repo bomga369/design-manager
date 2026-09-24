@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260724T">
+<meta name="app-version" content="20260724U">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3711,6 +3711,22 @@ function saveProject(){
       p.type=type;p.note=document.getElementById('p-note').value;
       p.leader=document.getElementById('p-leader').value;
       p.measureDate=measureDate;
+      // 如果是從施作中改回洽談中（不管是從哪個入口改的），都要清掉進場紀錄＋設防呆旗標，
+      // 不然自動轉換邏輯下次跑（例如看一次主頁）又會把它抓回施作中
+      if(prevType==='施作中'&&type==='洽談中'){
+        p._revertedFromCon=true;
+        const lastIdx=NEG_STEPS.length-1;
+        if(p.negStepTimes){
+          delete p.negStepTimes[lastIdx];
+          if((p.negStep||0)>lastIdx)p.negStep=lastIdx;
+        }
+        const todo=(db.todos||[]).find(t=>t.type==='進場'&&t.projectId===p.id);
+        if(todo){
+          db.todos=db.todos.filter(t=>t.id!==todo.id);
+          if(window.fbDeleteTodo)window.fbDeleteTodo(todo.id).catch(()=>{});
+          deleteTodoGcalEvent(todo.id);
+        }
+      }
       save();if(window.fbSaveProject)window.fbSaveProject(p);closeSheet('sheet-project');
       if(currentPage==='detail')renderDetail(editingProjectId);else renderProjects();
       if(measureDate)syncMeasureToCalendar(p);
@@ -5304,19 +5320,14 @@ async function ensureProjectFolderPath(p,cat){
 
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  // 先同步嘗試開一個空白分頁，保留住「使用者剛點擊」這個合法性
-  const newTab=window.open('','_blank');
   ensureDriveAuth(async()=>{
     const id=await ensureProjectFolderPath(p,cat);
-    renderDetail(pid);
     const webUrl=`https://drive.google.com/drive/folders/${id}`;
-    if(newTab&&!newTab.closed){
-      newTab.location.href=webUrl;
-    } else {
-      // 加到主畫面的PWA（獨立視窗模式）常常沒辦法真的開出新分頁，newTab會是null，
-      // 這種情況改成直接在目前畫面導航過去，這是PWA環境下最可靠的方式
-      window.location.href=webUrl;
-    }
+    // 直接在目前畫面導航過去 Google 雲端資料夾（離開安盾）。
+    // 之前試過先開一個空白分頁再導航過去，但在加到主畫面的PWA環境下，
+    // window.open的回傳值可能看起來有效、實際上卻不會真的動作，導致誤判成功。
+    // 這裡改成唯一保證一定會動作的方式：直接導航目前的畫面。
+    window.location.href=webUrl;
   });
 }
 
