@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725D">
+<meta name="app-version" content="20260725E">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -100,6 +100,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .badge-red{background:var(--red-bg);color:var(--red-text);}
 .badge-purple{background:var(--purple-bg);color:var(--purple);}
 .section-hd{font-size:0.9062rem;font-weight:700;color:var(--text2);padding:0.85rem 0 0.5rem;letter-spacing:0.02em;display:flex;align-items:center;justify-content:space-between;}
+.dash-section-hd{font-size:1.125rem;font-weight:800;color:var(--text);padding-left:12px;position:relative;}
+.dash-section-hd::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:4px;height:1.05em;background:var(--gold);border-radius:2px;}
 /* 打卡 */
 .punch-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;}
 .punch-btn{padding:1.1rem 0.5rem;border-radius:var(--rl);border:none;font-size:1.0312rem;font-weight:500;font-family:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;}
@@ -385,22 +387,22 @@ textarea.form-input{resize:none;min-height:72px;}
   <!-- 主頁 -->
   <div id="page-dashboard" class="page active">
     <div class="content">
-      <div class="section-hd"><span>待辦事項</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openTodoEdit()">+ 新增</span></div>
+      <div class="section-hd dash-section-hd"><span>待辦事項</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openTodoEdit()">+ 新增</span></div>
       <div class="card" id="dash-todos" style="margin-bottom:1rem;"></div>
 
       <div id="punch-status" style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:0.75rem;"></div>
       <div class="stat-grid" id="dash-stats"></div>
 
-      <div class="section-hd">洽談中</div>
+      <div class="section-hd dash-section-hd">洽談中</div>
       <div id="dash-negotiating"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
-      <div class="section-hd">施作中</div>
+      <div class="section-hd dash-section-hd">施作中</div>
       <div id="dash-construction"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
-      <div class="section-hd">已完工</div>
+      <div class="section-hd dash-section-hd">已完工</div>
       <div id="dash-completed"></div>
       <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
-      <div class="section-hd">無回應</div>
+      <div class="section-hd dash-section-hd">無回應</div>
       <div id="dash-no-response"></div>
     </div>
   </div>
@@ -494,15 +496,23 @@ textarea.form-input{resize:none;min-height:72px;}
         <button class="btn" style="flex:1;" onclick="downloadAllQuotes()"><i class="ti ti-download"></i> 全部下載</button>
       </div>
       <div id="quotes-list"></div>
+      <div style="color:var(--text3);font-size:0.75rem;text-align:center;margin-top:10px;">長按縮圖可以重新命名、搬移資料夾或刪除</div>
     </div>
   </div>
 
   <div class="sheet-overlay" id="sheet-quote-action">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title"><span id="quote-action-title">報價單</span><button class="sheet-close" onclick="closeSheet('sheet-quote-action')"><i class="ti ti-x"></i></button></div>
+    <div class="sheet-title">報價單設定<button class="sheet-close" onclick="closeSheet('sheet-quote-action')"><i class="ti ti-x"></i></button></div>
+    <div class="mat-item-card" style="margin-bottom:1rem;background:var(--bg2);" onclick="renameQuoteFile()">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;">
+        <i class="ti ti-pencil" style="color:var(--gold);flex-shrink:0;"></i>
+        <span id="quote-action-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">報價單</span>
+      </div>
+      <span style="color:var(--gold);font-size:0.8125rem;flex-shrink:0;">重新命名</span>
+    </div>
     <div style="color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">移到資料夾</div>
-    <div id="quote-move-folder-list" style="margin-bottom:0.75rem;"></div>
+    <div id="quote-move-folder-list" style="margin-bottom:1.25rem;"></div>
     <button class="btn btn-danger" style="width:100%;" onclick="deleteQuoteFileFromSheet()"><i class="ti ti-trash"></i> 刪除這張報價單</button>
   </div>
 </div>
@@ -707,6 +717,8 @@ textarea.form-input{resize:none;min-height:72px;}
         <option value="">請選擇分類</option>
         <option value="洽談中">洽談中</option>
         <option value="施作中">施作中</option>
+        <option value="已完工">已完工</option>
+        <option value="無回應">無回應</option>
       </select>
     </div>
     <div class="form-group" id="p-measure-group" style="display:none;">
@@ -3839,7 +3851,7 @@ function openEditProject(pid){
   document.getElementById('p-area-text').style.color=p.area?'var(--text)':'var(--text3)';
   document.getElementById('p-name').value=p.bname||p.name||'';
   document.getElementById('p-client').value=p.client||'';
-  document.getElementById('p-type').value=p.type==='無回應'||p.type==='已完工'?p.type:p.type;
+  document.getElementById('p-type').value=p.type;
   document.getElementById('p-note').value=p.note||'';
   document.getElementById('p-measure-group').style.display=p.type==='洽談中'?'block':'none';
   if(p.measureDate){
@@ -4520,13 +4532,19 @@ function checkCalendarDeletedTodos(){
   })();
 }
 function cleanupExpiredTodos(){
-  // 隔天自動刪除：只適用系統自動產生、跟日期綁定的待辦（進場/丈量/簽約）
+  // 隔天自動刪除：適用場勘、進場（跟日期綁定，但保留一整天讓你看得到）
+  // 簽約比較特別：時間一到就立即取消，不用等隔天（依照需求調整過）
   // 手動建立的待辦不會自動過期，只能手動點方框圖示或左滑刪除
   // 「設定提醒」也不會因為日期到期，只有填完施工項目＋工程款期數才會自動消失
   if(!db.todos||!db.todos.length)return;
+  const now=new Date();
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-1);
   const cutoffStr=cutoff.toISOString().slice(0,10);
-  const expired=db.todos.filter(t=>t.type!=='manual'&&t.type!=='設定提醒'&&t.date<cutoffStr);
+  const expired=db.todos.filter(t=>{
+    if(t.type==='manual'||t.type==='設定提醒')return false;
+    if(t.type==='簽約')return new Date(t.date+'T'+(t.time||'00:00')+':00')<=now; // 時間一到立即取消
+    return t.date<cutoffStr; // 場勘、進場：維持隔天過期
+  });
   if(!expired.length)return;
   const expiredIds=new Set(expired.map(t=>t.id));
   db.todos=db.todos.filter(t=>!expiredIds.has(t.id));
@@ -5367,6 +5385,18 @@ function openQuoteActionSheet(id){
       <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
     </div>`).join(''):'<div style="color:var(--text3);font-size:0.8125rem;padding:0.5rem 0;">目前只有這一個資料夾，先建立其他資料夾才能移動</div>';
   openSheet('sheet-quote-action');
+}
+function renameQuoteFile(){
+  const q=db.quotes.find(x=>x.id===currentActionQuoteId);if(!q)return;
+  const newName=prompt('修改報價單名稱',q.name);
+  if(newName===null)return;
+  const trimmed=newName.trim();
+  if(!trimmed)return;
+  q.name=trimmed;
+  save();
+  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
+  document.getElementById('quote-action-title').textContent=trimmed;
+  renderQuotes();
 }
 function moveQuoteToFolder(targetFolder){
   const q=db.quotes.find(x=>x.id===currentActionQuoteId);if(!q)return;
