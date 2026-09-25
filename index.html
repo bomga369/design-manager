@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725B">
+<meta name="app-version" content="20260725C">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -174,6 +174,11 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .quote-thumb-img{width:100%;height:100%;object-fit:cover;display:block;}
 .quote-tile-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.55);color:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;z-index:2;}
 .quote-tile-name{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;font-size:0.6875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.quote-folder-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:8px;-webkit-overflow-scrolling:touch;}
+.quote-folder-tabs::-webkit-scrollbar{display:none;}
+.quote-folder-tab{flex-shrink:0;padding:0.4rem 0.9rem;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--text3);font-size:0.8125rem;font-weight:500;white-space:nowrap;cursor:pointer;}
+.quote-folder-tab.active{background:var(--gold);color:#3a2e00;border-color:var(--gold);font-weight:600;}
+.quote-folder-tab.quote-folder-add{display:flex;align-items:center;justify-content:center;width:34px;padding:0.4rem;color:var(--gold);}
 .quote-preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;}
 .quote-preview-overlay.open{display:flex;}
 .quote-preview-overlay img{max-width:94vw;max-height:78vh;object-fit:contain;}
@@ -481,6 +486,8 @@ textarea.form-input{resize:none;min-height:72px;}
 
   <div id="page-quotes" class="page">
     <div class="content">
+      <div class="quote-folder-tabs" id="quote-folder-tabs"></div>
+      <div style="color:var(--text3);font-size:0.75rem;margin:-4px 0 10px;">長按資料夾可重新命名或刪除</div>
       <div class="flex-between" style="margin-bottom:0.75rem;">
         <button class="btn btn-primary" style="flex:1;" onclick="pickQuoteFiles()"><i class="ti ti-upload"></i> 上傳報價單</button>
         <button class="btn" style="flex:1;" onclick="downloadAllQuotes()"><i class="ti ti-download"></i> 全部下載</button>
@@ -694,9 +701,9 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="form-group" id="p-measure-group" style="display:none;">
       <label class="form-label">場勘時間</label>
       <div style="display:flex;gap:0.6rem;">
-        <div class="date-field-wrap" id="p-measure-date-wrap" style="flex:1.3;">
-          <input class="form-input" id="p-measure-date" type="date" onchange="onMeasureDateChange()">
-          <span class="date-field-placeholder" id="p-measure-date-ph">(日期)</span>
+        <div class="date-card-wrap" id="p-measure-date-wrap" style="flex:1.3;">
+          <div class="form-input" style="display:flex;align-items:center;"><span id="p-measure-date-text">(日期)</span></div>
+          <input class="date-card-input" id="p-measure-date" type="date" onchange="onMeasureDateChange()">
         </div>
         <div class="form-input" id="p-measure-time-display" onclick="openTimeWheel()" style="flex:1;cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
           <span id="p-measure-time-text">09:00</span>
@@ -1748,7 +1755,9 @@ function onMaterialConfigSynced(cfg){
 function onQuotesSyncError(){console.error('報價單雲端同步權限不足');}
 function onQuotesSynced(cfg){
   if(!cfg||!cfg.files)return;
-  db.quotes=cfg.files;save();
+  db.quotes=cfg.files;
+  if(cfg.folders&&cfg.folders.length)db.quoteFolders=cfg.folders;
+  save();
   if(currentPage==='quotes')renderQuotes();
 }
 function onFileCatsSyncError(){console.error('檔案分類雲端同步權限不足');}
@@ -1898,7 +1907,7 @@ const CITY_DISTRICTS={
 '其他':['其他']
 };
 
-let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],todos:[],quotes:[],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
+let db={projects:[],finance:[],events:[],staff:[],punches:[],punchGcalIds:{},reserveFunding:[],accountTransfers:[],auditLog:[],balanceSnapshots:[],todos:[],quotes:[],quoteFolders:['未分類'],materials:[],materialConfig:{taxRate:5,vendors:[],cats:[],units:[]},toolIcons:{},financeCats:{
   cats:['專案','薪資','其他帳戶','金額調整'],
   incCats:['專案','其他帳戶','金額調整'],
   sub:{exp:{'專案':['人事','費用','材料','廠商款項'],'人事':['薪資','茶水餐費'],'費用':['社區費用','油資','停車費'],'材料':['材料五金','設備'],'廠商款項':['油漆','系統櫃','水電'],'其他帳戶':['備用金']},inc:{}}
@@ -1938,6 +1947,7 @@ function load(){
   if(!db.fileCats||!db.fileCats.length)db.fileCats=[...FILE_CATS_DEFAULT];
   else ensureFileCatSurvey();
   if(!db.quotes)db.quotes=[];
+  if(!db.quoteFolders||!db.quoteFolders.length)db.quoteFolders=['未分類'];
   if(!db.toolIcons)db.toolIcons={};
   if(!db.materials||!db.materials.length){
     db.materials=MATERIAL_SEED_DATA.map(m=>({id:uid(),...m}));
@@ -1955,6 +1965,8 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});}
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
+const WEEKDAY_CN=['日','一','二','三','四','五','六'];
+function fmtMDW(iso){if(!iso)return'';const d=new Date(iso);return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${WEEKDAY_CN[d.getDay()]})`;}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
 function fDate(d){return d?d.replace(/-/g,'/'):'—';}
 function fDateTime(rec){
@@ -3114,7 +3126,8 @@ function getMeasureTime(){
 }
 function updateDatePlaceholder(){
   const val=document.getElementById('p-measure-date').value;
-  document.getElementById('p-measure-date-wrap').classList.toggle('has-value',!!val);
+  const textEl=document.getElementById('p-measure-date-text');
+  if(textEl)textEl.textContent=val?fmtMDW(val+'T00:00:00'):'(日期)';
 }
 function onMeasureDateChange(){
   updateDatePlaceholder();
@@ -3441,7 +3454,7 @@ function dotHtml(p,clickable=false){
   return NEG_STEPS.map((s,i)=>{
     let timeLabel='';
     if(times[i]){
-      timeLabel=fmtMD(times[i])+' '+times[i].slice(11,16);
+      timeLabel=fmtMDW(times[i])+' '+times[i].slice(11,16);
     }
     const clickAction=(clickable&&i>=step)?`openStepDatePicker('${p.id}',${i})`:(clickable?`setNegStep('${p.id}',${i+1})`:'');
     return`
@@ -4319,8 +4332,7 @@ function syncEntryDateDisplay(){
   const textEl=document.getElementById('entry-date-text');
   if(!textEl)return;
   if(!val){textEl.textContent='選擇日期';return;}
-  const d=new Date(val+'T00:00:00');
-  textEl.textContent=(d.getMonth()+1)+'/'+d.getDate();
+  textEl.textContent=fmtMDW(val+'T00:00:00');
 }
 function confirmEntryDate(){
   if(!stepPickerContext)return;
@@ -5033,20 +5045,94 @@ async function ensureQuotesFolderId(){
 }
 function openQuotesTool(){showPage('quotes');}
 let quoteBlobUrlCache={};
+let currentQuoteFolder='未分類'; // 目前選中的資料夾
+function quoteFolderOf(q){return q.folder||'未分類';}
+function renderQuoteFolderTabs(){
+  const el=document.getElementById('quote-folder-tabs');if(!el)return;
+  if(!currentQuoteFolder||!db.quoteFolders.includes(currentQuoteFolder))currentQuoteFolder=db.quoteFolders[0]||'未分類';
+  el.innerHTML=db.quoteFolders.map(f=>
+    `<button class="quote-folder-tab ${f===currentQuoteFolder?'active':''}" data-folder="${f}">${f}</button>`
+  ).join('')+`<button class="quote-folder-tab quote-folder-add" onclick="addQuoteFolder()"><i class="ti ti-folder-plus"></i></button>`;
+  attachQuoteFolderTabEvents();
+}
+// 輕點切換資料夾；長按（500ms）跳出重新命名/刪除選項
+function attachQuoteFolderTabEvents(){
+  document.querySelectorAll('#quote-folder-tabs .quote-folder-tab[data-folder]').forEach(tab=>{
+    const f=tab.getAttribute('data-folder');
+    let pressTimer=null,longPressed=false,startX=0,startY=0;
+    const clear=()=>{if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}};
+    const startPress=(x,y)=>{
+      longPressed=false;startX=x;startY=y;
+      pressTimer=setTimeout(()=>{longPressed=true;manageQuoteFolder(f);},500);
+    };
+    tab.addEventListener('touchstart',e=>startPress(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+    tab.addEventListener('touchmove',e=>{
+      if(!pressTimer)return;
+      const dx=Math.abs(e.touches[0].clientX-startX),dy=Math.abs(e.touches[0].clientY-startY);
+      if(dx>10||dy>10)clear();
+    },{passive:true});
+    tab.addEventListener('touchend',()=>{clear();if(!longPressed)switchQuoteFolder(f);});
+    tab.addEventListener('mousedown',e=>startPress(e.clientX,e.clientY));
+    tab.addEventListener('mouseup',()=>{clear();if(!longPressed)switchQuoteFolder(f);});
+    tab.addEventListener('mouseleave',clear);
+  });
+}
+function switchQuoteFolder(f){
+  currentQuoteFolder=f;
+  renderQuoteFolderTabs();
+  renderQuotes();
+}
+function addQuoteFolder(){
+  const name=prompt('新增資料夾名稱');
+  if(name===null)return;
+  const trimmed=name.trim();
+  if(!trimmed)return;
+  if(db.quoteFolders.includes(trimmed))return alert('這個資料夾名稱已經存在了');
+  db.quoteFolders.push(trimmed);
+  save();
+  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
+  currentQuoteFolder=trimmed;
+  renderQuoteFolderTabs();
+  renderQuotes();
+}
+function manageQuoteFolder(f){
+  const action=prompt(`資料夾「${f}」：輸入新名稱重新命名，或輸入「刪除」把這個資料夾清空移除`,f);
+  if(action===null)return;
+  const trimmed=action.trim();
+  if(!trimmed)return;
+  if(trimmed==='刪除'){
+    if(f==='未分類')return alert('「未分類」是預設資料夾，不能刪除');
+    if(!confirm(`確定刪除資料夾「${f}」嗎？裡面的報價單會移到「未分類」，不會被刪除。`))return;
+    db.quotes.forEach(q=>{if(quoteFolderOf(q)===f)q.folder='未分類';});
+    db.quoteFolders=db.quoteFolders.filter(x=>x!==f);
+    currentQuoteFolder='未分類';
+  } else if(trimmed!==f){
+    if(db.quoteFolders.includes(trimmed))return alert('這個資料夾名稱已經存在了');
+    db.quotes.forEach(q=>{if(quoteFolderOf(q)===f)q.folder=trimmed;});
+    db.quoteFolders=db.quoteFolders.map(x=>x===f?trimmed:x);
+    currentQuoteFolder=trimmed;
+  } else return;
+  save();
+  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
+  renderQuoteFolderTabs();
+  renderQuotes();
+}
 function renderQuotes(){
   const el=document.getElementById('quotes-list');if(!el)return;
-  if(!db.quotes.length){
-    el.innerHTML='<div class="empty" style="padding:1.5rem"><i class="ti ti-file-off"></i><p>尚未上傳任何報價單</p></div>';
+  renderQuoteFolderTabs();
+  const inFolder=db.quotes.filter(q=>quoteFolderOf(q)===currentQuoteFolder);
+  if(!inFolder.length){
+    el.innerHTML='<div class="empty" style="padding:1.5rem"><i class="ti ti-file-off"></i><p>這個資料夾還沒有報價單</p></div>';
     return;
   }
-  el.innerHTML=`<div class="quote-grid">${db.quotes.map(q=>`
+  el.innerHTML=`<div class="quote-grid">${inFolder.map(q=>`
     <div class="quote-tile" data-qid="${q.id}">
       <div class="quote-thumb-placeholder" id="quote-ph-${q.id}"><i class="ti ti-photo"></i></div>
       <img class="quote-thumb-img" id="quote-thumb-${q.id}" style="display:none;" alt="${q.name}">
       <div class="quote-tile-name">${q.name}</div>
     </div>`).join('')}</div>`;
   ensureDriveAuth(()=>{
-    db.quotes.forEach(q=>loadQuoteThumb(q));
+    inFolder.forEach(q=>loadQuoteThumb(q));
   });
   attachQuoteTileEvents();
 }
@@ -5124,18 +5210,20 @@ function openQuotePreview(id){
 }
 // 預覽左右滑動切換上一張／下一張
 function showAdjacentQuote(dir){
-  if(!currentPreviewQuoteId||!db.quotes.length)return;
-  const idx=db.quotes.findIndex(x=>x.id===currentPreviewQuoteId);
+  if(!currentPreviewQuoteId)return;
+  const inFolder=db.quotes.filter(q=>quoteFolderOf(q)===currentQuoteFolder);
+  if(!inFolder.length)return;
+  const idx=inFolder.findIndex(x=>x.id===currentPreviewQuoteId);
   if(idx<0)return;
-  const nextIdx=(idx+dir+db.quotes.length)%db.quotes.length;
+  const nextIdx=(idx+dir+inFolder.length)%inFolder.length;
   const imgEl=document.getElementById('quote-preview-img');
-  if(!imgEl){openQuotePreview(db.quotes[nextIdx].id);return;}
+  if(!imgEl){openQuotePreview(inFolder[nextIdx].id);return;}
   // 目前圖片往滑動方向滑出＋淡出
   imgEl.style.transition='transform 0.22s ease-in, opacity 0.22s ease-in';
   imgEl.style.transform=`translateX(${dir>0?'-60%':'60%'})`;
   imgEl.style.opacity='0';
   setTimeout(()=>{
-    openQuotePreview(db.quotes[nextIdx].id);
+    openQuotePreview(inFolder[nextIdx].id);
     // 新圖片從對側直接定位（不做transition），再立即動畫滑回中間
     imgEl.style.transition='none';
     imgEl.style.transform=`translateX(${dir>0?'60%':'-60%'})`;
@@ -5189,7 +5277,7 @@ function pickQuoteFiles(){
         if(ok)successCount++;
       }
       save();
-      if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes});
+      if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
       if(successCount>0)alert(`✅ 已成功上傳 ${successCount} 張報價單`);
       renderQuotes();
     };
@@ -5209,7 +5297,7 @@ async function uploadOneQuoteFile(folderId,file){
     });
     const result=await res.json();
     if(result.id){
-      db.quotes.push({id:uid(),name:result.name,driveId:result.id,uploadedAt:new Date().toISOString()});
+      db.quotes.push({id:uid(),name:result.name,driveId:result.id,uploadedAt:new Date().toISOString(),folder:currentQuoteFolder});
       return true;
     } else {
       console.error('報價單上傳失敗',JSON.stringify(result));
@@ -5241,10 +5329,11 @@ function downloadQuoteFile(id){
   });
 }
 function downloadAllQuotes(){
-  if(!db.quotes.length)return alert('目前沒有報價單可以下載');
-  if(!confirm(`確定要下載全部 ${db.quotes.length} 張報價單嗎？（瀏覽器會依序跳出多個下載）`))return;
+  const inFolder=db.quotes.filter(q=>quoteFolderOf(q)===currentQuoteFolder);
+  if(!inFolder.length)return alert('這個資料夾目前沒有報價單可以下載');
+  if(!confirm(`確定要下載「${currentQuoteFolder}」裡全部 ${inFolder.length} 張報價單嗎？（瀏覽器會依序跳出多個下載）`))return;
   ensureDriveAuth(async()=>{
-    for(const q of db.quotes){
+    for(const q of inFolder){
       try{ await downloadQuoteBlob(q); }catch(e){ console.error('下載失敗',q.name,e); }
       await new Promise(r=>setTimeout(r,500)); // 間隔一下，避免瀏覽器擋下多重下載
     }
@@ -5255,7 +5344,7 @@ function deleteQuoteFile(id){
   if(!confirm(`確定刪除「${q.name}」？（只會從清單移除，Drive裡的原始檔案不會被刪除）`))return;
   db.quotes=db.quotes.filter(x=>x.id!==id);
   save();
-  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes});
+  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
   if(quoteBlobUrlCache[id]){URL.revokeObjectURL(quoteBlobUrlCache[id]);delete quoteBlobUrlCache[id];}
   renderQuotes();
 }
@@ -5413,6 +5502,9 @@ async function ensureProjectFolderPath(p,cat){
 
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  // 這個分類還沒上傳過任何檔案的話，不要因為點了連結就自動建立空白資料夾——只有實際上傳時才建立
+  const hasFiles=p.files&&p.files[cat]&&p.files[cat].length>0;
+  if(!hasFiles){alert(`「${cat}」這個分類還沒有上傳過任何檔案，先上傳至少一個檔案，才會建立雲端資料夾。`);return;}
   ensureDriveAuth(async()=>{
     const id=await ensureProjectFolderPath(p,cat);
     const webUrl=`https://drive.google.com/drive/folders/${id}`;
