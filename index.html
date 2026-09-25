@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725C">
+<meta name="app-version" content="20260725D">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -174,11 +174,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .quote-thumb-img{width:100%;height:100%;object-fit:cover;display:block;}
 .quote-tile-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.55);color:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;z-index:2;}
 .quote-tile-name{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;font-size:0.6875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.quote-folder-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:8px;-webkit-overflow-scrolling:touch;}
+.quote-folder-tabs{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 6px;margin-bottom:12px;-webkit-overflow-scrolling:touch;}
 .quote-folder-tabs::-webkit-scrollbar{display:none;}
-.quote-folder-tab{flex-shrink:0;padding:0.4rem 0.9rem;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--text3);font-size:0.8125rem;font-weight:500;white-space:nowrap;cursor:pointer;}
-.quote-folder-tab.active{background:var(--gold);color:#3a2e00;border-color:var(--gold);font-weight:600;}
-.quote-folder-tab.quote-folder-add{display:flex;align-items:center;justify-content:center;width:34px;padding:0.4rem;color:var(--gold);}
+.quote-folder-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:82px;padding:0.9rem 1rem;border-radius:16px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text3);font-size:0.9375rem;font-weight:600;white-space:nowrap;cursor:pointer;}
+.quote-folder-tab i{font-size:1.375rem;}
+.quote-folder-tab.active{background:var(--gold);color:#3a2e00;border-color:var(--gold);}
+.quote-folder-tab.quote-folder-add{min-width:64px;color:var(--gold);}
 .quote-preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;}
 .quote-preview-overlay.open{display:flex;}
 .quote-preview-overlay img{max-width:94vw;max-height:78vh;object-fit:contain;}
@@ -496,7 +497,17 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
   </div>
 
-  <div class="quote-preview-overlay" id="quote-preview-overlay" onclick="closeQuotePreview()">
+  <div class="sheet-overlay" id="sheet-quote-action">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="quote-action-title">報價單</span><button class="sheet-close" onclick="closeSheet('sheet-quote-action')"><i class="ti ti-x"></i></button></div>
+    <div style="color:var(--text3);font-size:0.8125rem;margin-bottom:0.75rem;">移到資料夾</div>
+    <div id="quote-move-folder-list" style="margin-bottom:0.75rem;"></div>
+    <button class="btn btn-danger" style="width:100%;" onclick="deleteQuoteFileFromSheet()"><i class="ti ti-trash"></i> 刪除這張報價單</button>
+  </div>
+</div>
+
+<div class="quote-preview-overlay" id="quote-preview-overlay" onclick="closeQuotePreview()">
     <div class="quote-preview-bar">
       <span id="quote-preview-name"></span>
       <div style="display:flex;gap:10px;">
@@ -1762,25 +1773,16 @@ function onQuotesSynced(cfg){
 }
 function onFileCatsSyncError(){console.error('檔案分類雲端同步權限不足');}
 function onFileCatsSynced(cfg){
+  // 現在檔案分類是每個專案各自獨立的，這份全域清單只在「專案第一次還沒有自己的分類設定」時
+  // 當作遷移起點使用（保留舊資料），不會再直接顯示或編輯
   if(!cfg||!cfg.cats)return;
   db.fileCats=cfg.cats;save();
-  ensureFileCatSurvey();
-  if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
 }
-// 補上「場勘」分類（既有使用者雲端資料已經存在fileCats時，光改預設值不會自動加上，需要主動補）
-// 排在「文件」前面；如果找不到「文件」就放最前面
-function ensureFileCatSurvey(){
-  if(!db.fileCats)db.fileCats=[];
-  if(db.fileCats.includes('場勘'))return;
-  const idx=db.fileCats.indexOf('文件');
-  if(idx>=0)db.fileCats.splice(idx,0,'場勘');
-  else db.fileCats.unshift('場勘');
-  saveFileCatsConfig();
-  if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
-}
+let currentFileCatManagePid=null; // 目前正在管理檔案分類的專案id
 function saveFileCatsConfig(){
   save();
-  if(window.fbSaveFileCats)window.fbSaveFileCats({cats:db.fileCats});
+  const p=db.projects.find(x=>x.id===currentFileCatManagePid);
+  if(p&&window.fbSaveProject)window.fbSaveProject(p);
 }
 function onTodosSyncError(){console.error('待辦事項雲端同步權限不足');}
 function onTodosSynced(arr){
@@ -1945,7 +1947,6 @@ function load(){
   ensureSystemCategories();
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.fileCats||!db.fileCats.length)db.fileCats=[...FILE_CATS_DEFAULT];
-  else ensureFileCatSurvey();
   if(!db.quotes)db.quotes=[];
   if(!db.quoteFolders||!db.quoteFolders.length)db.quoteFolders=['未分類'];
   if(!db.toolIcons)db.toolIcons={};
@@ -4225,10 +4226,15 @@ function renderDetail(pid){
         </div>`).join(''):'<div class="empty" style="padding:1.5rem"><i class="ti ti-notes-off"></i><p>尚無注意內容</p></div>'}
     </div>`;
 
-  // 檔案庫
-  const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage()">管理分類</span></div>
+  // 檔案庫：改成專案專屬分類，不再是所有專案共用同一份清單。
+  // 第一次遇到還沒有自己分類設定的專案，從目前的全域清單複製一份當起點（保留舊資料），之後就完全獨立
+  if(!p.fileCats){
+    p.fileCats=(db.fileCats&&db.fileCats.length)?[...db.fileCats]:[...FILE_CATS_DEFAULT];
+    save();if(window.fbSaveProject)window.fbSaveProject(p);
+  }
+  const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
     <div class="card">
-      ${db.fileCats.map(cat=>{
+      ${p.fileCats.map(cat=>{
         return`<div class="file-row">
           <div class="file-icon"><i class="ti ti-folder"></i></div>
           <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div></div>
@@ -4735,12 +4741,17 @@ function saveManageSteps(){
 }
 
 // ── 檔案庫分類管理（可新增/編輯/刪除，預設：文件/木作/系統櫃）──
-function openFileCatManage(){
+function openFileCatManage(pid){
+  currentFileCatManagePid=pid;
+  const p=db.projects.find(x=>x.id===pid);
+  if(p&&!p.fileCats)p.fileCats=[...FILE_CATS_DEFAULT];
   renderFileCatManageList();
   openSheet('sheet-file-cat-manage');
 }
 function renderFileCatManageList(){
-  document.getElementById('file-cat-manage-list').innerHTML=db.fileCats.length?`<div class="card">${db.fileCats.map(cat=>`
+  const p=db.projects.find(x=>x.id===currentFileCatManagePid);if(!p)return;
+  const cats=p.fileCats||[...FILE_CATS_DEFAULT];
+  document.getElementById('file-cat-manage-list').innerHTML=cats.length?`<div class="card">${cats.map(cat=>`
     <div class="mat-item-wrap" data-key="${cat}">
       <div class="mat-swipe-actions">
         <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();editFileCat('${cat}')"><i class="ti ti-pencil"></i>編輯</button>
@@ -4749,34 +4760,38 @@ function renderFileCatManageList(){
       <div class="mat-item-card" style="cursor:default;"><div class="fw500">${cat}</div></div>
     </div>`).join('')}</div>`:'<div class="empty"><p>尚無分類，新增一個開始使用</p></div>';
   attachMatSwipe(document.getElementById('file-cat-manage-list'));
-  attachArrayDrag('file-cat-manage-list',newOrder=>{db.fileCats=newOrder;saveFileCatsConfig();},'.mat-item-wrap');
+  attachArrayDrag('file-cat-manage-list',newOrder=>{p.fileCats=newOrder;saveFileCatsConfig();},'.mat-item-wrap');
 }
 function addFileCat(){
+  const p=db.projects.find(x=>x.id===currentFileCatManagePid);if(!p)return;
+  if(!p.fileCats)p.fileCats=[...FILE_CATS_DEFAULT];
   const input=document.getElementById('file-cat-new-name');
   const name=input.value.trim();
   if(!name)return;
-  if(db.fileCats.includes(name))return alert('已經有相同名稱的分類了');
-  db.fileCats.push(name);
+  if(p.fileCats.includes(name))return alert('已經有相同名稱的分類了');
+  p.fileCats.push(name);
   input.value='';
   saveFileCatsConfig();
   renderFileCatManageList();
   if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
 }
 function editFileCat(name){
+  const p=db.projects.find(x=>x.id===currentFileCatManagePid);if(!p)return;
   const newName=prompt('修改分類名稱',name);
   if(newName===null)return;
   const trimmed=newName.trim();
   if(!trimmed||trimmed===name)return;
-  if(db.fileCats.includes(trimmed))return alert('已經有相同名稱的分類了');
-  const idx=db.fileCats.indexOf(name);
-  if(idx>=0)db.fileCats[idx]=trimmed;
+  if(p.fileCats.includes(trimmed))return alert('已經有相同名稱的分類了');
+  const idx=p.fileCats.indexOf(name);
+  if(idx>=0)p.fileCats[idx]=trimmed;
   saveFileCatsConfig();
   renderFileCatManageList();
   if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
 }
 function deleteFileCat(name){
+  const p=db.projects.find(x=>x.id===currentFileCatManagePid);if(!p)return;
   if(!confirm(`確定刪除分類「${name}」？`))return;
-  db.fileCats=db.fileCats.filter(c=>c!==name);
+  p.fileCats=p.fileCats.filter(c=>c!==name);
   saveFileCatsConfig();
   renderFileCatManageList();
   if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
@@ -5051,7 +5066,7 @@ function renderQuoteFolderTabs(){
   const el=document.getElementById('quote-folder-tabs');if(!el)return;
   if(!currentQuoteFolder||!db.quoteFolders.includes(currentQuoteFolder))currentQuoteFolder=db.quoteFolders[0]||'未分類';
   el.innerHTML=db.quoteFolders.map(f=>
-    `<button class="quote-folder-tab ${f===currentQuoteFolder?'active':''}" data-folder="${f}">${f}</button>`
+    `<button class="quote-folder-tab ${f===currentQuoteFolder?'active':''}" data-folder="${f}"><i class="ti ${f===currentQuoteFolder?'ti-folder-open':'ti-folder'}"></i><span>${f}</span></button>`
   ).join('')+`<button class="quote-folder-tab quote-folder-add" onclick="addQuoteFolder()"><i class="ti ti-folder-plus"></i></button>`;
   attachQuoteFolderTabEvents();
 }
@@ -5145,7 +5160,7 @@ function attachQuoteTileEvents(){
     tile.addEventListener('touchstart',e=>{
       longPressed=false;
       startX=e.touches[0].clientX;startY=e.touches[0].clientY;
-      pressTimer=setTimeout(()=>{longPressed=true;deleteQuoteFile(id);},500);
+      pressTimer=setTimeout(()=>{longPressed=true;openQuoteActionSheet(id);},500);
     },{passive:true});
     tile.addEventListener('touchmove',e=>{
       if(!pressTimer)return;
@@ -5159,7 +5174,7 @@ function attachQuoteTileEvents(){
     // 桌機滑鼠退回：直接點擊開預覽，長按用滑鼠按住模擬
     tile.addEventListener('mousedown',()=>{
       longPressed=false;
-      pressTimer=setTimeout(()=>{longPressed=true;deleteQuoteFile(id);},500);
+      pressTimer=setTimeout(()=>{longPressed=true;openQuoteActionSheet(id);},500);
     });
     tile.addEventListener('mouseup',()=>{
       clear();
@@ -5339,6 +5354,33 @@ function downloadAllQuotes(){
     }
   });
 }
+let currentActionQuoteId=null;
+function openQuoteActionSheet(id){
+  const q=db.quotes.find(x=>x.id===id);if(!q)return;
+  currentActionQuoteId=id;
+  document.getElementById('quote-action-title').textContent=q.name;
+  const others=db.quoteFolders.filter(f=>f!==quoteFolderOf(q));
+  const listEl=document.getElementById('quote-move-folder-list');
+  listEl.innerHTML=others.length?others.map(f=>`
+    <div class="mat-item-card" style="margin-bottom:0.5rem;" onclick="moveQuoteToFolder('${f}')">
+      <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-folder" style="color:var(--gold);"></i><span>${f}</span></div>
+      <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
+    </div>`).join(''):'<div style="color:var(--text3);font-size:0.8125rem;padding:0.5rem 0;">目前只有這一個資料夾，先建立其他資料夾才能移動</div>';
+  openSheet('sheet-quote-action');
+}
+function moveQuoteToFolder(targetFolder){
+  const q=db.quotes.find(x=>x.id===currentActionQuoteId);if(!q)return;
+  q.folder=targetFolder;
+  save();
+  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
+  closeSheet('sheet-quote-action');
+  renderQuotes();
+}
+function deleteQuoteFileFromSheet(){
+  const id=currentActionQuoteId;
+  closeSheet('sheet-quote-action');
+  deleteQuoteFile(id);
+}
 function deleteQuoteFile(id){
   const q=db.quotes.find(x=>x.id===id);if(!q)return;
   if(!confirm(`確定刪除「${q.name}」？（只會從清單移除，Drive裡的原始檔案不會被刪除）`))return;
@@ -5476,19 +5518,34 @@ function checkMeasureReminder(){
 // 共用Drive資料夾ID快取（從Firestore載入，避免多帳號重複建資料夾）
 // session 記憶體快取（避免過時ID問題）
 const sessionFolderCache={};
+const inFlightFolderRequests={}; // 避免同時間多個上傳動作競速建立同一個資料夾，造成重複
 async function findOrCreateFolderShared(name, parentId){
   const key=parentId?`${parentId}|${name}`:name;
   if(sessionFolderCache[key])return sessionFolderCache[key];
-  const id=await findOrCreateFolder(name,parentId);
-  if(id)sessionFolderCache[key]=id;
-  return id;
+  if(inFlightFolderRequests[key])return inFlightFolderRequests[key]; // 已經有一個相同的請求在進行中，直接等它的結果，不要各自獨立建立
+  const promise=(async()=>{
+    const id=await findOrCreateFolder(name,parentId);
+    if(id)sessionFolderCache[key]=id;
+    delete inFlightFolderRequests[key];
+    return id;
+  })();
+  inFlightFolderRequests[key]=promise;
+  return promise;
 }
 async function ensureProjectFolderPath(p,cat){
   if(!p.driveFolders)p.driveFolders={};
   const rootId=SHARED_ROOT_FOLDER_ID;
   const cityId=await findOrCreateFolderShared(p.city||'未分類',rootId);
-  const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
-  const projId=await findOrCreateFolderShared(projName,cityId);
+  let projId;
+  if(p.driveProjectFolderId){
+    // 已經記住這個專案的資料夾ID了，直接用，不再重新用名稱搜尋——
+    // 避免專案改名後，因為搜尋不到舊名稱的資料夾，又建立一個重複的新資料夾
+    projId=p.driveProjectFolderId;
+  } else {
+    const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
+    projId=await findOrCreateFolderShared(projName,cityId);
+    p.driveProjectFolderId=projId;
+  }
   const catId=await findOrCreateFolderShared(cat,projId);
   // 如果這個分類的資料夾是新建的，清除舊的上傳記錄（Drive被清空的情況）
   if(p.driveFolders[cat]&&p.driveFolders[cat]!==catId){
