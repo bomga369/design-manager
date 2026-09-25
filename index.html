@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725G">
+<meta name="app-version" content="20260725H">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -520,8 +520,8 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="sheet-overlay" id="sheet-quote-move">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title"><span id="quote-move-title">移動報價單</span><button class="sheet-close" onclick="closeQuoteMoveSheet()"><i class="ti ti-x"></i></button></div>
-    <div id="quote-move-folder-list"></div>
+    <div class="sheet-title" style="margin-bottom:1rem;"><span id="quote-move-title">移動報價單</span><button class="sheet-close" onclick="closeQuoteMoveSheet()"><i class="ti ti-x"></i></button></div>
+    <div id="quote-move-folder-list" style="padding-bottom:1rem;"></div>
   </div>
 </div>
 
@@ -5427,10 +5427,10 @@ function openMoveSelectedSheet(){
   const listEl=document.getElementById('quote-move-folder-list');
   const others=db.quoteFolders.filter(f=>f!==currentQuoteFolder);
   listEl.innerHTML=others.length?others.map(f=>`
-    <div class="mat-item-card" style="margin-bottom:0.5rem;" onclick="moveSelectedQuotesToFolder('${f}')">
-      <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-folder" style="color:var(--gold);"></i><span>${f}</span></div>
+    <div onclick="moveSelectedQuotesToFolder('${f}')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:1rem;margin-bottom:0.6rem;cursor:pointer;">
+      <div style="display:flex;align-items:center;gap:10px;"><i class="ti ti-folder" style="color:var(--gold);font-size:1.25rem;"></i><span style="font-size:1rem;">${f}</span></div>
       <i class="ti ti-chevron-right" style="color:var(--text3);"></i>
-    </div>`).join(''):'<div style="color:var(--text3);font-size:0.8125rem;padding:0.5rem 0;">沒有其他資料夾，先建立一個</div>';
+    </div>`).join(''):'<div style="color:var(--text3);font-size:0.8125rem;padding:1rem 0;">沒有其他資料夾，先建立一個</div>';
   document.getElementById('quote-select-bar').style.display='none'; // 開啟移動彈窗時先藏起底部浮動列，避免畫面互相遮擋
   openSheet('sheet-quote-move');
 }
