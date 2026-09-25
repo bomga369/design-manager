@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725H">
+<meta name="app-version" content="20260725I">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2752,8 +2752,19 @@ function toggleFinanceStaff(){
   grp.style.display=needStaff?'block':'none';
   if(needStaff)fillStaffSel('f-staff-sel','請選擇人員');
 }
-function openSheet(id){document.getElementById(id).classList.add('open');}
-function closeSheet(id){document.getElementById(id).classList.remove('open');}
+function openSheet(id){
+  document.getElementById(id).classList.add('open');
+  const nav=document.querySelector('.bottom-nav');
+  if(nav)nav.style.display='none'; // 彈窗開啟時先藏起底部導覽列，避免它卡在彈窗底部內容上面，擋住點擊
+}
+function closeSheet(id){
+  document.getElementById(id).classList.remove('open');
+  // 只有在沒有其他彈窗還開著的時候，才恢復顯示底部導覽列
+  if(!document.querySelector('.sheet-overlay.open')){
+    const nav=document.querySelector('.bottom-nav');
+    if(nav)nav.style.display='flex';
+  }
+}
 document.querySelectorAll('.sheet-overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});});
 
 // ── 打卡計算 ──
