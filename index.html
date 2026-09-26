@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725N">
+<meta name="app-version" content="20260725O">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5817,9 +5817,11 @@ async function ensureProjectFolderPath(p,cat){
 
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  // 這個分類還沒上傳過任何檔案的話，不要因為點了連結就自動建立空白資料夾——只有實際上傳時才建立
-  const hasFiles=p.files&&p.files[cat]&&p.files[cat].length>0;
-  if(!hasFiles){alert(`「${cat}」這個分類還沒有上傳過任何檔案，先上傳至少一個檔案，才會建立雲端資料夾。`);return;}
+  // 這個分類還沒上傳過任何檔案的話，不要因為點了連結就自動建立空白資料夾——只有實際上傳時才建立。
+  // 判斷依據改成p.driveFolders（只要真的建立過資料夾就一定會留著記錄，不像p.files會受同步時序影響、
+  // 有時候明明有資料卻暫時看起來是空的——上次維修分類消失就是同一種問題造成的）
+  const hasFolder=p.driveFolders&&p.driveFolders[cat];
+  if(!hasFolder){alert(`「${cat}」這個分類還沒有上傳過任何檔案，先上傳至少一個檔案，才會建立雲端資料夾。`);return;}
   ensureDriveAuth(async()=>{
     const id=await ensureProjectFolderPath(p,cat);
     const webUrl=`https://drive.google.com/drive/folders/${id}`;
