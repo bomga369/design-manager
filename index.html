@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725K">
+<meta name="app-version" content="20260725M">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1896,7 +1896,7 @@ async function runEventsMigration(){
 const NEG_STEPS=['場勘','報價','討論','簽約','進場'];
 const CON_STEPS=['木作-保護','木作-下角料','木作-窗簾盒','木作-包管/樑','木作-冷氣帽','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
-const FILE_CATS_DEFAULT=['場勘','文件','木作','系統櫃','維修'];
+const FILE_CATS_DEFAULT=['場勘','文件','木作','系統櫃'];
 
 // 中華民國國定假日（依行政院人事行政總處公告，農曆相關日期每年異動，需逐年更新）
 const TW_HOLIDAYS={
@@ -4298,10 +4298,15 @@ function renderDetail(pid){
     p.fileCats=(db.fileCats&&db.fileCats.length)?[...db.fileCats]:[...FILE_CATS_DEFAULT];
     save();if(window.fbSaveProject)window.fbSaveProject(p);
   }
-  // 補上「維修」分類（原本系統預設漏掉這個，這裡統一補齊；已經有維修分類、有上傳資料的專案不受影響，不會重複加）
-  if(!p.fileCats.includes('維修')){
-    p.fileCats.push('維修');
-    save();if(window.fbSaveProject)window.fbSaveProject(p);
+  // 撤銷上次誤加的邏輯：「維修」不應該是自動塞給每個專案的分類。
+  // 這裡改成清理：如果「維修」分類裡沒有任何實際上傳的檔案（代表是上次誤加進去的，還是空的），就移除掉；
+  // 如果裡面已經有上傳過的資料（代表這個專案本來就合法自己設定、有在用這個分類），完全不動、保留原樣
+  if(p.fileCats.includes('維修')){
+    const hasFiles=p.files&&p.files['維修']&&p.files['維修'].length>0;
+    if(!hasFiles){
+      p.fileCats=p.fileCats.filter(c=>c!=='維修');
+      save();if(window.fbSaveProject)window.fbSaveProject(p);
+    }
   }
   const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
     <div class="card">
@@ -5489,19 +5494,32 @@ function triggerBlobDownload(blob,name){
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 async function downloadQuoteBlob(q){
-  const blob=await fetchQuoteBlob(q);
-  // 優先用系統原生分享：在iOS上「儲存影像」只要點一下，比瀏覽器內建下載跳出的附檔預覽畫面更直接
+  // 優先用系統原生分享：在iOS上「儲存影像」只要點一下，比瀏覽器內建下載跳出的附檔預覽畫面更直接。
+  // 關鍵是：iOS要求分享動作要緊跟在使用者點擊後面，中間不能有太長的網路延遲，
+  // 不然系統會認為這不是使用者手勢觸發的，悄悄擋下分享、直接退回舊方式（這就是之前分享選單沒跳出來的原因）。
+  // 所以這裡先看縮圖是不是已經預先快取過了（幾乎瞬間完成，沒有網路延遲），優先用快取的
   try{
+    let blob;
+    const cachedUrl=quoteBlobUrlCache[q.id];
+    if(cachedUrl){
+      blob=await fetch(cachedUrl).then(r=>r.blob()); // 抓本機已經有的blob網址，幾乎瞬間完成
+    } else {
+      blob=await fetchQuoteBlob(q); // 還沒快取過，只好向雲端要，這種情況分享可能會因為延遲被擋下來
+    }
     const file=new File([blob],q.name,{type:blob.type||'image/jpeg'});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
       await navigator.share({files:[file]});
       return;
     }
+    triggerBlobDownload(blob,q.name);
   }catch(e){
-    if(e.name==='AbortError')return; // 使用者自己在分享選單按取消，不用再退回傳統下載方式
-    // 其他錯誤（例如裝置不支援、非使用者手勢觸發等），往下改用傳統下載方式，確保還是能下載到
+    if(e.name==='AbortError')return; // 使用者自己在分享選單按取消
+    // 分享失敗（例如手勢逾時、裝置不支援），改用向雲端重新抓一次再走傳統下載方式，確保還是能下載到
+    try{
+      const blob=await fetchQuoteBlob(q);
+      triggerBlobDownload(blob,q.name);
+    }catch(e2){ throw e2; }
   }
-  triggerBlobDownload(blob,q.name);
 }
 function downloadQuoteFile(id){
   const q=db.quotes.find(x=>x.id===id);if(!q)return;
@@ -5563,7 +5581,8 @@ function downloadSelectedQuotes(){
     const files=[];
     for(const q of picked){
       try{
-        const blob=await fetchQuoteBlob(q);
+        const cachedUrl=quoteBlobUrlCache[q.id];
+        const blob=cachedUrl?await fetch(cachedUrl).then(r=>r.blob()):await fetchQuoteBlob(q);
         files.push(new File([blob],q.name,{type:blob.type||'image/jpeg'}));
       }catch(e){ console.error('下載失敗',q.name,e); }
     }
