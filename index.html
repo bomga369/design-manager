@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725M">
+<meta name="app-version" content="20260725N">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4298,15 +4298,14 @@ function renderDetail(pid){
     p.fileCats=(db.fileCats&&db.fileCats.length)?[...db.fileCats]:[...FILE_CATS_DEFAULT];
     save();if(window.fbSaveProject)window.fbSaveProject(p);
   }
-  // 撤銷上次誤加的邏輯：「維修」不應該是自動塞給每個專案的分類。
-  // 這裡改成清理：如果「維修」分類裡沒有任何實際上傳的檔案（代表是上次誤加進去的，還是空的），就移除掉；
-  // 如果裡面已經有上傳過的資料（代表這個專案本來就合法自己設定、有在用這個分類），完全不動、保留原樣
-  if(p.fileCats.includes('維修')){
-    const hasFiles=p.files&&p.files['維修']&&p.files['維修'].length>0;
-    if(!hasFiles){
-      p.fileCats=p.fileCats.filter(c=>c!=='維修');
-      save();if(window.fbSaveProject)window.fbSaveProject(p);
-    }
+  // 修正資料遺失問題：上次的判斷依據（p.files這個陣列）在同步時序上可能還沒完全載入，
+  // 導致明明有真實資料的維修分類被誤判成空的、整個被移除掉（圓山飯店就是這樣被影響的，非常抱歉）。
+  // 改成用更可靠的依據：p.driveFolders裡有沒有「維修」的雲端資料夾ID紀錄——
+  // 這個紀錄只要曾經真的建立過資料夾就一定會留著，不會因為載入時序不同而忽有忽無。
+  // 邏輯也從「移除」改成「還原」：只要曾經真的建立過維修資料夾，就確保它出現在清單裡
+  if(p.driveFolders&&p.driveFolders['維修']&&!p.fileCats.includes('維修')){
+    p.fileCats.push('維修');
+    save();if(window.fbSaveProject)window.fbSaveProject(p);
   }
   const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
     <div class="card">
