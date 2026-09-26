@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725R">
+<meta name="app-version" content="20260725S">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5538,7 +5538,10 @@ function downloadViaShortcut(urls){
   if(!driveAccessToken){alert('請先完成雲端登入授權，再試一次下載');return;}
   if(!urls.length)return;
   const text=urls.map(u=>driveAccessToken+'||'+u).join('\n');
-  window.location.href=`shortcuts://run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}`;
+  // 嘗試加上x-success，執行完捷徑後自動導回安盾目前的網址（不保證每個環境都有效，
+  // 這只是網址參數，不影響捷徑本身內容，若無效可直接移除這段回到原本的網址格式）
+  const callbackUrl=encodeURIComponent(location.href);
+  window.location.href=`shortcuts://x-callback-url/run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}&x-success=${callbackUrl}`;
 }
 function downloadQuoteFile(id){
   const q=db.quotes.find(x=>x.id===id);if(!q)return;
