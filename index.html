@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725P">
+<meta name="app-version" content="20260725Q">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5525,53 +5525,23 @@ async function uploadOneQuoteFile(folderId,file){
     return false;
   }
 }
-async function fetchQuoteBlob(q){
-  const res=await fetch(`https://www.googleapis.com/drive/v3/files/${q.driveId}?alt=media`,{
-    headers:{'Authorization':'Bearer '+driveAccessToken}
-  });
-  if(!res.ok)throw new Error('下載失敗（HTTP '+res.status+'）');
-  return res.blob();
+const ANDUN_SHORTCUT_NAME='安盾存圖'; // 對應手機「捷徑」App裡設定好的那個捷徑名稱，改名的話這裡也要跟著改
+function buildQuoteDriveUrl(q){
+  return `https://www.googleapis.com/drive/v3/files/${q.driveId}?alt=media`;
 }
-function triggerBlobDownload(blob,name){
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download=name;
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
-}
-async function downloadQuoteBlob(q){
-  // 優先用系統原生分享：在iOS上「儲存影像」只要點一下，比瀏覽器內建下載跳出的附檔預覽畫面更直接。
-  // 關鍵是：iOS要求分享動作要緊跟在使用者點擊後面，中間不能有太長的網路延遲，
-  // 不然系統會認為這不是使用者手勢觸發的，悄悄擋下分享、直接退回舊方式（這就是之前分享選單沒跳出來的原因）。
-  // 所以這裡先看縮圖是不是已經預先快取過了（幾乎瞬間完成，沒有網路延遲），優先用快取的
-  try{
-    let blob;
-    const cachedUrl=quoteBlobUrlCache[q.id];
-    if(cachedUrl){
-      blob=await fetch(cachedUrl).then(r=>r.blob()); // 抓本機已經有的blob網址，幾乎瞬間完成
-    } else {
-      blob=await fetchQuoteBlob(q); // 還沒快取過，只好向雲端要，這種情況分享可能會因為延遲被擋下來
-    }
-    const file=new File([blob],q.name,{type:blob.type||'image/jpeg'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
-      await navigator.share({files:[file]});
-      return;
-    }
-    triggerBlobDownload(blob,q.name);
-  }catch(e){
-    if(e.name==='AbortError')return; // 使用者自己在分享選單按取消
-    // 分享失敗（例如手勢逾時、裝置不支援），改用向雲端重新抓一次再走傳統下載方式，確保還是能下載到
-    try{
-      const blob=await fetchQuoteBlob(q);
-      triggerBlobDownload(blob,q.name);
-    }catch(e2){ throw e2; }
-  }
+// 透過捷徑下載：把通行證放第一行、圖片網址放後面每一行，一起傳給「安盾存圖」這個捷徑，
+// 由捷徑自己去抓圖片、存到相片——不用自己在網頁裡抓資料再想辦法存檔，
+// 這樣繞過了iOS獨立模式（加到主畫面）下系統分享功能會失效的問題
+function downloadViaShortcut(urls){
+  if(!driveAccessToken){alert('請先完成雲端登入授權，再試一次下載');return;}
+  if(!urls.length)return;
+  const text=[driveAccessToken,...urls].join('\n');
+  window.location.href=`shortcuts://run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}`;
 }
 function downloadQuoteFile(id){
   const q=db.quotes.find(x=>x.id===id);if(!q)return;
   ensureDriveAuth(()=>{
-    downloadQuoteBlob(q).catch(e=>alert('下載失敗：'+e.message));
+    downloadViaShortcut([buildQuoteDriveUrl(q)]);
   });
 }
 // ── 選取模式：全選、部分下載、部分移動、部分刪除 ──
@@ -5624,30 +5594,8 @@ function updateQuoteSelectBar(){
 function downloadSelectedQuotes(){
   const picked=db.quotes.filter(q=>selectedQuoteIds.has(q.id));
   if(!picked.length)return;
-  ensureDriveAuth(async()=>{
-    const files=[];
-    for(const q of picked){
-      try{
-        const cachedUrl=quoteBlobUrlCache[q.id];
-        const blob=cachedUrl?await fetch(cachedUrl).then(r=>r.blob()):await fetchQuoteBlob(q);
-        files.push(new File([blob],q.name,{type:blob.type||'image/jpeg'}));
-      }catch(e){ console.error('下載失敗',q.name,e); }
-    }
-    if(!files.length)return;
-    // 多張的話，優先一次用系統分享全部存下來，比逐張跳出下載畫面順暢很多
-    try{
-      if(navigator.canShare&&navigator.canShare({files})){
-        await navigator.share({files});
-        return;
-      }
-    }catch(e){
-      if(e.name==='AbortError')return;
-    }
-    // 不支援一次分享多檔，退回逐張下載
-    for(const file of files){
-      triggerBlobDownload(file,file.name);
-      await new Promise(r=>setTimeout(r,500));
-    }
+  ensureDriveAuth(()=>{
+    downloadViaShortcut(picked.map(buildQuoteDriveUrl));
   });
 }
 function openMoveSelectedSheet(){
