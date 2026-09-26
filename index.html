@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725S">
+<meta name="app-version" content="20260725U">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5538,10 +5538,16 @@ function downloadViaShortcut(urls){
   if(!driveAccessToken){alert('請先完成雲端登入授權，再試一次下載');return;}
   if(!urls.length)return;
   const text=urls.map(u=>driveAccessToken+'||'+u).join('\n');
-  // 嘗試加上x-success，執行完捷徑後自動導回安盾目前的網址（不保證每個環境都有效，
-  // 這只是網址參數，不影響捷徑本身內容，若無效可直接移除這段回到原本的網址格式）
-  const callbackUrl=encodeURIComponent(location.href);
-  window.location.href=`shortcuts://x-callback-url/run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}&x-success=${callbackUrl}`;
+  const shortcutUrl=`shortcuts://run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}`;
+  // 嘗試用隱藏iframe觸發捷徑，而不是讓整個畫面導向那個網址——
+  // 這樣理論上安盾畫面本身可以維持原地不動，捷徑執行完自己收掉後就直接看到還在原地的安盾，
+  // 不用「跳回來」。若這個方式無效（例如系統還是把畫面整個換掉），改回下面註解的直接導向方式即可
+  const iframe=document.createElement('iframe');
+  iframe.style.display='none';
+  iframe.src=shortcutUrl;
+  document.body.appendChild(iframe);
+  setTimeout(()=>{ if(iframe.parentNode)iframe.parentNode.removeChild(iframe); },2000);
+  // window.location.href=shortcutUrl; // 如果iframe方式無效，改用這行取代上面的iframe寫法
 }
 function downloadQuoteFile(id){
   const q=db.quotes.find(x=>x.id===id);if(!q)return;
