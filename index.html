@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725O">
+<meta name="app-version" content="20260725P">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1607,6 +1607,7 @@ function onProjectsSynced(arr){
   }
   db.projects=arr;
   save();
+  reconcilePaymentPeriods(); // 專案資料跟收支資料不保證哪個先同步到，兩邊都掛一次確保一定會執行到
   refreshProjectDependentViews();
   if(currentPage==='projects')renderProjects();
 }
@@ -1697,9 +1698,40 @@ function onFinanceSynced(arr){
     return;
   }
   db.finance=arr;save();
+  reconcilePaymentPeriods();
   if(currentPage==='finance')renderFinanceHome();
   if(currentPage==='finance-accounts')renderFinanceAccounts();
   if(currentPage==='finance-detail')renderFinance();
+}
+let paymentPeriodReconciled=false;
+// 修復：工程款收入記錄如果沒有正確連結到專案目前的期數設定（例如當初記錄收入時，專案還沒設定工程款期數，
+// 或編輯時選單顯示錯誤導致連結遺失——八德區-鴻承鑄月就是這樣被影響的），
+// 用當初存下來的標籤文字（例如「第1期」）去比對專案的期數設定，自動找回正確的期別編號補上去
+function reconcilePaymentPeriods(){
+  if(paymentPeriodReconciled)return;
+  if(!db.projects.length||!db.finance.length)return; // 兩份資料都要有才能對照，等都到齊再處理
+  paymentPeriodReconciled=true;
+  let fixedCount=0;
+  db.finance.forEach(f=>{
+    if(f.ftype!=='收入'||f.expDetail!=='工程款')return;
+    const proj=db.projects.find(p=>p.id===f.projectId);
+    if(!proj||!proj.paymentSchedule||!proj.paymentSchedule.length)return;
+    const alreadyValid=f.paymentPeriod!=null&&proj.paymentSchedule.some(pd=>pd.period===f.paymentPeriod);
+    if(alreadyValid)return;
+    if(f.expContent){
+      const matched=proj.paymentSchedule.find(pd=>pd.label===f.expContent);
+      if(matched){
+        f.paymentPeriod=matched.period;
+        if(window.fbSaveFinance)window.fbSaveFinance(f);
+        fixedCount++;
+      }
+    }
+  });
+  if(fixedCount>0){
+    save();
+    console.log(`自動修復了 ${fixedCount} 筆工程款收入記錄的期別連結`);
+    refreshProjectDependentViews();
+  }
 }
 let reserveFundingSyncErrorShown=false;
 function onReserveFundingSyncError(){if(reserveFundingSyncErrorShown)return;reserveFundingSyncErrorShown=true;alert('備用金資料雲端同步權限不足，請聯絡管理者');}
@@ -1821,6 +1853,7 @@ function onFileCatsSynced(cfg){
   db.fileCats=cfg.cats;save();
 }
 let currentFileCatManagePid=null; // 目前正在管理檔案分類的專案id
+let activeFileUpload=null; // {pid,cat,done,total} 記錄目前正在進行中的上傳進度，即使畫面被即時同步重新渲染也不會遺失狀態
 function saveFileCatsConfig(){
   save();
   const p=db.projects.find(x=>x.id===currentFileCatManagePid);
@@ -3136,6 +3169,7 @@ function handleAdd(){
   document.getElementById('p-area').value='';
   document.getElementById('p-area-text').textContent='請先選擇縣市';
   document.getElementById('p-area-text').style.color='var(--text3)';
+  document.getElementById('p-type').innerHTML=`<option value="">請選擇分類</option><option value="洽談中">洽談中</option><option value="施作中">施作中</option>`;
   document.getElementById('p-type').value='';
   document.getElementById('p-measure-group').style.display='none';
   fillStaffSel('p-leader');
@@ -3905,6 +3939,7 @@ function openEditProject(pid){
   document.getElementById('p-area-text').style.color=p.area?'var(--text)':'var(--text3)';
   document.getElementById('p-name').value=p.bname||p.name||'';
   document.getElementById('p-client').value=p.client||'';
+  document.getElementById('p-type').innerHTML=`<option value="">請選擇分類</option><option value="洽談中">洽談中</option><option value="施作中">施作中</option><option value="已完工">已完工</option><option value="無回應">無回應</option>`;
   document.getElementById('p-type').value=p.type;
   document.getElementById('p-note').value=p.note||'';
   document.getElementById('p-measure-group').style.display=p.type==='洽談中'?'block':'none';
@@ -4307,17 +4342,30 @@ function renderDetail(pid){
     p.fileCats.push('維修');
     save();if(window.fbSaveProject)window.fbSaveProject(p);
   }
+  // 對帳：如果這個分類確實建立過雲端資料夾，但本機記錄的檔案清單是空的（可能是同步時序問題留下的資料缺口，
+  // 跟圓山飯店維修分類同樣的狀況），就自動向雲端查詢真正的檔案清單、補齊本機記錄，確保顯示的已上傳數量正確
+  if(p.driveFolders){
+    p.fileCats.forEach(cat=>{
+      const folderId=p.driveFolders[cat];
+      const hasLocalRecord=p.files&&p.files[cat]&&p.files[cat].length>0;
+      if(folderId&&!hasLocalRecord)reconcileFileCatCount(pid,cat);
+    });
+  }
   const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
     <div class="card">
       ${p.fileCats.map((cat,idx)=>{
         const progId=`file-up-prog-${pid}-${idx}`;
         const cnt=(p.files&&p.files[cat]&&p.files[cat].length)||0;
+        // 如果這個分類正在上傳中（跨越畫面重新渲染也不會遺失狀態），直接在一開始就顯示目前進度
+        const uploading=activeFileUpload&&activeFileUpload.pid===pid&&activeFileUpload.cat===cat;
+        const progStyle=uploading?'display:flex;':'display:none;';
+        const progContent=uploading?`<i class="ti ti-loader-2"></i>${String(activeFileUpload.done).padStart(2,'0')}/${String(activeFileUpload.total).padStart(2,'0')}`:'';
         return`<div class="file-row">
           <div class="file-icon"><i class="ti ti-folder"></i></div>
           <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}${cnt?` <span style="color:var(--text3);font-weight:400;">(${cnt})</span>`:''}</div></div>
           <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
             <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}','${progId}')"><i class="ti ti-upload"></i> 上傳</button>
-            <div class="file-up-progress" id="${progId}" style="display:none;"></div>
+            <div class="file-up-progress" id="${progId}" style="${progStyle}">${progContent}</div>
           </div>
           <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
         </div>`;}).join('')}
@@ -5815,6 +5863,27 @@ async function ensureProjectFolderPath(p,cat){
   return catId;
 }
 
+const reconciledFileCats=new Set(); // 記錄這個session裡已經對帳過的「專案id-分類」組合，避免反覆查詢同一個資料夾
+async function reconcileFileCatCount(pid,cat){
+  const key=`${pid}|${cat}`;
+  if(reconciledFileCats.has(key))return;
+  reconciledFileCats.add(key);
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  const folderId=p.driveFolders&&p.driveFolders[cat];if(!folderId)return;
+  ensureDriveAuth(async()=>{
+    try{
+      const q=`'${folderId}' in parents and trashed=false`;
+      const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
+      const res=await driveApiFetch(url);
+      const data=await res.json();
+      if(!data.files||!data.files.length)return; // 雲端也真的是空的，不用補
+      if(!p.files)p.files={};
+      p.files[cat]=data.files.map(f=>({name:f.name,driveId:f.id}));
+      save();if(window.fbSaveProject)window.fbSaveProject(p);
+      if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid);
+    }catch(e){ console.error('對帳失敗',cat,e); }
+  });
+}
 function openDriveFolder(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   // 這個分類還沒上傳過任何檔案的話，不要因為點了連結就自動建立空白資料夾——只有實際上傳時才建立。
@@ -5842,23 +5911,32 @@ function pickDriveFile(pid,cat,progId){
       const fileList=Array.from(input.files);
       if(!fileList.length)return;
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
-      const progEl=progId?document.getElementById(progId):null;
       const total=fileList.length;
+      // 進度狀態存在全域變數裡，不只是操作DOM——這樣即使上傳過程中畫面被即時同步重新渲染，
+      // 新渲染出來的畫面也會照這個狀態正確顯示進度，不會閃一下就消失
       const updateProgress=(done)=>{
-        if(!progEl)return;
-        progEl.style.display='flex';
-        progEl.innerHTML=`<i class="ti ti-loader-2"></i>${String(done).padStart(2,'0')}/${String(total).padStart(2,'0')}`;
+        activeFileUpload={pid,cat,done,total};
+        const progEl=progId?document.getElementById(progId):null; // 每次重新抓取，避免抓到重新渲染後已經不在畫面上的舊元素
+        if(progEl){
+          progEl.style.display='flex';
+          progEl.innerHTML=`<i class="ti ti-loader-2"></i>${String(done).padStart(2,'0')}/${String(total).padStart(2,'0')}`;
+        }
+      };
+      const clearProgress=()=>{
+        activeFileUpload=null;
+        const progEl=progId?document.getElementById(progId):null;
+        if(progEl)progEl.style.display='none';
       };
       updateProgress(0);
       // 先確認資料夾路徑（若Drive被清空，會自動清除p.files舊記錄）—只確認這一次，folderId後面重複使用
       let folderId;
-      try{ folderId=await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); if(progEl)progEl.style.display='none'; return; }
+      try{ folderId=await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); clearProgress(); return; }
       // 確認後再檢查重複（此時p.files已是最新狀態）
       const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
       const duplicates=fileList.filter(f=>existingNames.includes(f.name));
       if(duplicates.length){
         const names=duplicates.map(f=>f.name).join('、');
-        if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`)){if(progEl)progEl.style.display='none';return;}
+        if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`)){clearProgress();return;}
       }
       let successCount=0;
       for(const file of fileList){
@@ -5867,7 +5945,7 @@ function pickDriveFile(pid,cat,progId){
         updateProgress(successCount);
       }
       save();if(window.fbSaveProject)window.fbSaveProject(p);
-      if(progEl)progEl.style.display='none';
+      clearProgress();
       if(successCount>0)alert(`✅ 已成功上傳 ${successCount} 個檔案到「${cat}」資料夾`);
       renderDetail(pid);
     };
@@ -6262,7 +6340,21 @@ function editFinance(id){
         onIncomeDetailChange();
       }
       if(document.getElementById('f-income-content-group').style.display!=='none'){
-        document.getElementById('f-income-content').value=rec.expContent||'';
+        // 工程款的期別選單，選項值是期別編號（數字），不是標籤文字，
+        // 這裡原本誤用rec.expContent（標籤文字，例如「第1期」）去設定，導致選不到正確的期別。
+        // 改成用rec.paymentPeriod（真正的期別編號）；如果這筆是工程款卻沒有paymentPeriod（例如schedule設定前就先記的舊資料），
+        // 用expContent的標籤文字去比對schedule找出正確期別，盡量還原回原本的選擇
+        if(rec.expDetail==='工程款'){
+          let periodToSelect=rec.paymentPeriod;
+          if(periodToSelect==null&&rec.expContent){
+            const projObj=db.projects.find(x=>x.id===rec.projectId);
+            const matched=projObj&&projObj.paymentSchedule&&projObj.paymentSchedule.find(pd=>pd.label===rec.expContent);
+            if(matched)periodToSelect=matched.period;
+          }
+          document.getElementById('f-income-content').value=periodToSelect!=null?String(periodToSelect):'';
+        } else {
+          document.getElementById('f-income-content').value=rec.expContent||'';
+        }
       }
     }
   } else {
