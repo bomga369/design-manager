@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725U">
+<meta name="app-version" content="20260725W">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5534,20 +5534,22 @@ function buildQuoteDriveUrl(q){
 // 這樣繞過了iOS獨立模式（加到主畫面）下系統分享功能會失效的問題。
 // 每行都帶通行證（而不是只在第一行），是為了讓捷徑那邊的「重複」可以直接處理整份清單，
 // 不用再挑第幾行到第幾行，避免清單長度不固定時範圍算錯出錯
-function downloadViaShortcut(urls){
+async function downloadViaShortcut(urls){
   if(!driveAccessToken){alert('請先完成雲端登入授權，再試一次下載');return;}
   if(!urls.length)return;
   const text=urls.map(u=>driveAccessToken+'||'+u).join('\n');
-  const shortcutUrl=`shortcuts://run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}`;
-  // 嘗試用隱藏iframe觸發捷徑，而不是讓整個畫面導向那個網址——
-  // 這樣理論上安盾畫面本身可以維持原地不動，捷徑執行完自己收掉後就直接看到還在原地的安盾，
-  // 不用「跳回來」。若這個方式無效（例如系統還是把畫面整個換掉），改回下面註解的直接導向方式即可
-  const iframe=document.createElement('iframe');
-  iframe.style.display='none';
-  iframe.src=shortcutUrl;
-  document.body.appendChild(iframe);
-  setTimeout(()=>{ if(iframe.parentNode)iframe.parentNode.removeChild(iframe); },2000);
-  // window.location.href=shortcutUrl; // 如果iframe方式無效，改用這行取代上面的iframe寫法
+  // 優先試試看「分享純文字」——這跟之前失敗的「分享圖片檔案」是不同的系統功能，限制可能沒那麼嚴格。
+  // 用分享清單去執行捷徑，比較像是疊一層選單上去，不是整個切換App，執行完理論上能直接回到原地，
+  // 不用像網址跳轉那樣需要手動點按鈕跳回來。如果這裡失敗，才退回下面確定可行的網址跳轉方式
+  try{
+    if(navigator.share){
+      await navigator.share({text});
+      return;
+    }
+  }catch(e){
+    if(e.name==='AbortError')return; // 使用者自己在分享清單按取消，不用再退回網址跳轉
+  }
+  window.location.href=`shortcuts://run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}`;
 }
 function downloadQuoteFile(id){
   const q=db.quotes.find(x=>x.id===id);if(!q)return;
