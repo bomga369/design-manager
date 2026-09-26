@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725Q">
+<meta name="app-version" content="20260725R">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5529,13 +5529,15 @@ const ANDUN_SHORTCUT_NAME='安盾存圖'; // 對應手機「捷徑」App裡設�
 function buildQuoteDriveUrl(q){
   return `https://www.googleapis.com/drive/v3/files/${q.driveId}?alt=media`;
 }
-// 透過捷徑下載：把通行證放第一行、圖片網址放後面每一行，一起傳給「安盾存圖」這個捷徑，
+// 透過捷徑下載：每一行都同時包含通行證跟網址（用||隔開），一起傳給「安盾存圖」這個捷徑，
 // 由捷徑自己去抓圖片、存到相片——不用自己在網頁裡抓資料再想辦法存檔，
-// 這樣繞過了iOS獨立模式（加到主畫面）下系統分享功能會失效的問題
+// 這樣繞過了iOS獨立模式（加到主畫面）下系統分享功能會失效的問題。
+// 每行都帶通行證（而不是只在第一行），是為了讓捷徑那邊的「重複」可以直接處理整份清單，
+// 不用再挑第幾行到第幾行，避免清單長度不固定時範圍算錯出錯
 function downloadViaShortcut(urls){
   if(!driveAccessToken){alert('請先完成雲端登入授權，再試一次下載');return;}
   if(!urls.length)return;
-  const text=[driveAccessToken,...urls].join('\n');
+  const text=urls.map(u=>driveAccessToken+'||'+u).join('\n');
   window.location.href=`shortcuts://run-shortcut?name=${encodeURIComponent(ANDUN_SHORTCUT_NAME)}&input=text&text=${encodeURIComponent(text)}`;
 }
 function downloadQuoteFile(id){
