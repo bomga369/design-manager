@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725X">
+<meta name="app-version" content="20260725Y">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3738,7 +3738,7 @@ function renderTodos(){
     const isSetupReminder=t.type==='設定提醒';
     const typeLabel=(NEG_STEPS.includes(t.type)||t.type==='丈量')?t.type:'';
     const label=isSetupReminder?`⚠️ ${t.text}．${t.projectName||''}`:(typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||''));
-    const shortDate=t.date.slice(5).replace('-','/'); // 不顯示年份，只顯示 月/日
+    const shortDate=fmtMDW(t.date+'T00:00:00'); // 加上星期，跟其他地方的日期格式一致
     const checkAction=isManual?`onclick="event.stopPropagation();deleteTodo('${t.id}')" style="cursor:pointer"`:'';
     const rowClick=isSetupReminder?`openDetail('${t.projectId}','dashboard');openConstructionSetup('${t.projectId}')`:`openTodoEdit('${t.id}')`;
     return`<div class="mat-item-wrap" data-key="${t.id}">
