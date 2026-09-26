@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725W">
+<meta name="app-version" content="20260725X">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4648,8 +4648,8 @@ function checkCalendarDeletedTodos(){
   })();
 }
 function cleanupExpiredTodos(){
-  // 隔天自動刪除：適用場勘、進場（跟日期綁定，但保留一整天讓你看得到）
-  // 簽約比較特別：時間一到就立即取消，不用等隔天（依照需求調整過）
+  // 隔天自動刪除：適用進場（跟日期綁定，但保留一整天讓你看得到）
+  // 場勘、簽約比較特別：時間一到就立即取消，不用等隔天
   // 手動建立的待辦不會自動過期，只能手動點方框圖示或左滑刪除
   // 「設定提醒」也不會因為日期到期，只有填完施工項目＋工程款期數才會自動消失
   if(!db.todos||!db.todos.length)return;
@@ -4658,8 +4658,8 @@ function cleanupExpiredTodos(){
   const cutoffStr=cutoff.toISOString().slice(0,10);
   const expired=db.todos.filter(t=>{
     if(t.type==='manual'||t.type==='設定提醒')return false;
-    if(t.type==='簽約')return new Date(t.date+'T'+(t.time||'00:00')+':00')<=now; // 時間一到立即取消
-    return t.date<cutoffStr; // 場勘、進場：維持隔天過期
+    if(t.type==='簽約'||t.type==='場勘')return new Date(t.date+'T'+(t.time||'00:00')+':00')<=now; // 時間一到立即取消
+    return t.date<cutoffStr; // 進場：維持隔天過期
   });
   if(!expired.length)return;
   const expiredIds=new Set(expired.map(t=>t.id));
