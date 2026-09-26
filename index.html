@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725I">
+<meta name="app-version" content="20260725J">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -115,6 +115,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .dot-circle{width:22px;height:22px;border-radius:50%;border:2px solid var(--bg3);background:var(--bg);transition:all 0.2s;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 .dot-circle.done{background:var(--green);border-color:var(--green);}
 .dot-circle.done::after{content:'';width:8px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(0,-1px);display:block;}
+.dot-circle.scheduled{background:var(--gold-bg);border-color:var(--gold);color:var(--gold);font-size:11px;}
 .dot-label{font-size:0.75rem;color:var(--text3);text-align:center;}
 .dot-label.done{color:var(--green);}
 .dot-time{font-size:0.5625rem;color:var(--green);text-align:center;line-height:1.3;min-height:12px;}
@@ -207,6 +208,9 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .file-row{display:flex;align-items:center;padding:0.875rem 1rem;border-bottom:0.5px solid var(--border);gap:0.75rem;}
 .file-row:last-child{border-bottom:none;}
 .file-icon{width:36px;height:36px;border-radius:var(--r);background:var(--blue-bg);display:flex;align-items:center;justify-content:center;color:var(--blue-text);font-size:1.125rem;flex-shrink:0;}
+.file-up-progress{display:flex;align-items:center;gap:3px;font-size:0.6875rem;color:var(--text3);white-space:nowrap;}
+.file-up-progress .ti-loader-2{animation:spin 0.8s linear infinite;color:var(--gold);}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 /* 人事 */
 .staff-card{background:var(--bg2);border-radius:var(--rl);padding:1rem;margin-bottom:0.75rem;cursor:pointer;}
 .staff-avatar{width:42px;height:42px;border-radius:50%;background:var(--blue-bg);display:flex;align-items:center;justify-content:center;font-size:1.125rem;color:var(--blue-text);flex-shrink:0;}
@@ -402,6 +406,7 @@ textarea.form-input{resize:none;min-height:72px;}
 
       <div id="punch-status" style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:0.75rem;"></div>
       <div class="stat-grid" id="dash-stats"></div>
+      <hr style="border:none;border-top:4px solid var(--divider-strong);margin:0.75rem 0 0.5rem;">
 
       <div class="section-hd dash-section-hd">洽談中</div>
       <div id="dash-negotiating"></div>
@@ -502,8 +507,9 @@ textarea.form-input{resize:none;min-height:72px;}
       <div class="quote-folder-tabs" id="quote-folder-tabs"></div>
       <div style="color:var(--text3);font-size:0.75rem;margin:-4px 0 10px;">長按資料夾可重新命名或刪除</div>
       <div class="flex-between" id="quote-normal-actions" style="margin-bottom:0.75rem;gap:0.5rem;">
-        <button class="btn btn-primary" style="flex:1;" onclick="pickQuoteFiles()"><i class="ti ti-upload"></i> 上傳報價單</button>
-        <button class="btn" style="flex:1;" onclick="enterQuoteSelectMode()"><i class="ti ti-square-check"></i> 選取</button>
+        <button class="btn btn-primary" style="flex:1;" onclick="pickQuoteFiles()"><i class="ti ti-upload"></i> 上傳圖片</button>
+        <button class="btn" style="flex:1;" onclick="openQuoteTextEditor()"><i class="ti ti-file-text"></i> 新增文件</button>
+        <button class="btn" onclick="enterQuoteSelectMode()"><i class="ti ti-square-check"></i> 選取</button>
       </div>
       <div class="flex-between" id="quote-select-actions" style="display:none;margin-bottom:0.75rem;">
         <span id="quote-select-count" style="font-size:0.875rem;color:var(--text3);">已選 0 張</span>
@@ -516,6 +522,16 @@ textarea.form-input{resize:none;min-height:72px;}
       <div style="color:var(--text3);font-size:0.75rem;text-align:center;margin-top:10px;">點縮圖右上角「⋮」可以重新命名、搬移資料夾或刪除</div>
     </div>
   </div>
+
+  <div class="sheet-overlay" id="sheet-quote-text">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">新增文件<button class="sheet-close" onclick="closeSheet('sheet-quote-text')"><i class="ti ti-x"></i></button></div>
+    <div class="form-group"><label class="form-label">標題</label><input class="form-input" id="quote-text-title" placeholder="例：追加項目說明" autocomplete="off"></div>
+    <div class="form-group"><label class="form-label">內容</label><textarea class="form-input" id="quote-text-body" placeholder="打字輸入內容，存檔時會自動排版轉成一張可列印的圖片" rows="10"></textarea></div>
+    <button class="btn btn-primary" id="quote-text-save-btn" style="width:100%;" onclick="saveQuoteTextAsImage()">存成報價單</button>
+  </div>
+</div>
 
   <div class="sheet-overlay" id="sheet-quote-move">
   <div class="sheet">
@@ -3494,10 +3510,18 @@ function dotHtml(p,clickable=false){
     if(times[i]){
       timeLabel=fmtMDW(times[i])+' '+times[i].slice(11,16);
     }
+    // 打勾的顯示邏輯：已設定但時間還沒到，顯示時鐘圖示；時間真的到了才打勾。
+    // 這裡只影響圓圈本身要顯示什麼圖示，不影響i<step這個判斷本身（標籤、連接線都還是照原本的negStep邏輯，完全沒變）
+    let circleClass='',circleIcon='';
+    if(i<step){
+      const hasArrived=!times[i]||new Date(times[i])<=new Date();
+      if(hasArrived){circleClass='done';}
+      else{circleClass='scheduled';circleIcon='<i class="ti ti-clock"></i>';}
+    }
     const clickAction=(clickable&&i>=step)?`openStepDatePicker('${p.id}',${i})`:(clickable?`setNegStep('${p.id}',${i+1})`:'');
     return`
     <div class="dot-step"${clickAction?` onclick="event.stopPropagation();${clickAction}" style="cursor:pointer"`:''}>
-      <div class="dot-circle ${i<step?'done':''}"></div>
+      <div class="dot-circle ${circleClass}">${circleIcon}</div>
       <div class="dot-label ${i<step?'done':''}">${s}</div>
       <div class="dot-time">${timeLabel}</div>
     </div>${i<NEG_STEPS.length-1?`<div class="dot-line ${i<step?'done':''}"></div>`:''}`;}).join('');
@@ -4271,11 +4295,15 @@ function renderDetail(pid){
   }
   const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
     <div class="card">
-      ${p.fileCats.map(cat=>{
+      ${p.fileCats.map((cat,idx)=>{
+        const progId=`file-up-prog-${pid}-${idx}`;
         return`<div class="file-row">
           <div class="file-icon"><i class="ti ti-folder"></i></div>
           <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}</div></div>
-          <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}')"><i class="ti ti-upload"></i> 上傳</button>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}','${progId}')"><i class="ti ti-upload"></i> 上傳</button>
+            <div class="file-up-progress" id="${progId}" style="display:none;"></div>
+          </div>
           <button class="btn btn-sm btn-ghost" onclick="openDriveFolder('${pid}','${cat}')"><i class="ti ti-external-link"></i></button>
         </div>`;}).join('')}
     </div>`;
@@ -5306,6 +5334,85 @@ function closeQuotePreview(){
 function downloadCurrentPreviewQuote(){
   if(currentPreviewQuoteId)downloadQuoteFile(currentPreviewQuoteId);
 }
+function openQuoteTextEditor(){
+  document.getElementById('quote-text-title').value='';
+  document.getElementById('quote-text-body').value='';
+  openSheet('sheet-quote-text');
+}
+async function saveQuoteTextAsImage(){
+  const title=document.getElementById('quote-text-title').value.trim();
+  const body=document.getElementById('quote-text-body').value;
+  if(!title&&!body.trim())return alert('請至少輸入標題或內容');
+  const saveBtn=document.getElementById('quote-text-save-btn');
+  saveBtn.disabled=true;saveBtn.textContent='處理中...';
+  try{
+    const width=800,marginX=56;
+    const titleFontSize=34,bodyFontSize=24,lineHeight=36;
+    const maxTextWidth=width-marginX*2;
+    const measureCanvas=document.createElement('canvas');
+    const mctx=measureCanvas.getContext('2d');
+    function wrapText(text,font){
+      mctx.font=font;
+      const paragraphs=text.split('\n');
+      const lines=[];
+      paragraphs.forEach(para=>{
+        if(!para){lines.push('');return;}
+        let currentLine='';
+        for(const ch of para){
+          const testLine=currentLine+ch;
+          if(mctx.measureText(testLine).width>maxTextWidth&&currentLine){
+            lines.push(currentLine);currentLine=ch;
+          } else { currentLine=testLine; }
+        }
+        if(currentLine)lines.push(currentLine);
+      });
+      return lines;
+    }
+    const bodyLines=wrapText(body,`${bodyFontSize}px sans-serif`);
+    const titleLines=title?wrapText(title,`bold ${titleFontSize}px sans-serif`):[];
+    const topMargin=60,bottomMargin=60;
+    const titleBlockHeight=title?(titleLines.length*(titleFontSize+10)+40):0; // 標題高度＋跟內容之間的分隔線間距
+    const bodyBlockHeight=bodyLines.length*lineHeight;
+    const totalHeight=Math.max(topMargin+titleBlockHeight+bodyBlockHeight+bottomMargin,400);
+    const canvas=document.createElement('canvas');
+    canvas.width=width;canvas.height=totalHeight;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#1a1a1a';ctx.textBaseline='top';
+    let y=topMargin;
+    if(title){
+      ctx.font=`bold ${titleFontSize}px sans-serif`;
+      titleLines.forEach(line=>{ ctx.fillText(line,marginX,y); y+=titleFontSize+10; });
+      y+=20;
+      ctx.strokeStyle='#ccc';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(marginX,y);ctx.lineTo(width-marginX,y);ctx.stroke();
+      y+=20;
+    }
+    ctx.font=`${bodyFontSize}px sans-serif`;
+    bodyLines.forEach(line=>{ ctx.fillText(line,marginX,y); y+=lineHeight; });
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+    const fileName=(title||'文字報價單_'+today())+'.png';
+    const file=new File([blob],fileName,{type:'image/png'});
+    ensureDriveAuth(()=>{
+      (async()=>{
+        let folderId;
+        try{ folderId=await ensureQuotesFolderId(); }
+        catch(e){ alert('建立資料夾發生錯誤：'+e.message); saveBtn.disabled=false;saveBtn.textContent='存成報價單';return; }
+        const ok=await uploadOneQuoteFile(folderId,file);
+        saveBtn.disabled=false;saveBtn.textContent='存成報價單';
+        if(ok){
+          save();
+          if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
+          closeSheet('sheet-quote-text');
+          renderQuotes();
+        }
+      })();
+    });
+  }catch(e){
+    alert('處理發生錯誤：'+e.message);
+    saveBtn.disabled=false;saveBtn.textContent='存成報價單';
+  }
+}
 function pickQuoteFiles(){
   ensureDriveAuth(()=>{
     const input=document.createElement('input');
@@ -5424,7 +5531,6 @@ function updateQuoteSelectBar(){
 function downloadSelectedQuotes(){
   const picked=db.quotes.filter(q=>selectedQuoteIds.has(q.id));
   if(!picked.length)return;
-  if(!confirm(`確定要下載選取的 ${picked.length} 張報價單嗎？（瀏覽器會依序跳出多個下載）`))return;
   ensureDriveAuth(async()=>{
     for(const q of picked){
       try{ await downloadQuoteBlob(q); }catch(e){ console.error('下載失敗',q.name,e); }
@@ -5661,7 +5767,7 @@ function openDriveFolder(pid,cat){
   });
 }
 
-function pickDriveFile(pid,cat){
+function pickDriveFile(pid,cat,progId){
   ensureDriveAuth(()=>{
     const input=document.createElement('input');
     input.type='file';
@@ -5670,22 +5776,32 @@ function pickDriveFile(pid,cat){
       const fileList=Array.from(input.files);
       if(!fileList.length)return;
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
+      const progEl=progId?document.getElementById(progId):null;
+      const total=fileList.length;
+      const updateProgress=(done)=>{
+        if(!progEl)return;
+        progEl.style.display='flex';
+        progEl.innerHTML=`<i class="ti ti-loader-2"></i>${String(done).padStart(2,'0')}/${String(total).padStart(2,'0')}`;
+      };
+      updateProgress(0);
       // 先確認資料夾路徑（若Drive被清空，會自動清除p.files舊記錄）—只確認這一次，folderId後面重複使用
       let folderId;
-      try{ folderId=await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); return; }
+      try{ folderId=await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); if(progEl)progEl.style.display='none'; return; }
       // 確認後再檢查重複（此時p.files已是最新狀態）
       const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
       const duplicates=fileList.filter(f=>existingNames.includes(f.name));
       if(duplicates.length){
         const names=duplicates.map(f=>f.name).join('、');
-        if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`))return;
+        if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`)){if(progEl)progEl.style.display='none';return;}
       }
       let successCount=0;
       for(const file of fileList){
         const ok=await uploadOneFile(p,cat,file,folderId);
         if(ok)successCount++;
+        updateProgress(successCount);
       }
       save();if(window.fbSaveProject)window.fbSaveProject(p);
+      if(progEl)progEl.style.display='none';
       if(successCount>0)alert(`✅ 已成功上傳 ${successCount} 個檔案到「${cat}」資料夾`);
       renderDetail(pid);
     };
