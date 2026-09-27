@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607270">
+<meta name="app-version" content="202607271">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -5976,7 +5976,23 @@ async function ensureProjectFolderPath(p,cat){
     projId=await findOrCreateFolderShared(projName,cityId);
     p.driveProjectFolderId=projId;
   }
-  const catId=await findOrCreateFolderShared(cat,projId);
+  let catId;
+  try{
+    catId=await findOrCreateFolderShared(cat,projId);
+  }catch(e){
+    // 記住的專案資料夾ID可能已經失效了（例如直接在雲端網頁把資料夾永久刪除，不是丟進垃圾桶而已）——
+    // 這種情況下Google會回報「找不到」，這裡自動偵測、清掉舊記錄跟快取，改用名稱重新搜尋或建立一個新的，
+    // 再重試一次，不用每次都要手動介入清除記錄
+    if(/File not found|notFound/i.test(e.message||'')){
+      delete sessionFolderCache[`${projId}|${cat}`];
+      const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
+      const newProjId=await findOrCreateFolderShared(projName,cityId);
+      p.driveProjectFolderId=newProjId;
+      catId=await findOrCreateFolderShared(cat,newProjId);
+    } else {
+      throw e;
+    }
+  }
   // 如果這個分類的資料夾是新建的，清除舊的上傳記錄（Drive被清空的情況）
   if(p.driveFolders[cat]&&p.driveFolders[cat]!==catId){
     if(!p.files)p.files={};
