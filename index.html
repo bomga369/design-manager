@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607272">
+<meta name="app-version" content="202607273">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6210,13 +6210,16 @@ function askDuplicateFilesChoice(duplicates){
   });
 }
 function pickDriveFile(pid,cat,progId){
-  ensureDriveAuth(()=>{
-    const input=document.createElement('input');
-    input.type='file';
-    input.multiple=true;
-    input.onchange=async()=>{
-      const fileList=Array.from(input.files);
-      if(!fileList.length)return;
+  // 開啟檔案選擇器這個動作，一定要跟使用者點擊「上傳」的當下同步執行，不能等授權流程（可能是非同步的
+  // 背景OAuth）跑完才觸發——不然手機瀏覽器會因為已經脫離原始點擊手勢，靜默擋下檔案選擇器、完全沒有反應。
+  // 所以先開檔案選擇器，等使用者選好檔案之後，才在onchange裡確認授權是否有效
+  const input=document.createElement('input');
+  input.type='file';
+  input.multiple=true;
+  input.onchange=async()=>{
+    const fileList=Array.from(input.files);
+    if(!fileList.length)return;
+    ensureDriveAuth(async()=>{
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
       const total=fileList.length;
       // 進度狀態存在全域變數裡，不只是操作DOM——這樣即使上傳過程中畫面被即時同步重新渲染，
@@ -6261,9 +6264,9 @@ function pickDriveFile(pid,cat,progId){
       clearProgress();
       if(successCount>0)alert(`✅ 已成功上傳 ${successCount} 個檔案到「${cat}」資料夾`);
       renderDetail(pid);
-    };
-    input.click();
-  });
+    });
+  };
+  input.click();
 }
 
 async function uploadOneFile(p,cat,file,folderId){
