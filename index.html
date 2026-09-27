@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607267">
+<meta name="app-version" content="202607268">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4365,7 +4365,8 @@ function renderDetail(pid){
       if(folderId)reconcileFileCatCount(pid,cat);
     });
   }
-  const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
+  const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem;margin-right:10px" onclick="manualSyncDriveFolders('${pid}')">同步雲端</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
+    <div id="drive-sync-diag-${pid}" style="display:none;font-size:0.75rem;color:var(--text3);padding:0 4px 8px;white-space:pre-wrap;"></div>
     <div class="card">
       ${p.fileCats.map((cat,idx)=>{
         const progId=`file-up-prog-${pid}-${idx}`;
@@ -5961,6 +5962,80 @@ async function ensureProjectFolderPath(p,cat){
   return catId;
 }
 
+// 手動同步診斷：不受節流限制，依序執行每一步並把結果直接顯示在畫面上，方便找出到底卡在哪一步
+async function manualSyncDriveFolders(pid){
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  const diagEl=document.getElementById(`drive-sync-diag-${pid}`);
+  if(!diagEl)return;
+  diagEl.style.display='block';
+  const log=(text)=>{diagEl.textContent+=(diagEl.textContent?'\n':'')+text;};
+  diagEl.textContent='';
+  log('開始同步...');
+  ensureDriveAuth(async()=>{
+    try{
+      const cityName=p.city||'未分類';
+      log(`搜尋城市資料夾：「${cityName}」`);
+      const cityId=await findFolderOnly(cityName,SHARED_ROOT_FOLDER_ID);
+      if(!cityId){
+        log(`❌ 雲端「工程管理系統」資料夾底下，找不到名為「${cityName}」的資料夾。\n請確認雲端實際的資料夾名稱，是否跟這裡完全一致（含空格、全半形）。`);
+        return;
+      }
+      log(`✅ 找到城市資料夾`);
+      const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
+      log(`搜尋專案資料夾：「${projName}」`);
+      const rootId=await findFolderOnly(projName,cityId);
+      if(!rootId){
+        log(`❌ 在「${cityName}」底下，找不到名為「${projName}」的資料夾。\n請確認雲端實際的專案資料夾名稱，是否跟這裡完全一致（含空格、全半形、「-」符號）。`);
+        return;
+      }
+      log(`✅ 找到專案資料夾`);
+      p.driveProjectFolderId=rootId;
+      save();if(window.fbSaveProject)window.fbSaveProject(p);
+      const q=`'${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+      const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
+      const res=await driveApiFetch(url);
+      const data=await res.json();
+      if(!data.files||!data.files.length){
+        log('⚠️ 專案資料夾底下沒有偵測到任何子資料夾。');
+        return;
+      }
+      log(`✅ 偵測到 ${data.files.length} 個子資料夾：${data.files.map(f=>f.name).join('、')}`);
+      if(!p.driveFolders)p.driveFolders={};
+      if(!p.fileCats)p.fileCats=[];
+      let changed=false;
+      data.files.forEach(folder=>{
+        if(!p.fileCats.includes(folder.name)){p.fileCats.push(folder.name);changed=true;}
+        if(p.driveFolders[folder.name]!==folder.id){
+          p.driveFolders[folder.name]=folder.id;changed=true;
+          delete reconciledFileCatsAt[`${pid}|${folder.name}`];
+        }
+      });
+      if(changed){save();if(window.fbSaveProject)window.fbSaveProject(p);}
+      log('正在查詢各分類的檔案數量...');
+      for(const cat of p.fileCats){
+        const folderId=p.driveFolders[cat];
+        if(!folderId)continue;
+        try{
+          const fq=`'${folderId}' in parents and trashed=false`;
+          const fUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(fq)}&fields=files(id,name)`;
+          const fRes=await driveApiFetch(fUrl);
+          const fData=await fRes.json();
+          const newFiles=(fData.files||[]).map(f=>({name:f.name,driveId:f.id}));
+          if(!p.files)p.files={};
+          p.files[cat]=newFiles;
+          reconciledFileCatsAt[`${pid}|${cat}`]=Date.now();
+          log(`　${cat}：${newFiles.length} 筆`);
+        }catch(e){ log(`　${cat}：查詢失敗（${e.message||e}）`); }
+      }
+      save();if(window.fbSaveProject)window.fbSaveProject(p);
+      log('✅ 同步完成');
+      if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid);
+    }catch(e){
+      log('❌ 發生錯誤：'+(e.message||e));
+      console.error('手動同步失敗',e);
+    }
+  });
+}
 const discoveredFoldersAt={}; // 記錄每個專案上次偵測雲端子資料夾結構的時間戳記，節流用
 async function discoverDriveSubfolders(pid){
   const lastAt=discoveredFoldersAt[pid]||0;
