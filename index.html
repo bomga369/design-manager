@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607279">
+<meta name="app-version" content="202607280">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6158,11 +6158,21 @@ async function reconcileFileCatCount(pid,cat){
     try{
       const q=`'${folderId}' in parents and trashed=false`;
       const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
-      const res=await driveApiFetch(url);
-      const data=await res.json();
-      if(!data.files||!data.files.length)return; // 雲端也真的是空的，不用補（保留這個保護，避免雲端剛上傳、索引還沒跟上時，誤把本機正確的記錄清空）
+      const queryOnce=async()=>{
+        const res=await driveApiFetch(url);
+        const data=await res.json();
+        return data.files||[];
+      };
+      let driveFiles=await queryOnce();
+      if(!driveFiles.length){
+        // 第一次查到空的，可能只是雲端剛索引還沒跟上（暫時性狀況）——不要馬上相信，
+        // 等5秒後再查一次確認；如果第二次也還是空的，才真正相信是「雲端上真的被清空了」
+        // （例如使用者自己在雲端刪除），這時候才會回填成0筆，不會再永遠卡在舊數字
+        await new Promise(r=>setTimeout(r,5000));
+        driveFiles=await queryOnce();
+      }
       if(!p.files)p.files={};
-      const newFiles=data.files.map(f=>({name:f.name,driveId:f.id}));
+      const newFiles=driveFiles.map(f=>({name:f.name,driveId:f.id}));
       const oldFiles=p.files[cat]||[];
       // 內容相同就不用重複存檔、重複渲染，避免每次都無謂地觸發畫面更新
       const same=oldFiles.length===newFiles.length&&oldFiles.every(f=>newFiles.some(nf=>nf.driveId===f.driveId));
