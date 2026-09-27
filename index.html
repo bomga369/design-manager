@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607261">
+<meta name="app-version" content="202607262">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4350,6 +4350,7 @@ function renderDetail(pid){
   // 對帳：只要這個分類確實建立過雲端資料夾，就主動向雲端查詢真正的檔案清單、跟本機記錄比對更新——
   // 不再只限於「本機記錄是空的」才對帳，這樣就算本機已經有記錄、但跟雲端實際狀況兜不起來
   // （例如直接在雲端網頁手動加減過檔案），也能確實反映雲端的真實數量，不會停留在過時的數字
+  discoverDriveSubfolders(pid); // 先偵測雲端底下實際有哪些資料夾，把安盾完全不知道的資料夾（例如直接在雲端網頁建立的）補進分類清單
   if(p.driveFolders){
     p.fileCats.forEach(cat=>{
       const folderId=p.driveFolders[cat];
@@ -5848,6 +5849,42 @@ async function ensureProjectFolderPath(p,cat){
   return catId;
 }
 
+const discoveredFoldersAt={}; // 記錄每個專案上次偵測雲端子資料夾結構的時間戳記，節流用
+async function discoverDriveSubfolders(pid){
+  const lastAt=discoveredFoldersAt[pid]||0;
+  if(Date.now()-lastAt<2*60*1000)return; // 2分鐘內偵測過就先跳過
+  discoveredFoldersAt[pid]=Date.now();
+  const p=db.projects.find(x=>x.id===pid);if(!p)return;
+  const rootId=p.driveProjectFolderId;
+  if(!rootId)return; // 這個專案還沒有任何雲端資料夾記錄可以當起點，等之後有上傳過一次就會有了
+  ensureDriveAuth(async()=>{
+    try{
+      const q=`'${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+      const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
+      const res=await driveApiFetch(url);
+      const data=await res.json();
+      if(!data.files)return;
+      let changed=false;
+      if(!p.driveFolders)p.driveFolders={};
+      if(!p.fileCats)p.fileCats=[];
+      data.files.forEach(folder=>{
+        // 雲端確實有這個資料夾，但安盾分類清單裡沒有——用雲端的名稱為準補進來
+        if(!p.fileCats.includes(folder.name)){
+          p.fileCats.push(folder.name);
+          changed=true;
+        }
+        if(p.driveFolders[folder.name]!==folder.id){
+          p.driveFolders[folder.name]=folder.id;
+          changed=true;
+        }
+      });
+      if(changed){
+        save();if(window.fbSaveProject)window.fbSaveProject(p);
+        if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid);
+      }
+    }catch(e){ console.error('偵測雲端子資料夾失敗',e); }
+  });
+}
 const reconciledFileCatsAt={}; // 記錄「專案id-分類」組合上次對帳的時間戳記，節流用（避免短時間內對同一個分類反覆查詢）
 async function reconcileFileCatCount(pid,cat){
   const key=`${pid}|${cat}`;
@@ -5926,8 +5963,10 @@ function pickDriveFile(pid,cat,progId){
       const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
       const duplicates=fileList.filter(f=>existingNames.includes(f.name));
       if(duplicates.length){
-        const names=duplicates.map(f=>f.name).join('、');
-        if(!confirm(`以下檔案已上傳過：\n${names}\n\n確定要重複上傳嗎？`)){clearProgress();return;}
+        // 重複數量很多時，只列出前10個名稱、其餘用「還有N個」概括，避免確認視窗文字過長在手機上顯示異常
+        const shown=duplicates.slice(0,10).map(f=>f.name).join('、');
+        const names=duplicates.length>10?`${shown}\n（還有 ${duplicates.length-10} 個）`:shown;
+        if(!confirm(`以下檔案已上傳過（共 ${duplicates.length} 個）：\n${names}\n\n確定要重複上傳嗎？`)){clearProgress();return;}
       }
       let successCount=0;
       for(const file of fileList){
