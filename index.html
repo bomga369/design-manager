@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607263">
+<meta name="app-version" content="202607264">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -173,7 +173,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .date-card-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer;}
 .quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
-.quote-tile.dragging{opacity:0.6;transform:scale(1.06);box-shadow:0 8px 20px rgba(0,0,0,0.3);z-index:5;}
+.quote-tile.dragging{opacity:0.85;box-shadow:0 8px 20px rgba(0,0,0,0.3);z-index:5;position:relative;}
 .quote-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:1.75rem;}
 .quote-thumb-img{width:100%;height:100%;object-fit:cover;display:block;}
 .quote-tile-name{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;font-size:0.6875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -5332,7 +5332,7 @@ function attachQuoteTileEvents(){
 function attachQuoteGridDrag(){
   const grid=document.querySelector('#quotes-list .quote-grid');if(!grid)return;
   grid.querySelectorAll('.quote-tile').forEach(tile=>{
-    let longTimer=null,dragging=false,startX=0,startY=0;
+    let longTimer=null,dragging=false,startX=0,startY=0,rafId=null;
     tile.addEventListener('touchstart',e=>{
       startX=e.touches[0].clientX;startY=e.touches[0].clientY;
       longTimer=setTimeout(()=>{
@@ -5349,25 +5349,52 @@ function attachQuoteGridDrag(){
       }
       e.preventDefault();
       const t=e.touches[0];
-      const tiles=Array.from(grid.querySelectorAll('.quote-tile'));
-      let closest=null,minDist=Infinity;
-      tiles.forEach(el=>{
-        if(el===tile)return;
-        const r=el.getBoundingClientRect();
-        const dist=Math.hypot(t.clientX-(r.left+r.width/2),t.clientY-(r.top+r.height/2));
-        if(dist<minDist){minDist=dist;closest=el;}
+      if(rafId)return; // 節流：一個畫面更新週期只處理一次，避免觸控事件觸發過於頻繁造成畫面抖動
+      rafId=requestAnimationFrame(()=>{
+        rafId=null;
+        const tiles=Array.from(grid.querySelectorAll('.quote-tile'));
+        const srcIdx=tiles.indexOf(tile);
+        // 用「手指目前座標是否落在某個格子的矩形範圍內」判斷要不要交換，而不是算最近距離——
+        // 距離判斷在格子交界處容易來回震盪，範圍判斷比較穩定
+        const target=tiles.find(el=>{
+          if(el===tile)return false;
+          const r=el.getBoundingClientRect();
+          return t.clientX>=r.left&&t.clientX<=r.right&&t.clientY>=r.top&&t.clientY<=r.bottom;
+        });
+        if(target){
+          const targetIdx=tiles.indexOf(target);
+          if(targetIdx!==srcIdx){
+            const beforeRect=target.getBoundingClientRect();
+            if(srcIdx<targetIdx)grid.insertBefore(tile,target.nextSibling);
+            else grid.insertBefore(tile,target);
+            // 被交換位置的磚塊，從舊位置平滑滑到新位置（FLIP技巧），不要瞬間跳過去
+            const afterRect=target.getBoundingClientRect();
+            target.style.transition='none';
+            target.style.transform=`translate(${beforeRect.left-afterRect.left}px,${beforeRect.top-afterRect.top}px)`;
+            requestAnimationFrame(()=>{
+              target.style.transition='transform 0.2s ease';
+              target.style.transform='';
+            });
+          }
+        }
+        // 不管有沒有交換，都重新用「拿掉位移後的實際佈局位置」跟手指目前絕對座標的差，算出正確的跟手位移量——
+        // 這樣就算DOM順序中途改變，拖曳中的磚塊也會持續正確跟著手指，不會跳掉
+        tile.style.transition='none';
+        tile.style.transform='';
+        const baseRect=tile.getBoundingClientRect();
+        const offsetX=t.clientX-(baseRect.left+baseRect.width/2);
+        const offsetY=t.clientY-(baseRect.top+baseRect.height/2);
+        tile.style.transform=`translate(${offsetX}px,${offsetY}px) scale(1.06)`;
       });
-      if(closest){
-        const srcIdx=tiles.indexOf(tile),closestIdx=tiles.indexOf(closest);
-        if(srcIdx<closestIdx)grid.insertBefore(tile,closest.nextSibling);
-        else grid.insertBefore(tile,closest);
-      }
     },{passive:false});
     tile.addEventListener('touchend',()=>{
       clearTimeout(longTimer);
+      if(rafId){cancelAnimationFrame(rafId);rafId=null;}
       if(dragging){
         dragging=false;
         tile.classList.remove('dragging');
+        tile.style.transition='transform 0.15s ease';
+        tile.style.transform='';
         const newOrderIds=Array.from(grid.querySelectorAll('.quote-tile')).map(el=>el.getAttribute('data-qid'));
         reorderQuotesInFolder(newOrderIds);
       }
@@ -5913,10 +5940,19 @@ async function discoverDriveSubfolders(pid){
   if(Date.now()-lastAt<2*60*1000)return; // 2分鐘內偵測過就先跳過
   discoveredFoldersAt[pid]=Date.now();
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
-  const rootId=p.driveProjectFolderId;
-  if(!rootId)return; // 這個專案還沒有任何雲端資料夾記錄可以當起點，等之後有上傳過一次就會有了
   ensureDriveAuth(async()=>{
     try{
+      let rootId=p.driveProjectFolderId;
+      if(!rootId){
+        // 還沒有記錄過這個專案的雲端根資料夾ID（代表從來沒透過安盾成功上傳過任何檔案，
+        // 例如牛津villa3的資料夾是直接在雲端網頁建立的）——用跟ensureProjectFolderPath一樣的方式，
+        // 依名稱搜尋出來並記錄下來，不能因為沒有現成記錄就放棄偵測
+        const cityId=await findOrCreateFolderShared(p.city||'未分類',SHARED_ROOT_FOLDER_ID);
+        const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
+        rootId=await findOrCreateFolderShared(projName,cityId);
+        p.driveProjectFolderId=rootId;
+        save();if(window.fbSaveProject)window.fbSaveProject(p);
+      }
       const q=`'${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
       const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
       const res=await driveApiFetch(url);
