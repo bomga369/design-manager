@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607271">
+<meta name="app-version" content="202607272">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -541,6 +541,22 @@ textarea.form-input{resize:none;min-height:72px;}
     <div class="sheet-handle"></div>
     <div class="sheet-title" style="margin-bottom:1rem;"><span id="quote-move-title">移動報價單</span><button class="sheet-close" onclick="closeQuoteMoveSheet()"><i class="ti ti-x"></i></button></div>
     <div id="quote-move-folder-list" style="padding-bottom:1rem;"></div>
+  </div>
+</div>
+
+  <div class="sheet-overlay" id="sheet-dup-files">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" style="margin-bottom:0.5rem;">發現重複檔案<button class="sheet-close"><i class="ti ti-x"></i></button></div>
+    <div class="text-xs text-muted" style="padding:0 4px 0.75rem;">以下 <span id="dup-files-count">0</span> 個檔案已經上傳過，勾選要一併重複上傳的項目；沒勾選的會跳過，其餘不重複的檔案照常上傳</div>
+    <div style="display:flex;gap:8px;padding:0 4px 0.75rem;">
+      <button class="btn btn-sm" style="flex:1" onclick="document.querySelectorAll('.dup-file-cb').forEach(cb=>cb.checked=true)">全選</button>
+      <button class="btn btn-sm" style="flex:1" onclick="document.querySelectorAll('.dup-file-cb').forEach(cb=>cb.checked=false)">全不選</button>
+    </div>
+    <div id="dup-files-list" style="max-height:40vh;overflow-y:auto;padding-bottom:0.5rem;"></div>
+    <div style="display:flex;gap:8px;padding-top:0.5rem;">
+      <button class="btn btn-primary" style="flex:1" id="dup-files-confirm-btn">確認，上傳</button>
+    </div>
   </div>
 </div>
 
@@ -4410,8 +4426,6 @@ function renderDetail(pid){
     ${filesHtml}
     ${efficiencyHtml}
     <button class="btn btn-danger" style="width:100%;margin-top:1rem;margin-bottom:2rem" onclick="deleteProject('${pid}')"><i class="ti ti-trash"></i> 刪除此專案</button>`;
-  const scrollAreaEl=document.querySelector('.scroll-area');
-  if(scrollAreaEl)scrollAreaEl.scrollTop=0;
 }
 
 // ── 洽談相關 ──
@@ -6160,6 +6174,41 @@ function openDriveFolder(pid,cat){
   });
 }
 
+// 顯示重複檔案選擇彈窗，回傳Promise：使用者按「確認，上傳」→ resolve目前勾選要一併上傳的重複檔案名稱陣列（可能是空陣列，代表全部跳過重複的）；
+// 使用者點X或背景關閉 → resolve null，代表使用者要完全取消這次上傳（連不重複的部分也不傳，保留原本「取消=全部不傳」的選項）
+function askDuplicateFilesChoice(duplicates){
+  return new Promise(resolve=>{
+    const listEl=document.getElementById('dup-files-list');
+    listEl.innerHTML=duplicates.map(f=>`
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);">
+        <input type="checkbox" class="dup-file-cb" data-name="${f.name.replace(/"/g,'&quot;')}" style="width:20px;height:20px;flex-shrink:0;">
+        <span style="flex:1;font-size:14px;word-break:break-all;">${f.name}</span>
+      </label>`).join('');
+    document.getElementById('dup-files-count').textContent=duplicates.length;
+    let settled=false;
+    const confirmBtn=document.getElementById('dup-files-confirm-btn');
+    const finish=(val)=>{
+      if(settled)return;
+      settled=true;
+      confirmBtn.onclick=null;
+      overlayEl.removeEventListener('click',onOverlayClick);
+      closeSheet('sheet-dup-files');
+      resolve(val);
+    };
+    confirmBtn.onclick=()=>{
+      const checked=Array.from(document.querySelectorAll('.dup-file-cb:checked')).map(cb=>cb.getAttribute('data-name'));
+      finish(checked);
+    };
+    const overlayEl=document.getElementById('sheet-dup-files');
+    // 點X（sheet-close按鈕本身走closeSheet，這裡額外攔截背景點擊跟X），視為完全取消整個上傳
+    const closeBtn=overlayEl.querySelector('.sheet-close');
+    const onCloseBtnClick=()=>finish(null);
+    closeBtn.addEventListener('click',onCloseBtnClick,{once:true});
+    const onOverlayClick=(e)=>{if(e.target===overlayEl)finish(null);};
+    overlayEl.addEventListener('click',onOverlayClick);
+    openSheet('sheet-dup-files');
+  });
+}
 function pickDriveFile(pid,cat,progId){
   ensureDriveAuth(()=>{
     const input=document.createElement('input');
@@ -6192,14 +6241,18 @@ function pickDriveFile(pid,cat,progId){
       // 確認後再檢查重複（此時p.files已是最新狀態）
       const existingNames=(p.files&&p.files[cat]||[]).map(f=>f.name);
       const duplicates=fileList.filter(f=>existingNames.includes(f.name));
+      let filesToUpload=fileList;
       if(duplicates.length){
-        // 重複數量很多時，只列出前10個名稱、其餘用「還有N個」概括，避免確認視窗文字過長在手機上顯示異常
-        const shown=duplicates.slice(0,10).map(f=>f.name).join('、');
-        const names=duplicates.length>10?`${shown}\n（還有 ${duplicates.length-10} 個）`:shown;
-        if(!confirm(`以下檔案已上傳過（共 ${duplicates.length} 個）：\n${names}\n\n確定要重複上傳嗎？`)){clearProgress();return;}
+        const chosenNames=await askDuplicateFilesChoice(duplicates);
+        if(chosenNames===null){clearProgress();return;} // 使用者直接關閉彈窗，視為完全取消這次上傳
+        const dupNameSet=new Set(duplicates.map(f=>f.name));
+        const chosenSet=new Set(chosenNames);
+        // 不重複的檔案一律保留照常上傳；重複的檔案，只保留使用者有勾選要一併上傳的
+        filesToUpload=fileList.filter(f=>!dupNameSet.has(f.name)||chosenSet.has(f.name));
+        if(!filesToUpload.length){clearProgress();return;} // 全部跳過了，沒有東西要上傳
       }
       let successCount=0;
-      for(const file of fileList){
+      for(const file of filesToUpload){
         const ok=await uploadOneFile(p,cat,file,folderId);
         if(ok)successCount++;
         updateProgress(successCount);
