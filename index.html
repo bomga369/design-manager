@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607262">
+<meta name="app-version" content="202607263">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -173,6 +173,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .date-card-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer;}
 .quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
+.quote-tile.dragging{opacity:0.6;transform:scale(1.06);box-shadow:0 8px 20px rgba(0,0,0,0.3);z-index:5;}
 .quote-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:1.75rem;}
 .quote-thumb-img{width:100%;height:100%;object-fit:cover;display:block;}
 .quote-tile-name{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.65));color:#fff;font-size:0.6875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -519,7 +520,7 @@ textarea.form-input{resize:none;min-height:72px;}
         </div>
       </div>
       <div id="quotes-list"></div>
-      <div style="color:var(--text3);font-size:0.75rem;text-align:center;margin-top:10px;">點縮圖右上角「⋮」可以重新命名、搬移資料夾或刪除</div>
+      <div style="color:var(--text3);font-size:0.75rem;text-align:center;margin-top:10px;">點縮圖右上角鉛筆可以重新命名；長按縮圖可以拖曳調整順序</div>
     </div>
   </div>
 
@@ -5325,6 +5326,63 @@ function attachQuoteTileEvents(){
       else{openQuotePreview(id);}
     });
   });
+  if(!quoteSelectMode)attachQuoteGridDrag(); // 選取模式下不啟用拖曳，避免跟勾選手勢衝突
+}
+// 長按縮圖拖曳排序：網格佈局跟一般直向清單不一樣，改用「離手指最近的格子」判斷要插到哪個位置
+function attachQuoteGridDrag(){
+  const grid=document.querySelector('#quotes-list .quote-grid');if(!grid)return;
+  grid.querySelectorAll('.quote-tile').forEach(tile=>{
+    let longTimer=null,dragging=false,startX=0,startY=0;
+    tile.addEventListener('touchstart',e=>{
+      startX=e.touches[0].clientX;startY=e.touches[0].clientY;
+      longTimer=setTimeout(()=>{
+        if(navigator.vibrate)navigator.vibrate(30);
+        dragging=true;
+        tile.classList.add('dragging');
+      },500);
+    },{passive:true});
+    tile.addEventListener('touchmove',e=>{
+      if(!dragging){
+        const dx=Math.abs(e.touches[0].clientX-startX),dy=Math.abs(e.touches[0].clientY-startY);
+        if(dx>10||dy>10)clearTimeout(longTimer); // 手指滑動視為捲動，取消長按判定
+        return;
+      }
+      e.preventDefault();
+      const t=e.touches[0];
+      const tiles=Array.from(grid.querySelectorAll('.quote-tile'));
+      let closest=null,minDist=Infinity;
+      tiles.forEach(el=>{
+        if(el===tile)return;
+        const r=el.getBoundingClientRect();
+        const dist=Math.hypot(t.clientX-(r.left+r.width/2),t.clientY-(r.top+r.height/2));
+        if(dist<minDist){minDist=dist;closest=el;}
+      });
+      if(closest){
+        const srcIdx=tiles.indexOf(tile),closestIdx=tiles.indexOf(closest);
+        if(srcIdx<closestIdx)grid.insertBefore(tile,closest.nextSibling);
+        else grid.insertBefore(tile,closest);
+      }
+    },{passive:false});
+    tile.addEventListener('touchend',()=>{
+      clearTimeout(longTimer);
+      if(dragging){
+        dragging=false;
+        tile.classList.remove('dragging');
+        const newOrderIds=Array.from(grid.querySelectorAll('.quote-tile')).map(el=>el.getAttribute('data-qid'));
+        reorderQuotesInFolder(newOrderIds);
+      }
+    });
+  });
+}
+// 依照畫面上新的順序，重新排列db.quotes裡屬於目前這個資料夾的項目（其他資料夾的項目位置不受影響）
+function reorderQuotesInFolder(orderedIds){
+  const idToQuote={};
+  db.quotes.forEach(q=>{idToQuote[q.id]=q;});
+  const reordered=orderedIds.map(id=>idToQuote[id]).filter(Boolean);
+  let ptr=0;
+  db.quotes=db.quotes.map(q=>quoteFolderOf(q)===currentQuoteFolder?reordered[ptr++]:q);
+  save();
+  if(window.fbSaveQuotes)window.fbSaveQuotes({files:db.quotes,folders:db.quoteFolders});
 }
 async function loadQuoteThumb(q){
   const imgEl=document.getElementById('quote-thumb-'+q.id);
@@ -5876,6 +5934,9 @@ async function discoverDriveSubfolders(pid){
         if(p.driveFolders[folder.name]!==folder.id){
           p.driveFolders[folder.name]=folder.id;
           changed=true;
+          // 資料夾ID換了（可能原本記錄的是錯誤或過期的資料夾），強制清除這個分類的對帳節流記錄，
+          // 讓下一次立即重新查詢正確的資料夾內容，不會被節流卡住、繼續顯示舊資料夾查來的過時數字
+          delete reconciledFileCatsAt[`${pid}|${folder.name}`];
         }
       });
       if(changed){
