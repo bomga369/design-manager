@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607277">
+<meta name="app-version" content="202607278">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6227,7 +6227,7 @@ function pickDriveFile(pid,cat,progId){
   const input=document.createElement('input');
   input.type='file';
   input.multiple=true;
-  input.accept='image/*,image/heic,image/heif,application/pdf,.doc,.docx,.xls,.xlsx'; // 明確納入HEIC/HEIF，讓Safari有機會跳過「轉成JPEG」這個耗時的轉檔步驟，直接交出原始檔案
+  input.accept='image/*,image/heic,image/heif,video/*,application/pdf,.doc,.docx,.xls,.xlsx'; // 明確納入HEIC/HEIF，讓Safari有機會跳過「轉成JPEG」這個耗時的轉檔步驟，直接交出原始檔案
   input.onchange=async()=>{
     const fileList=Array.from(input.files);
     if(!fileList.length)return;
@@ -6276,6 +6276,14 @@ function pickDriveFile(pid,cat,progId){
       }
       save();if(window.fbSaveProject)window.fbSaveProject(p);
       clearProgress();
+      if(successCount>0){
+        // 上傳完成後，不只確認剛上傳的這個分類，連同專案裡其他分類也一併強制重新對帳（略過節流限制），
+        // 確保上傳完看到的都是雲端最新、正確的數字，不會有其他分類剛好在節流窗口內、數字暫時沒更新的情況
+        p.fileCats.forEach(otherCat=>{
+          delete reconciledFileCatsAt[`${pid}|${otherCat}`];
+          if(p.driveFolders&&p.driveFolders[otherCat])reconcileFileCatCount(pid,otherCat);
+        });
+      }
       renderDetail(pid);
       if(successCount>0){
         // 主動問要不要繼續上傳下一批——大量照片一次選取容易讓iOS選擇器處理不過來，
@@ -6289,18 +6297,29 @@ function pickDriveFile(pid,cat,progId){
   input.click();
 }
 
-async function uploadOneFile(p,cat,file,folderId){
+async function uploadOneFile(p,cat,file,folderId,retryCount=0){
+  const MAX_RETRIES=2; // 遇到暫時性的網路問題（連線逾時等），自動重試最多2次，不用使用者自己重新操作整批上傳
   try{
     if(!folderId)folderId=await ensureProjectFolderPath(p,cat);
     const metadata={name:file.name,parents:[folderId]};
     const form=new FormData();
     form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
     form.append('file',file);
-    const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{
-      method:'POST',
-      headers:{'Authorization':'Bearer '+driveAccessToken},
-      body:form
-    });
+    // 加上明確的逾時控制（30秒）——沒有這個的話，網路卡住時fetch可能無限期等待，不會有任何錯誤或提示，
+    // 使用者只會覺得卡住，不知道發生什麼事
+    const controller=new AbortController();
+    const timeoutId=setTimeout(()=>controller.abort(),30000);
+    let res;
+    try{
+      res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+driveAccessToken},
+        body:form,
+        signal:controller.signal
+      });
+    }finally{
+      clearTimeout(timeoutId);
+    }
     const result=await res.json();
     if(result.id){
       if(!p.files)p.files={};
@@ -6311,9 +6330,11 @@ async function uploadOneFile(p,cat,file,folderId){
       // 分清楚是「通行證失效」還是「資料夾本身有問題」：授權失敗時通行證要清掉，
       // 但資料夾記錄不該跟著被誤刪（資料夾其實沒事，只是通行證壞了）
       const isAuthError=result.error&&(result.error.code===401||result.error.status==='UNAUTHENTICATED');
+      const isNotFound=result.error&&(result.error.code===404||/not found/i.test(result.error.message||''));
       if(isAuthError){
         driveAccessToken=null; // 清掉失效的通行證，讓下一次操作重新登入
-      } else if(p.driveFolders){
+      } else if(isNotFound&&p.driveFolders){
+        // 只有明確是「資料夾真的不存在」才清除記錄，其餘錯誤（例如配額、格式問題）不該連累資料夾記錄
         delete p.driveFolders[cat];
       }
       console.error('上傳失敗',JSON.stringify(result));
@@ -6321,8 +6342,13 @@ async function uploadOneFile(p,cat,file,folderId){
       return false;
     }
   }catch(e){
-    if(p.driveFolders)delete p.driveFolders[cat];
-    alert('上傳發生錯誤：'+e.message);
+    // 網路逾時（AbortError）或連線問題，屬於暫時性錯誤——先自動重試，不要動到資料夾記錄
+    // （資料夾本身沒事，只是這次請求沒送成功而已）
+    if(retryCount<MAX_RETRIES&&(e.name==='AbortError'||e.message==='Failed to fetch'||/network/i.test(e.message||''))){
+      await new Promise(r=>setTimeout(r,1000*(retryCount+1))); // 重試前稍微等一下，間隔隨重試次數拉長
+      return uploadOneFile(p,cat,file,folderId,retryCount+1);
+    }
+    alert('上傳發生錯誤：'+(e.name==='AbortError'?'連線逾時（已重試'+MAX_RETRIES+'次仍失敗）':e.message));
     return false;
   }
 }
