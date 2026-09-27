@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725Y">
+<meta name="app-version" content="20260725Z">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -187,12 +187,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .quote-select-bar button i{font-size:1.25rem;color:var(--gold);}
 .quote-select-bar button.danger i{color:var(--red);}
 .quote-select-bar button.danger{color:var(--red);}
-.quote-folder-tabs{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 6px;margin-bottom:12px;-webkit-overflow-scrolling:touch;}
-.quote-folder-tabs::-webkit-scrollbar{display:none;}
-.quote-folder-tab{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:82px;padding:0.9rem 1rem;border-radius:16px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text3);font-size:0.9375rem;font-weight:600;white-space:nowrap;cursor:pointer;}
-.quote-folder-tab i{font-size:1.375rem;}
+.quote-folder-tabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px;margin-bottom:12px;}
+.quote-folder-tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0.7rem 0.5rem;border-radius:14px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text3);font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+.quote-folder-tab span{overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.quote-folder-tab i{font-size:1.125rem;}
 .quote-folder-tab.active{background:var(--gold);color:#3a2e00;border-color:var(--gold);}
-.quote-folder-tab.quote-folder-add{min-width:64px;color:var(--gold);}
+.quote-folder-tab.quote-folder-add{color:var(--gold);}
 .quote-preview-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;}
 .quote-preview-overlay.open{display:flex;}
 .quote-preview-overlay img{max-width:94vw;max-height:78vh;object-fit:contain;}
@@ -5659,10 +5659,13 @@ function renameQuoteFileDirect(id){
 }
 const SHARED_CALENDAR_ID='6f1dbb6876ceb869a98c8f8bc77661191cc7bf7f80b5b3dbaa6bfcc093532bbd@group.calendar.google.com'; // 團隊共用日曆
 let driveAccessToken=null;
+let driveTokenObtainedAt=0; // 記錄通行證是什麼時候拿到的，用來判斷是否已經過期（Google的通行證通常大約一小時後失效）
 let tokenClient=null;
 
 function ensureDriveAuth(callback){
-  if(driveAccessToken){callback();return;}
+  // 通行證存在，且取得時間在50分鐘內（安全邊界，Google通常一小時後失效），才直接沿用；
+  // 否則視為可能已過期，重新要求一個新的，避免拿著失效的通行證去上傳導致「上傳失敗」
+  if(driveAccessToken&&(Date.now()-driveTokenObtainedAt)<50*60*1000){callback();return;}
   if(!window.google||!google.accounts||!google.accounts.oauth2){
     alert('Google 服務尚未載入完成，請稍後再試');return;
   }
@@ -5672,6 +5675,7 @@ function ensureDriveAuth(callback){
     callback:(resp)=>{
       if(resp.error){alert('授權失敗：'+resp.error);return;}
       driveAccessToken=resp.access_token;
+      driveTokenObtainedAt=Date.now();
       callback();
       checkAutoBackup();
     }
@@ -5933,9 +5937,16 @@ async function uploadOneFile(p,cat,file,folderId){
       p.files[cat].push({name:result.name,driveId:result.id});
       return true;
     } else {
-      if(p.driveFolders)delete p.driveFolders[cat];
+      // 分清楚是「通行證失效」還是「資料夾本身有問題」：授權失敗時通行證要清掉，
+      // 但資料夾記錄不該跟著被誤刪（資料夾其實沒事，只是通行證壞了）
+      const isAuthError=result.error&&(result.error.code===401||result.error.status==='UNAUTHENTICATED');
+      if(isAuthError){
+        driveAccessToken=null; // 清掉失效的通行證，讓下一次操作重新登入
+      } else if(p.driveFolders){
+        delete p.driveFolders[cat];
+      }
       console.error('上傳失敗',JSON.stringify(result));
-      alert('上傳失敗：'+(result.error?.message||JSON.stringify(result)));
+      alert('上傳失敗：'+(result.error?.message||JSON.stringify(result))+(isAuthError?'\n\n雲端授權已過期，請再點一次上傳重新登入':''));
       return false;
     }
   }catch(e){
