@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="20260725Z">
+<meta name="app-version" content="202607261">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -4333,22 +4333,27 @@ function renderDetail(pid){
     p.fileCats=(db.fileCats&&db.fileCats.length)?[...db.fileCats]:[...FILE_CATS_DEFAULT];
     save();if(window.fbSaveProject)window.fbSaveProject(p);
   }
-  // 修正資料遺失問題：上次的判斷依據（p.files這個陣列）在同步時序上可能還沒完全載入，
-  // 導致明明有真實資料的維修分類被誤判成空的、整個被移除掉（圓山飯店就是這樣被影響的，非常抱歉）。
-  // 改成用更可靠的依據：p.driveFolders裡有沒有「維修」的雲端資料夾ID紀錄——
-  // 這個紀錄只要曾經真的建立過資料夾就一定會留著，不會因為載入時序不同而忽有忽無。
-  // 邏輯也從「移除」改成「還原」：只要曾經真的建立過維修資料夾，就確保它出現在清單裡
-  if(p.driveFolders&&p.driveFolders['維修']&&!p.fileCats.includes('維修')){
-    p.fileCats.push('維修');
-    save();if(window.fbSaveProject)window.fbSaveProject(p);
+  // 修復：找出所有「曾經建立過雲端資料夾，但目前分類清單裡已經看不到」的孤兒分類。
+  // 通常是舊版本「修改分類名稱」有bug造成的——只改了顯示名稱，底下的雲端資料夾記錄卻沒有跟著搬過去，
+  // 變成孤兒（牛津villa3的「文件」被改名成「木作」時就是這樣，舊的文件資料夾記錄留在原地變孤兒）。
+  // 這裡不限定特定名稱，只要偵測到任何孤兒分類，都自動補回清單，讓資料重新顯示出來
+  if(p.driveFolders){
+    let restoredAny=false;
+    Object.keys(p.driveFolders).forEach(cat=>{
+      if(!p.fileCats.includes(cat)){
+        p.fileCats.push(cat);
+        restoredAny=true;
+      }
+    });
+    if(restoredAny){save();if(window.fbSaveProject)window.fbSaveProject(p);}
   }
-  // 對帳：如果這個分類確實建立過雲端資料夾，但本機記錄的檔案清單是空的（可能是同步時序問題留下的資料缺口，
-  // 跟圓山飯店維修分類同樣的狀況），就自動向雲端查詢真正的檔案清單、補齊本機記錄，確保顯示的已上傳數量正確
+  // 對帳：只要這個分類確實建立過雲端資料夾，就主動向雲端查詢真正的檔案清單、跟本機記錄比對更新——
+  // 不再只限於「本機記錄是空的」才對帳，這樣就算本機已經有記錄、但跟雲端實際狀況兜不起來
+  // （例如直接在雲端網頁手動加減過檔案），也能確實反映雲端的真實數量，不會停留在過時的數字
   if(p.driveFolders){
     p.fileCats.forEach(cat=>{
       const folderId=p.driveFolders[cat];
-      const hasLocalRecord=p.files&&p.files[cat]&&p.files[cat].length>0;
-      if(folderId&&!hasLocalRecord)reconcileFileCatCount(pid,cat);
+      if(folderId)reconcileFileCatCount(pid,cat);
     });
   }
   const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
@@ -4918,6 +4923,17 @@ function editFileCat(name){
   if(p.fileCats.includes(trimmed))return alert('已經有相同名稱的分類了');
   const idx=p.fileCats.indexOf(name);
   if(idx>=0)p.fileCats[idx]=trimmed;
+  // 分類改名時，底下實際的雲端資料夾記錄跟已上傳檔案記錄，也要跟著搬到新名稱底下——
+  // 不然舊名稱的資料會變成孤兒（雲端上還在，但App再也連不到），之後用新名稱重新上傳，
+  // 又會在雲端另外新建一個全新的資料夾，變成「同一個分類位置」實際對應到兩個不同的雲端資料夾
+  if(p.driveFolders&&p.driveFolders[name]!==undefined){
+    p.driveFolders[trimmed]=p.driveFolders[name];
+    delete p.driveFolders[name];
+  }
+  if(p.files&&p.files[name]!==undefined){
+    p.files[trimmed]=p.files[name];
+    delete p.files[name];
+  }
   saveFileCatsConfig();
   renderFileCatManageList();
   if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
@@ -4926,6 +4942,10 @@ function deleteFileCat(name){
   const p=db.projects.find(x=>x.id===currentFileCatManagePid);if(!p)return;
   if(!confirm(`確定刪除分類「${name}」？`))return;
   p.fileCats=p.fileCats.filter(c=>c!==name);
+  // 連同清除底下的雲端資料夾記錄跟檔案記錄，不然「還原孤兒分類」的機制會誤判這是被遺忘的孤兒、
+  // 又把剛刪除的分類自動加回來
+  if(p.driveFolders)delete p.driveFolders[name];
+  if(p.files)delete p.files[name];
   saveFileCatsConfig();
   renderFileCatManageList();
   if(currentPage==='detail'&&currentProjectId)renderDetail(currentProjectId);
@@ -5828,11 +5848,12 @@ async function ensureProjectFolderPath(p,cat){
   return catId;
 }
 
-const reconciledFileCats=new Set(); // 記錄這個session裡已經對帳過的「專案id-分類」組合，避免反覆查詢同一個資料夾
+const reconciledFileCatsAt={}; // 記錄「專案id-分類」組合上次對帳的時間戳記，節流用（避免短時間內對同一個分類反覆查詢）
 async function reconcileFileCatCount(pid,cat){
   const key=`${pid}|${cat}`;
-  if(reconciledFileCats.has(key))return;
-  reconciledFileCats.add(key);
+  const lastAt=reconciledFileCatsAt[key]||0;
+  if(Date.now()-lastAt<2*60*1000)return; // 2分鐘內對帳過就先跳過，避免同一個分類短時間內被反覆查詢
+  reconciledFileCatsAt[key]=Date.now();
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   const folderId=p.driveFolders&&p.driveFolders[cat];if(!folderId)return;
   ensureDriveAuth(async()=>{
@@ -5841,9 +5862,14 @@ async function reconcileFileCatCount(pid,cat){
       const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
       const res=await driveApiFetch(url);
       const data=await res.json();
-      if(!data.files||!data.files.length)return; // 雲端也真的是空的，不用補
+      if(!data.files||!data.files.length)return; // 雲端也真的是空的，不用補（保留這個保護，避免雲端剛上傳、索引還沒跟上時，誤把本機正確的記錄清空）
       if(!p.files)p.files={};
-      p.files[cat]=data.files.map(f=>({name:f.name,driveId:f.id}));
+      const newFiles=data.files.map(f=>({name:f.name,driveId:f.id}));
+      const oldFiles=p.files[cat]||[];
+      // 內容相同就不用重複存檔、重複渲染，避免每次都無謂地觸發畫面更新
+      const same=oldFiles.length===newFiles.length&&oldFiles.every(f=>newFiles.some(nf=>nf.driveId===f.driveId));
+      if(same)return;
+      p.files[cat]=newFiles;
       save();if(window.fbSaveProject)window.fbSaveProject(p);
       if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid);
     }catch(e){ console.error('對帳失敗',cat,e); }
