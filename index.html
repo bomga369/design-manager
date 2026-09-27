@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607281">
+<meta name="app-version" content="202607282">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1870,7 +1870,14 @@ function onFileCatsSynced(cfg){
   // 現在檔案分類是每個專案各自獨立的，這份全域清單只在「專案第一次還沒有自己的分類設定」時
   // 當作遷移起點使用（保留舊資料），不會再直接顯示或編輯
   if(!cfg||!cfg.cats)return;
-  db.fileCats=cfg.cats;save();
+  db.fileCats=cfg.cats;
+  // 修正：這份全域舊清單之前留有「維修」，導致新專案建立時還是繼續帶著它。
+  // 每次從雲端同步下來都順手清一次，偵測到就同時寫回雲端修正，確保徹底根除
+  if(db.fileCats.includes('維修')){
+    db.fileCats=db.fileCats.filter(c=>c!=='維修');
+    if(window.fbSaveFileCats)window.fbSaveFileCats({cats:db.fileCats});
+  }
+  save();
 }
 let currentFileCatManagePid=null; // 目前正在管理檔案分類的專案id
 let activeFileUpload=null; // {pid,cat,done,total} 記錄目前正在進行中的上傳進度，即使畫面被即時同步重新渲染也不會遺失狀態
@@ -2042,6 +2049,14 @@ function load(){
   ensureSystemCategories();
   if(!db.materialConfig)db.materialConfig={taxRate:5,vendors:[],cats:[],units:[]};
   if(!db.fileCats||!db.fileCats.length)db.fileCats=[...FILE_CATS_DEFAULT];
+  // 修正：db.fileCats是很久以前就存在的全域舊清單，不會因為改FILE_CATS_DEFAULT常數就自動同步更新，
+  // 之前裡面留有「維修」，導致新專案建立時還是繼續帶著它。這裡把它從這份全域清單移除，
+  // 並且明確寫回雲端（不只是改本地端記憶體），不然下次雲端同步監聽觸發時，
+  // 會被雲端上還留著維修的舊資料蓋回來，讓這次的修正形同虛設
+  if(db.fileCats.includes('維修')){
+    db.fileCats=db.fileCats.filter(c=>c!=='維修');
+    if(window.fbSaveFileCats)window.fbSaveFileCats({cats:db.fileCats});
+  }
   if(!db.quotes)db.quotes=[];
   if(!db.quoteFolders||!db.quoteFolders.length)db.quoteFolders=['未分類'];
   if(!db.toolIcons)db.toolIcons={};
