@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607278">
+<meta name="app-version" content="202607279">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -376,6 +376,7 @@ textarea.form-input{resize:none;min-height:72px;}
   <div class="user-menu-header">
     <div class="user-menu-name" id="user-menu-name"></div>
     <div class="user-menu-email" id="user-menu-email"></div>
+    <div class="user-menu-version" id="user-menu-version" style="font-size:0.75rem;color:var(--text3);margin-top:4px;"></div>
   </div>
   <div class="user-menu-item" style="color:var(--text);display:flex;align-items:center;justify-content:space-between;" onclick="toggleTheme(event)">
     <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-moon" id="theme-icon"></i> <span id="theme-label">深色模式</span></span>
@@ -6031,7 +6032,7 @@ async function ensureProjectFolderPath(p,cat){
 const discoveredFoldersAt={}; // 記錄每個專案上次偵測雲端子資料夾結構的時間戳記，節流用
 // force=true時略過節流、且完整顯示每一步過程（點擊失敗訊息手動重試用）；
 // 平常背景自動執行時force=false，成功就完全安靜、不顯示任何東西，只有真的卡住才會自動跳出來顯示原因
-async function discoverDriveSubfolders(pid,force=false){
+async function discoverDriveSubfolders(pid,force=false,silent=false){
   const lastAt=discoveredFoldersAt[pid]||0;
   if(!force&&Date.now()-lastAt<2*60*1000)return; // 2分鐘內偵測過就先跳過（強制重試不受此限制）
   discoveredFoldersAt[pid]=Date.now();
@@ -6039,12 +6040,15 @@ async function discoverDriveSubfolders(pid,force=false){
   const diagEl=document.getElementById(`drive-sync-diag-${pid}`);
   const log=(text)=>{if(diagEl)diagEl.textContent+=(diagEl.textContent?'\n':'')+text;};
   const showDiag=()=>{if(diagEl)diagEl.style.display='block';};
-  if(force&&diagEl){diagEl.textContent='';diagEl.onclick=null;showDiag();log('開始同步...');}
-  ensureDriveAuth(async()=>{
-    try{
+  if(force&&!silent&&diagEl){diagEl.textContent='';diagEl.onclick=null;showDiag();log('開始同步...');}
+  // 用Promise包裹ensureDriveAuth，讓這個函式回傳的Promise真正等到內部流程（含授權）完成，
+  // 呼叫端的await才有意義（例如上傳完成後，需要真正等偵測完才能接著做後續的對帳）
+  return new Promise(resolve=>{
+    ensureDriveAuth(async()=>{
+      try{
       let rootId=p.driveProjectFolderId;
       const cityName=p.city||'未分類';
-      if(force)log(`搜尋城市資料夾：「${cityName}」`);
+      if(force&&!silent)log(`搜尋城市資料夾：「${cityName}」`);
       const cityId=await findFolderOnly(cityName,SHARED_ROOT_FOLDER_ID);
       if(!cityId){
         log(`❌ 雲端「工程管理系統」資料夾底下，找不到名為「${cityName}」的資料夾。\n請確認雲端實際的資料夾名稱，是否跟這裡完全一致（含空格、全半形）。\n（點此重新檢查）`);
@@ -6052,13 +6056,13 @@ async function discoverDriveSubfolders(pid,force=false){
         if(diagEl)diagEl.onclick=()=>discoverDriveSubfolders(pid,true);
         return;
       }
-      if(force)log('✅ 找到城市資料夾');
+      if(force&&!silent)log('✅ 找到城市資料夾');
       const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
-      if(force)log(`搜尋專案資料夾：「${projName}」`);
+      if(force&&!silent)log(`搜尋專案資料夾：「${projName}」`);
       const verifiedRootId=await findFolderOnly(projName,cityId);
       if(verifiedRootId){
         rootId=verifiedRootId;
-        if(force)log('✅ 找到專案資料夾');
+        if(force&&!silent)log('✅ 找到專案資料夾');
       }else{
         if(!rootId){
           // 外部驗證沒找到，且本地也沒有任何記錄可用，退而求其次找已知分類資料夾的上層當備援
@@ -6085,7 +6089,7 @@ async function discoverDriveSubfolders(pid,force=false){
       const res=await driveApiFetch(url);
       const data=await res.json();
       if(!data.files)return;
-      if(force)log(`✅ 偵測到 ${data.files.length} 個子資料夾：${data.files.map(f=>f.name).join('、')||'（無）'}`);
+      if(force&&!silent)log(`✅ 偵測到 ${data.files.length} 個子資料夾：${data.files.map(f=>f.name).join('、')||'（無）'}`);
       let changed=false;
       if(!p.driveFolders)p.driveFolders={};
       if(!p.fileCats)p.fileCats=[];
@@ -6105,7 +6109,7 @@ async function discoverDriveSubfolders(pid,force=false){
       });
       if(changed){save();if(window.fbSaveProject)window.fbSaveProject(p);}
       if(force){
-        log('正在查詢各分類的檔案數量...');
+        if(!silent)log('正在查詢各分類的檔案數量...');
         for(const cat of p.fileCats){
           const folderId=p.driveFolders[cat];
           if(!folderId)continue;
@@ -6118,12 +6122,14 @@ async function discoverDriveSubfolders(pid,force=false){
             if(!p.files)p.files={};
             p.files[cat]=newFiles;
             reconciledFileCatsAt[`${pid}|${cat}`]=Date.now();
-            log(`　${cat}：${newFiles.length} 筆`);
-          }catch(e){ log(`　${cat}：查詢失敗（${e.message||e}）`); }
+            if(!silent)log(`　${cat}：${newFiles.length} 筆`);
+          }catch(e){ if(!silent)log(`　${cat}：查詢失敗（${e.message||e}）`); }
         }
         save();if(window.fbSaveProject)window.fbSaveProject(p);
-        log('✅ 同步完成');
-        if(diagEl)setTimeout(()=>{if(diagEl&&diagEl.textContent.includes('同步完成'))diagEl.style.display='none';},4000);
+        if(!silent){
+          log('✅ 同步完成');
+          if(diagEl)setTimeout(()=>{if(diagEl&&diagEl.textContent.includes('同步完成'))diagEl.style.display='none';},4000);
+        }
       }
       if((changed||force)&&currentPage==='detail'&&currentProjectId===pid)renderDetail(pid);
     }catch(e){
@@ -6131,7 +6137,10 @@ async function discoverDriveSubfolders(pid,force=false){
       showDiag();
       if(diagEl)diagEl.onclick=()=>discoverDriveSubfolders(pid,true);
       console.error('偵測雲端子資料夾失敗',e);
+    }finally{
+      resolve();
     }
+    });
   });
 }
 const reconciledFileCatsAt={}; // 記錄「專案id-分類」組合上次對帳的時間戳記，節流用（避免短時間內對同一個分類反覆查詢）
@@ -6277,8 +6286,11 @@ function pickDriveFile(pid,cat,progId){
       save();if(window.fbSaveProject)window.fbSaveProject(p);
       clearProgress();
       if(successCount>0){
-        // 上傳完成後，不只確認剛上傳的這個分類，連同專案裡其他分類也一併強制重新對帳（略過節流限制），
-        // 確保上傳完看到的都是雲端最新、正確的數字，不會有其他分類剛好在節流窗口內、數字暫時沒更新的情況
+        // 上傳完成後，先強制重新偵測一次雲端底下實際有哪些資料夾——不然像「系統櫃」這種從沒被安盾
+        // 記錄過雲端資料夾ID的分類，會被下面的迴圈直接跳過，完全不會去檢查雲端上是否真的有資料
+        await discoverDriveSubfolders(pid,true,true); // 略過節流、安靜執行（不顯示過程log，只有真的失敗才會跳出來）
+        // 不只確認剛上傳的這個分類，連同專案裡其他分類（含剛剛新發現的）也一併強制重新對帳（略過節流限制），
+        // 確保上傳完看到的都是雲端最新、正確的數字
         p.fileCats.forEach(otherCat=>{
           delete reconciledFileCatsAt[`${pid}|${otherCat}`];
           if(p.driveFolders&&p.driveFolders[otherCat])reconcileFileCatCount(pid,otherCat);
@@ -7896,6 +7908,7 @@ function updateFontSizeUI(size){
   });
 }
 initFontSize();
+document.getElementById('user-menu-version').textContent='版本 '+document.querySelector('meta[name="app-version"]').content;
 
 checkLogin();
 
