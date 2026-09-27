@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607273">
+<meta name="app-version" content="202607275">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1948,7 +1948,7 @@ async function runEventsMigration(){
 const NEG_STEPS=['場勘','報價','討論','簽約','進場'];
 const CON_STEPS=['木作-保護','木作-下角料','木作-窗簾盒','木作-包管/樑','木作-冷氣帽','木作-封板','木作-櫃體','木作-地板','木作-保護拆除','水電','油漆','系統櫃','泥作','玻璃','驗收'];
 const SOURCES=['LINE官方','社群媒體','設計師','廠商介紹','親友介紹','其他'];
-const FILE_CATS_DEFAULT=['場勘','文件','木作','系統櫃'];
+const FILE_CATS_DEFAULT=['場勘','文件','木作','系統櫃','維修'];
 
 // 中華民國國定假日（依行政院人事行政總處公告，農曆相關日期每年異動，需逐年更新）
 const TW_HOLIDAYS={
@@ -5811,10 +5811,21 @@ function ensureDriveAuth(callback){
   if(!window.google||!google.accounts||!google.accounts.oauth2){
     alert('Google 服務尚未載入完成，請稍後再試');return;
   }
+  // 背景靜默授權（prompt:''）如果失敗，Google有時候不會回報任何錯誤，只是永遠沒有回應——
+  // 加上逾時保護，避免使用者卡在「畫面完全沒反應」的狀態，不知道發生什麼事
+  let settled=false;
+  const timeoutId=setTimeout(()=>{
+    if(settled)return;
+    settled=true;
+    alert('Google 授權逾時，請重新整理頁面後再試一次');
+  },10000);
   tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:GOOGLE_CLIENT_ID,
     scope:GOOGLE_SCOPES,
     callback:(resp)=>{
+      if(settled)return; // 逾時警告已經跳出來過了，這次遲來的回應就不用再處理
+      settled=true;
+      clearTimeout(timeoutId);
       if(resp.error){alert('授權失敗：'+resp.error);return;}
       driveAccessToken=resp.access_token;
       driveTokenObtainedAt=Date.now();
@@ -6216,28 +6227,31 @@ function pickDriveFile(pid,cat,progId){
   const input=document.createElement('input');
   input.type='file';
   input.multiple=true;
+  input.accept='image/*,application/pdf,.doc,.docx,.xls,.xlsx'; // 排除影片，減輕iOS選擇器要處理的媒體庫負擔
   input.onchange=async()=>{
     const fileList=Array.from(input.files);
     if(!fileList.length)return;
+    const total=fileList.length;
+    // 進度狀態存在全域變數裡，不只是操作DOM——這樣即使上傳過程中畫面被即時同步重新渲染，
+    // 新渲染出來的畫面也會照這個狀態正確顯示進度，不會閃一下就消失
+    const updateProgress=(done)=>{
+      activeFileUpload={pid,cat,done,total};
+      const progEl=progId?document.getElementById(progId):null; // 每次重新抓取，避免抓到重新渲染後已經不在畫面上的舊元素
+      if(progEl){
+        progEl.style.display='flex';
+        progEl.innerHTML=`<i class="ti ti-loader-2"></i>${String(done).padStart(2,'0')}/${String(total).padStart(2,'0')}`;
+      }
+    };
+    const clearProgress=()=>{
+      activeFileUpload=null;
+      const progEl=progId?document.getElementById(progId):null;
+      if(progEl)progEl.style.display='none';
+    };
+    // 選好檔案的瞬間就立即顯示「處理中」，不用等授權流程跑完才顯示——這樣就算授權卡住，
+    // 使用者也能看到系統確實有反應、正在處理，不會誤以為選擇器按了沒反應
+    updateProgress(0);
     ensureDriveAuth(async()=>{
       const p=db.projects.find(x=>x.id===pid);if(!p)return;
-      const total=fileList.length;
-      // 進度狀態存在全域變數裡，不只是操作DOM——這樣即使上傳過程中畫面被即時同步重新渲染，
-      // 新渲染出來的畫面也會照這個狀態正確顯示進度，不會閃一下就消失
-      const updateProgress=(done)=>{
-        activeFileUpload={pid,cat,done,total};
-        const progEl=progId?document.getElementById(progId):null; // 每次重新抓取，避免抓到重新渲染後已經不在畫面上的舊元素
-        if(progEl){
-          progEl.style.display='flex';
-          progEl.innerHTML=`<i class="ti ti-loader-2"></i>${String(done).padStart(2,'0')}/${String(total).padStart(2,'0')}`;
-        }
-      };
-      const clearProgress=()=>{
-        activeFileUpload=null;
-        const progEl=progId?document.getElementById(progId):null;
-        if(progEl)progEl.style.display='none';
-      };
-      updateProgress(0);
       // 先確認資料夾路徑（若Drive被清空，會自動清除p.files舊記錄）—只確認這一次，folderId後面重複使用
       let folderId;
       try{ folderId=await ensureProjectFolderPath(p,cat); }catch(e){ alert('上傳發生錯誤：'+e.message); clearProgress(); return; }
