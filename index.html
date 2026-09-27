@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607265">
+<meta name="app-version" content="202607267">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -172,7 +172,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .date-card-wrap{position:relative;}
 .date-card-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer;}
 .quote-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-.quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;}
+.quote-tile{position:relative;aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:var(--bg2);border:1px solid var(--border);cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
+.quote-tile img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;pointer-events:none;}
 .quote-tile.drag-placeholder{opacity:0.3;}
 .quote-drag-ghost{position:fixed;pointer-events:none;z-index:200;border-radius:var(--r);overflow:hidden;box-shadow:0 12px 28px rgba(0,0,0,0.4);transform:scale(1.06);}
 .quote-thumb-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:1.75rem;}
@@ -2876,6 +2877,11 @@ function showPage(id,opts={}){
   if(currentPage==='quotes'&&id!=='quotes'&&typeof quoteSelectMode!=='undefined'&&quoteSelectMode){
     exitQuoteSelectMode();
   }
+  // 同樣道理：拖曳排序用的跟手影像是直接掛在document.body底下、固定定位，不受頁面切換管理。
+  // 萬一拖曳到一半系統手勢介入中斷了觸控序列，沒有正常跑完清除流程，離開頁面時在這裡強制清乾淨，
+  // 保證不會有殘留的影像疊在其他頁面上（例如疊在主頁的待辦事項上）
+  document.querySelectorAll('.quote-drag-ghost').forEach(el=>el.remove());
+  document.querySelectorAll('.quote-tile.drag-placeholder').forEach(el=>el.classList.remove('drag-placeholder'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const pageEl=document.getElementById('page-'+id);
   pageEl.classList.add('active');
@@ -4368,9 +4374,15 @@ function renderDetail(pid){
         const uploading=activeFileUpload&&activeFileUpload.pid===pid&&activeFileUpload.cat===cat;
         const progStyle=uploading?'display:flex;':'display:none;';
         const progContent=uploading?`<i class="ti ti-loader-2"></i>${String(activeFileUpload.done).padStart(2,'0')}/${String(activeFileUpload.total).padStart(2,'0')}`:'';
+        // 數字顯示0、但這個分類確實有雲端資料夾記錄，且正在對帳查詢中——顯示「查詢中」而不是什麼都不顯示，
+        // 避免使用者誤以為資料不見了、其實只是查詢還沒跑完（跟雲端核對現在需要跑好幾次連續的網路請求，
+        // 剛打開頁面的瞬間很可能還沒跑完）
+        const checking=!cnt&&reconcilingInProgress.has(`${pid}|${cat}`);
+        const countHtml=cnt?` <span style="color:var(--text3);font-weight:400;">(${cnt})</span>`
+          :checking?` <span style="color:var(--text3);font-weight:400;"><i class="ti ti-loader-2" style="font-size:0.75rem"></i> 查詢中</span>`:'';
         return`<div class="file-row">
           <div class="file-icon"><i class="ti ti-folder"></i></div>
-          <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}${cnt?` <span style="color:var(--text3);font-weight:400;">(${cnt})</span>`:''}</div></div>
+          <div style="flex:1;min-width:0"><div class="text-sm fw500">${cat}${countHtml}</div></div>
           <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
             <button class="btn btn-sm btn-primary" onclick="pickDriveFile('${pid}','${cat}','${progId}')"><i class="ti ti-upload"></i> 上傳</button>
             <div class="file-up-progress" id="${progId}" style="${progStyle}">${progContent}</div>
@@ -5332,8 +5344,21 @@ function attachQuoteTileEvents(){
 // 長按縮圖拖曳排序：網格佈局跟一般直向清單不一樣，改用「離手指最近的格子」判斷要插到哪個位置
 function attachQuoteGridDrag(){
   const grid=document.querySelector('#quotes-list .quote-grid');if(!grid)return;
+  // 安全網：清除任何上次可能因為手勢被系統中斷、來不及清掉的殘留影像跟半透明狀態，避免卡在畫面上
+  document.querySelectorAll('.quote-drag-ghost').forEach(el=>el.remove());
+  document.querySelectorAll('.quote-tile.drag-placeholder').forEach(el=>el.classList.remove('drag-placeholder'));
   grid.querySelectorAll('.quote-tile').forEach(tile=>{
     let longTimer=null,dragging=false,startX=0,startY=0,ghost=null,offsetX=0,offsetY=0,rafPending=false,lastTouch=null;
+    const cleanup=()=>{
+      clearTimeout(longTimer);
+      if(dragging){
+        dragging=false;
+        tile.classList.remove('drag-placeholder');
+        if(ghost){ghost.remove();ghost=null;}
+        const newOrderIds=Array.from(grid.querySelectorAll('.quote-tile')).map(el=>el.getAttribute('data-qid'));
+        reorderQuotesInFolder(newOrderIds);
+      }
+    };
     tile.addEventListener('touchstart',e=>{
       startX=e.touches[0].clientX;startY=e.touches[0].clientY;
       longTimer=setTimeout(()=>{
@@ -5386,16 +5411,11 @@ function attachQuoteGridDrag(){
         }
       });
     },{passive:false});
-    tile.addEventListener('touchend',()=>{
-      clearTimeout(longTimer);
-      if(dragging){
-        dragging=false;
-        tile.classList.remove('drag-placeholder');
-        if(ghost){ghost.remove();ghost=null;}
-        const newOrderIds=Array.from(grid.querySelectorAll('.quote-tile')).map(el=>el.getAttribute('data-qid'));
-        reorderQuotesInFolder(newOrderIds);
-      }
-    });
+    tile.addEventListener('touchend',cleanup);
+    // 關鍵修正：iOS對圖片長按可能觸發系統自己的選單或拖曳手勢，搶走觸控序列，這時候瀏覽器發出的是
+    // touchcancel而不是touchend——之前完全沒有處理這個事件，導致清除動作永遠不會執行，
+    // 跟手的影像就卡死在畫面上，不管切到哪一頁都會一直疊著（這就是截圖看到的狀況）
+    tile.addEventListener('touchcancel',cleanup);
   });
 }
 // 依照畫面上新的順序，重新排列db.quotes裡屬於目前這個資料夾的項目（其他資料夾的項目位置不受影響）
@@ -5812,6 +5832,16 @@ async function findOrCreateFolder(name,parentId){
   }
   return created.id;
 }
+// 純搜尋、絕對不會建立資料夾——用來做「外部驗證」，找不到就回傳null，不能因為找不到就自己建一個，
+// 避免污染資料。這是打破「本地記錄本身已經是錯的、拿它往上查只會在錯誤資料夾裡打轉」這種循環的關鍵
+async function findFolderOnly(name,parentId){
+  let q=`mimeType='application/vnd.google-apps.folder' and name='${name.replace(/'/g,"\\'")}' and trashed=false`;
+  if(parentId)q+=` and '${parentId}' in parents`; else q+=` and 'root' in parents`;
+  const searchUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
+  const res=await driveApiFetch(searchUrl);
+  const data=await res.json();
+  return(data.files&&data.files.length>0)?data.files[0].id:null;
+}
 
 // session 記憶體快取（避免過時ID問題）（系統 → 共用日曆，單向）──
 async function calendarApiFetch(url,options={}){
@@ -5939,20 +5969,32 @@ async function discoverDriveSubfolders(pid){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   ensureDriveAuth(async()=>{
     try{
-      // 不管現在有沒有根資料夾記錄，只要有任何一個已知、正確的分類資料夾，都用它的真正上層資料夾校正一次——
-      // 這樣就算先前版本的bug已經寫入了錯誤的根資料夾ID，這次也能自動偵測並修正回來，不用手動介入
+      // 解析這個專案在雲端真正的根資料夾ID，用「外部驗證」而非本地端記錄作為最可靠的依據——
+      // 因為本地端的driveFolders/driveProjectFolderId都可能是空的（從沒透過安盾上傳過，例如牛津villa3），
+      // 或者已經被先前版本的bug寫入錯誤值，繼續信任它們只會在錯誤資料裡打轉，沒辦法真正打破循環。
+      // 用「城市>專案名稱」純搜尋雲端（絕不建立），才是真正不依賴本地端狀態的可靠依據
       let rootId=p.driveProjectFolderId;
-      const knownFolderId=p.driveFolders&&Object.values(p.driveFolders).find(id=>id);
-      if(knownFolderId){
-        const metaRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${knownFolderId}?fields=parents`);
-        const meta=await metaRes.json();
-        if(meta.parents&&meta.parents.length&&meta.parents[0]!==rootId){
-          rootId=meta.parents[0];
-          p.driveProjectFolderId=rootId;
-          save();if(window.fbSaveProject)window.fbSaveProject(p);
+      const cityId=await findFolderOnly(p.city||'未分類',SHARED_ROOT_FOLDER_ID);
+      if(cityId){
+        const projName=(p.area?p.area+' - ':'')+(p.bname||p.name);
+        const verifiedRootId=await findFolderOnly(projName,cityId);
+        if(verifiedRootId)rootId=verifiedRootId; // 外部驗證找到的結果，優先採用
+      }
+      if(!rootId){
+        // 外部驗證也沒找到（可能專案名稱跟雲端資料夾名稱對不起來），退而求其次，
+        // 如果有任何已知分類資料夾，用它的真正上層資料夾當備援依據
+        const knownFolderId=p.driveFolders&&Object.values(p.driveFolders).find(id=>id);
+        if(knownFolderId){
+          const metaRes=await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${knownFolderId}?fields=parents`);
+          const meta=await metaRes.json();
+          if(meta.parents&&meta.parents.length)rootId=meta.parents[0];
         }
       }
-      if(!rootId)return; // 沒有任何已知分類資料夾可以校正，也沒有現成記錄，先跳過，不要用猜的
+      if(rootId&&rootId!==p.driveProjectFolderId){
+        p.driveProjectFolderId=rootId;
+        save();if(window.fbSaveProject)window.fbSaveProject(p);
+      }
+      if(!rootId)return; // 兩種方式都找不到，先跳過，不要用猜的
       const q=`'${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
       const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
       const res=await driveApiFetch(url);
@@ -5983,6 +6025,7 @@ async function discoverDriveSubfolders(pid){
   });
 }
 const reconciledFileCatsAt={}; // 記錄「專案id-分類」組合上次對帳的時間戳記，節流用（避免短時間內對同一個分類反覆查詢）
+const reconcilingInProgress=new Set(); // 記錄目前正在對帳查詢中的「專案id-分類」組合，畫面上用來顯示「查詢中」提示
 async function reconcileFileCatCount(pid,cat){
   const key=`${pid}|${cat}`;
   const lastAt=reconciledFileCatsAt[key]||0;
@@ -5991,6 +6034,8 @@ async function reconcileFileCatCount(pid,cat){
   const p=db.projects.find(x=>x.id===pid);if(!p)return;
   const folderId=p.driveFolders&&p.driveFolders[cat];if(!folderId)return;
   ensureDriveAuth(async()=>{
+    reconcilingInProgress.add(key);
+    if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid); // 立即顯示「查詢中」提示
     try{
       const q=`'${folderId}' in parents and trashed=false`;
       const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
@@ -6005,8 +6050,11 @@ async function reconcileFileCatCount(pid,cat){
       if(same)return;
       p.files[cat]=newFiles;
       save();if(window.fbSaveProject)window.fbSaveProject(p);
-      if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid);
     }catch(e){ console.error('對帳失敗',cat,e); }
+    finally{
+      reconcilingInProgress.delete(key);
+      if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid); // 查詢結束，換成正常狀態（不管有沒有更新到）
+    }
   });
 }
 function openDriveFolder(pid,cat){
