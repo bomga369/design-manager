@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607275">
+<meta name="app-version" content="202607277">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -6227,7 +6227,7 @@ function pickDriveFile(pid,cat,progId){
   const input=document.createElement('input');
   input.type='file';
   input.multiple=true;
-  input.accept='image/*,application/pdf,.doc,.docx,.xls,.xlsx'; // 排除影片，減輕iOS選擇器要處理的媒體庫負擔
+  input.accept='image/*,image/heic,image/heif,application/pdf,.doc,.docx,.xls,.xlsx'; // 明確納入HEIC/HEIF，讓Safari有機會跳過「轉成JPEG」這個耗時的轉檔步驟，直接交出原始檔案
   input.onchange=async()=>{
     const fileList=Array.from(input.files);
     if(!fileList.length)return;
@@ -6276,8 +6276,14 @@ function pickDriveFile(pid,cat,progId){
       }
       save();if(window.fbSaveProject)window.fbSaveProject(p);
       clearProgress();
-      if(successCount>0)alert(`✅ 已成功上傳 ${successCount} 個檔案到「${cat}」資料夾`);
       renderDetail(pid);
+      if(successCount>0){
+        // 主動問要不要繼續上傳下一批——大量照片一次選取容易讓iOS選擇器處理不過來，
+        // 分成幾批選取通常會順很多，這裡讓使用者可以直接接續下一批，不用重新找按鈕點擊
+        if(confirm(`✅ 已成功上傳 ${successCount} 個檔案到「${cat}」資料夾\n\n還有照片要上傳嗎？（建議一次選取20張以內比較順）`)){
+          pickDriveFile(pid,cat,progId);
+        }
+      }
     });
   };
   input.click();
