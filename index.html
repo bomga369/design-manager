@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607282">
+<meta name="app-version" content="202607283">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3525,6 +3525,12 @@ function chooseFinanceType(type){
     const actualType=type==='轉帳'?'支出':type;
     const isTransfer=type==='轉帳';
     _allowTransferCatOption=isTransfer; // 只有轉帳流程才暫時允許「其他帳戶」出現在分類清單裡
+    if(!isTransfer){
+      // 清掉上次轉帳流程可能殘留的「其他帳戶」值——不然重建分類清單時的判斷邏輯，
+      // 會誤以為目前還在轉帳情境，繼續顯示轉帳的精簡畫面（缺少支出類別、備註等欄位）
+      const expCatEl=document.getElementById('f-expense-cat');
+      if(expCatEl&&expCatEl.value==='其他帳戶')expCatEl.value='';
+    }
     setSeg('f-type',actualType);
     toggleFinanceCat(actualType);
     document.getElementById('f-type-segmented').style.display='none'; // 上一層已經選過類型了，這裡不重複顯示
@@ -5827,20 +5833,16 @@ function ensureDriveAuth(callback){
   if(!window.google||!google.accounts||!google.accounts.oauth2){
     alert('Google 服務尚未載入完成，請稍後再試');return;
   }
-  // 背景靜默授權（prompt:''）如果失敗，Google有時候不會回報任何錯誤，只是永遠沒有回應——
-  // 加上逾時保護，避免使用者卡在「畫面完全沒反應」的狀態，不知道發生什麼事
-  let settled=false;
+  // 背景靜默授權（prompt:''）偶爾會比較慢才回應（不代表失敗）——這個授權常常是背景自動觸發
+  // （例如偵測雲端資料夾結構），不是使用者直接操作，改成只在背景記錄，不用阻斷式彈窗打擾使用者。
+  // 而且不管多慢，只要最終真的有回應，都正常繼續處理，不會因為「等比較久」就把這次授權白白丟棄
   const timeoutId=setTimeout(()=>{
-    if(settled)return;
-    settled=true;
-    alert('Google 授權逾時，請重新整理頁面後再試一次');
-  },10000);
+    console.warn('Google授權回應時間較長，仍在背景等待中');
+  },15000);
   tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:GOOGLE_CLIENT_ID,
     scope:GOOGLE_SCOPES,
     callback:(resp)=>{
-      if(settled)return; // 逾時警告已經跳出來過了，這次遲來的回應就不用再處理
-      settled=true;
       clearTimeout(timeoutId);
       if(resp.error){alert('授權失敗：'+resp.error);return;}
       driveAccessToken=resp.access_token;
@@ -5969,17 +5971,21 @@ function exportBackupJson(){
 // 9. 丈量提醒：開啟App時檢查3天內有丈量日期的專案
 function checkMeasureReminder(){
   const now=new Date();
+  // 判定標準：只比較日曆上的年/月/日差幾天，不看時分秒——這樣「今天」永遠代表場勘日期跟今天是
+  // 同一個日曆日（不管還有幾小時才到、或時間點是不是已經過了但還沒跨到下一天），標準清楚、不受時間細節影響
+  const todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const dayDiffOf=(dateObj)=>Math.round((new Date(dateObj.getFullYear(),dateObj.getMonth(),dateObj.getDate())-todayStart)/(1000*60*60*24));
   const soon=db.projects.filter(p=>{
     if(p.type!=='洽談中'||!p.measureDate)return false;
-    const diff=(new Date(p.measureDate)-now)/(1000*60*60*24);
-    return diff>=0&&diff<=3;
+    const dayDiff=dayDiffOf(new Date(p.measureDate));
+    return dayDiff>=0&&dayDiff<=3;
   });
   const el=document.getElementById('measure-reminder-banner');
   if(!soon.length){el.style.display='none';return;}
   const lines=soon.map(p=>{
     const d=new Date(p.measureDate);
-    const diff=Math.ceil((d-now)/(1000*60*60*24));
-    const label=diff===0?'今天':diff===1?'明天':`${diff}天後`;
+    const dayDiff=dayDiffOf(d);
+    const label=dayDiff===0?'今天':dayDiff===1?'明天':`${dayDiff}天後`;
     return`<div>📐 ${label}・${p.name}（${p.measureDate.slice(11,16)}）</div>`;
   }).join('');
   document.getElementById('measure-reminder-content').innerHTML=lines;
