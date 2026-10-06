@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607283">
+<meta name="app-version" content="202607284">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -406,6 +406,7 @@ textarea.form-input{resize:none;min-height:72px;}
   <div id="page-dashboard" class="page active">
     <div class="content">
       <div class="section-hd dash-section-hd"><span>待辦事項</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openTodoEdit()">+ 新增</span></div>
+      <div class="segmented" id="todo-tabs" style="margin-bottom:0.5rem;"></div>
       <div class="card" id="dash-todos" style="margin-bottom:1rem;"></div>
 
       <div id="punch-status" style="text-align:center;font-size:12px;color:var(--text3);margin-bottom:0.75rem;"></div>
@@ -2078,6 +2079,18 @@ function nowFull(){return new Date().toLocaleString('zh-TW',{month:'numeric',day
 function fmtMD(iso){if(!iso)return'';const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()}`;}
 const WEEKDAY_CN=['日','一','二','三','四','五','六'];
 function fmtMDW(iso){if(!iso)return'';const d=new Date(iso);return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${WEEKDAY_CN[d.getDay()]})`;}
+function fmtHM(iso){if(!iso)return'';const d=new Date(iso);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+// 這個專案檔案庫裡「最後上傳的檔案」的上傳時間（用雲端記錄的建立時間，跨所有分類取最新的）；沒有資料就回傳空字串
+function lastFileUploadOf(p){
+  let max=0,maxIso='';
+  (p.fileCats||[]).forEach(cat=>{
+    ((p.files&&p.files[cat])||[]).forEach(f=>{
+      const ts=f.createdTime?Date.parse(f.createdTime):NaN;
+      if(!isNaN(ts)&&ts>max){max=ts;maxIso=f.createdTime;}
+    });
+  });
+  return maxIso;
+}
 function fMoney(n){return Number(n||0).toLocaleString('zh-TW');}
 function fDate(d){return d?d.replace(/-/g,'/'):'—';}
 function fDateTime(rec){
@@ -3759,10 +3772,69 @@ function renderPunchStatus(){
 }
 
 // ── DASHBOARD ──
+// ── 待辦事項分頁：待處理 / 已完成 / 最近刪除 ──
+// 資料都放在同一個 todos 集合裡，用 status 欄位區分（不用新增雲端集合，不用改Firestore規則）：
+//   沒有 status → 待處理　　status:'done' → 已完成　　status:'deleted' → 最近刪除（超過保留天數才永久刪除）
+const TODO_TRASH_DAYS=30;
+let todoTab='pending'; // 目前主頁顯示哪一頁：'pending' | 'done' | 'trash'
+function todoStatusOf(t){return t.status==='done'||t.status==='deleted'?t.status:'pending';}
+// 到期時間點：手動待辦如果沒填時間，視為當天結束（23:59）才到期；其他維持原本的當天00:00
+function todoDueDate(t){
+  const fallback=t.type==='manual'?'23:59':'00:00';
+  return new Date(t.date+'T'+(t.time||fallback)+':00');
+}
+// 各類待辦事項的到期規則（集中在這裡，清理跟「還原」共用同一套判斷，避免兩邊不一致）：
+//   手動／場勘／簽約：到了設定的時間就到期　　進場：維持原本「隔天過期」　　設定提醒：不會因為日期到期
+function isTodoExpired(t,now){
+  now=now||new Date();
+  if(t.type==='設定提醒')return false;
+  if(t.type==='manual'||t.type==='簽約'||t.type==='場勘')return todoDueDate(t)<=now;
+  const cutoff=new Date(now);cutoff.setDate(cutoff.getDate()-1);
+  return t.date<cutoff.toISOString().slice(0,10);
+}
+function persistTodo(t){
+  if(window.fbSaveTodo)window.fbSaveTodo(t).catch(err=>console.error('儲存待辦事項失敗',err));
+}
+// 只改記憶體裡的狀態，不存檔——呼叫端負責 save() 跟寫入雲端
+function markTodoDeleted(t,reason){
+  t.deletedFrom=t.status==='done'?'done':'pending'; // 記住原本在哪一頁，還原時放回原處
+  t.status='deleted';
+  t.deletedAt=new Date().toISOString();
+  if(reason)t.deleteReason=reason;else delete t.deleteReason;
+}
+function clearTodoStatus(t){ // Firestore不接受undefined值，所以一定要用delete，不能設成undefined
+  delete t.status;delete t.doneAt;delete t.deletedAt;delete t.deleteReason;delete t.deletedFrom;
+}
+function todoLabelOf(t){
+  const typeLabel=(NEG_STEPS.includes(t.type)||t.type==='丈量')?t.type:'';
+  if(t.type==='設定提醒')return`⚠️ ${t.text}．${t.projectName||''}`;
+  return typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||'');
+}
+// 日期下方顯示時間（沒有時間的，例如「設定提醒」，就只顯示日期）
+function todoDateCellHtml(t){
+  const shortDate=fmtMDW(t.date+'T00:00:00'); // 加上星期，跟其他地方的日期格式一致
+  return`<div style="flex-shrink:0;line-height:1.3;">
+    <div style="color:var(--text3);font-size:0.8125rem;">${shortDate}</div>
+    ${t.time?`<div style="color:var(--text3);font-size:0.75rem;">${t.time}</div>`:''}
+  </div>`;
+}
+function setTodoTab(tab){
+  todoTab=tab;
+  renderTodos();
+}
+function renderTodoTabs(){
+  const tabsEl=document.getElementById('todo-tabs');if(!tabsEl)return;
+  const tabs=[['pending','待處理'],['done','已完成'],['trash','最近刪除']];
+  tabsEl.innerHTML=tabs.map(([key,label])=>`<div class="seg-btn ${todoTab===key?'active':''}" onclick="setTodoTab('${key}')">${label}</div>`).join('');
+}
 function renderTodos(){
   const el=document.getElementById('dash-todos');if(!el)return;
   cleanupExpiredTodos();
-  let todos=(db.todos||[]).slice();
+  renderTodoTabs();
+  if(todoTab==='done')return renderDoneTodos(el);
+  if(todoTab==='trash')return renderTrashTodos(el);
+  // ── 待處理 ──
+  let todos=(db.todos||[]).filter(t=>todoStatusOf(t)==='pending');
   // 同一個專案、同一天，如果有多個洽談步驟的待辦事項，只保留最後（最接近進場）的那一個
   const stepGroups={};
   todos.forEach(t=>{
@@ -3782,10 +3854,8 @@ function renderTodos(){
   el.innerHTML=todos.length?todos.map(t=>{
     const isManual=t.type==='manual';
     const isSetupReminder=t.type==='設定提醒';
-    const typeLabel=(NEG_STEPS.includes(t.type)||t.type==='丈量')?t.type:'';
-    const label=isSetupReminder?`⚠️ ${t.text}．${t.projectName||''}`:(typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||''));
-    const shortDate=fmtMDW(t.date+'T00:00:00'); // 加上星期，跟其他地方的日期格式一致
-    const checkAction=isManual?`onclick="event.stopPropagation();deleteTodo('${t.id}')" style="cursor:pointer"`:'';
+    // 只有手動新增的待辦可以打勾完成；系統自動產生的（場勘／簽約／進場）時間到了會自動消失
+    const checkAction=isManual?`onclick="event.stopPropagation();completeTodo('${t.id}')" style="cursor:pointer"`:'';
     const rowClick=isSetupReminder?`openDetail('${t.projectId}','dashboard');openConstructionSetup('${t.projectId}')`:`openTodoEdit('${t.id}')`;
     return`<div class="mat-item-wrap" data-key="${t.id}">
       <div class="mat-swipe-actions">
@@ -3795,14 +3865,57 @@ function renderTodos(){
       <div class="mat-item-card" style="background:var(--bg2);" onclick="${rowClick}">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
           <div class="todo-icon" ${checkAction}><i class="ti ti-square"></i></div>
-          <div style="color:var(--text3);font-size:0.8125rem;flex-shrink:0;">${shortDate}</div>
-          <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+          ${todoDateCellHtml(t)}
+          <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${todoLabelOf(t)}</div>
         </div>
       </div>
     </div>`;
   }).join(''):'<div class="empty" style="padding:1.25rem"><p>目前沒有待辦事項</p></div>';
   attachMatSwipe(el);
   attachArrayDrag('dash-todos',reorderTodos,'.mat-item-wrap');
+}
+// ── 已完成：點方框可以放回待處理；左滑可以刪除（會進最近刪除）──
+function renderDoneTodos(el){
+  const todos=(db.todos||[]).filter(t=>todoStatusOf(t)==='done')
+    .sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
+  el.innerHTML=todos.length?todos.map(t=>`<div class="mat-item-wrap" data-key="${t.id}">
+      <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();deleteTodo('${t.id}')"><i class="ti ti-trash"></i>刪除</button>
+      </div>
+      <div class="mat-item-card" style="background:var(--bg2);">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+          <div class="todo-icon" onclick="event.stopPropagation();reactivateTodo('${t.id}')" style="cursor:pointer;color:var(--gold);"><i class="ti ti-square-check"></i></div>
+          ${todoDateCellHtml(t)}
+          <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:line-through;color:var(--text3);">${todoLabelOf(t)}</div>
+        </div>
+      </div>
+    </div>`).join(''):'<div class="empty" style="padding:1.25rem"><p>還沒有已完成的待辦事項</p></div>';
+  attachMatSwipe(el);
+}
+// ── 最近刪除：左滑可以還原或永久刪除；超過保留天數會自動永久刪除 ──
+function renderTrashTodos(el){
+  const now=Date.now();
+  const todos=(db.todos||[]).filter(t=>todoStatusOf(t)==='deleted')
+    .sort((a,b)=>(b.deletedAt||'').localeCompare(a.deletedAt||''));
+  el.innerHTML=todos.length?todos.map(t=>{
+    const daysLeft=Math.max(0,Math.ceil(TODO_TRASH_DAYS-(now-new Date(t.deletedAt||now))/(1000*60*60*24)));
+    const note=(t.deleteReason==='expired'?'已過期・':'')+daysLeft+'天後清除';
+    return`<div class="mat-item-wrap" data-key="${t.id}">
+      <div class="mat-swipe-actions">
+        <button class="mat-sw-btn mat-sw-edit" onclick="event.stopPropagation();restoreTodo('${t.id}')"><i class="ti ti-arrow-back-up"></i>還原</button>
+        <button class="mat-sw-btn mat-sw-del" onclick="event.stopPropagation();purgeTodo('${t.id}')"><i class="ti ti-trash-x"></i>永久刪除</button>
+      </div>
+      <div class="mat-item-card" style="background:var(--bg2);">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+          <div class="todo-icon"><i class="ti ti-trash"></i></div>
+          ${todoDateCellHtml(t)}
+          <div style="flex:1;min-width:0;font-size:0.9375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text3);">${todoLabelOf(t)}</div>
+          <div style="flex-shrink:0;font-size:0.6875rem;color:var(--text3);">${note}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty" style="padding:1.25rem"><p>最近刪除是空的</p></div>';
+  attachMatSwipe(el);
 }
 // 長按拖曳排序：只有「同一天」的項目才會真的照拖曳後的順序顯示，
 // 跨日拖曳不會改變日期優先排序的結果（重新渲染時會自動排回正確的日期順序）
@@ -4407,7 +4520,9 @@ function renderDetail(pid){
       if(folderId)reconcileFileCatCount(pid,cat);
     });
   }
+  const lastUploadIso=lastFileUploadOf(p);
   const filesHtml=`<div class="section-hd">檔案庫 <span class="text-xs text-muted">（Google Drive）</span><span style="color:var(--gold);font-weight:400;cursor:pointer;font-size:0.8125rem" onclick="openFileCatManage('${pid}')">管理分類</span></div>
+    ${lastUploadIso?`<div style="font-size:0.75rem;color:var(--text3);padding:0 4px 8px;margin-top:-4px;">最後上傳　${fmtMDW(lastUploadIso)} ${fmtHM(lastUploadIso)}</div>`:''}
     <div id="drive-sync-diag-${pid}" style="display:none;font-size:0.75rem;color:var(--text3);padding:8px 10px;margin-bottom:8px;white-space:pre-wrap;background:var(--bg2);border:1px solid var(--red);border-radius:var(--r);"></div>
     <div class="card">
       ${p.fileCats.map((cat,idx)=>{
@@ -4629,6 +4744,7 @@ function upsertAutoTodo(pid,type,dateVal,timeVal){
     db.todos.push(rec);
   } else {
     rec.date=dateVal;rec.time=timeVal;rec.projectName=todoBuildingName(p);
+    clearTodoStatus(rec); // 重新設定這個步驟的時間，代表要它重新出現——就算之前被刪到「最近刪除」，也要放回待處理
   }
   save();
   if(window.fbSaveTodo)window.fbSaveTodo(rec);
@@ -4678,12 +4794,16 @@ let lastGcalDeleteCheckTime=0;
 function checkCalendarDeletedTodos(){
   const now=Date.now();
   if(now-lastGcalDeleteCheckTime<5*60*1000)return; // 5分鐘內檢查過就跳過
-  const todosWithGcal=(db.todos||[]).filter(t=>db.punchGcalIds&&db.punchGcalIds['todo|'+t.id]);
-  if(!todosWithGcal.length)return;
+  const hasGcal=t=>db.punchGcalIds&&db.punchGcalIds['todo|'+t.id];
+  const todosWithGcal=(db.todos||[]).filter(t=>todoStatusOf(t)==='pending'&&hasGcal(t));
+  // 已完成／最近刪除的待辦，日曆事件應該已經刪掉了；如果當時背景授權沒成功、事件還殘留，趁有授權的時候補刪
+  const orphanTodos=(db.todos||[]).filter(t=>todoStatusOf(t)!=='pending'&&hasGcal(t));
+  if(!todosWithGcal.length&&!orphanTodos.length)return;
   // 這是背景自動檢查，不是使用者主動觸發的動作，Google服務還沒準備好時要安靜跳過，
   // 不能用 ensureDriveAuth（那個沒準備好時會跳出阻斷性的alert，剛登入時很容易發生，會卡住畫面）
   if(!driveAccessToken)return; // 還沒有授權（例如剛登入、靜默授權還沒跑完），先跳過，下次renderDashboard再檢查
   lastGcalDeleteCheckTime=now;
+  orphanTodos.forEach(t=>deleteTodoGcalEvent(t.id));
   (async()=>{
     let anyDeleted=false;
     for(const t of todosWithGcal){
@@ -4709,29 +4829,58 @@ function checkCalendarDeletedTodos(){
   })();
 }
 function cleanupExpiredTodos(){
-  // 隔天自動刪除：適用進場（跟日期綁定，但保留一整天讓你看得到）
-  // 場勘、簽約比較特別：時間一到就立即取消，不用等隔天
-  // 手動建立的待辦不會自動過期，只能手動點方框圖示或左滑刪除
-  // 「設定提醒」也不會因為日期到期，只有填完施工項目＋工程款期數才會自動消失
+  // 到期規則（見 isTodoExpired）：
+  //   手動新增的待辦：時間一到就自動刪除——但不是直接消失，而是先移到「最近刪除」，還來得及還原
+  //   場勘、簽約：時間一到立即清除；進場：維持隔天過期（這幾種是系統自動產生的，到期就直接清掉，不進最近刪除）
+  //   「設定提醒」不會因為日期到期，只有填完施工項目＋工程款期數才會自動消失
+  //   「最近刪除」裡超過 TODO_TRASH_DAYS 天的，這裡一併永久刪除
   if(!db.todos||!db.todos.length)return;
   const now=new Date();
-  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-1);
-  const cutoffStr=cutoff.toISOString().slice(0,10);
-  const expired=db.todos.filter(t=>{
-    if(t.type==='manual'||t.type==='設定提醒')return false;
-    if(t.type==='簽約'||t.type==='場勘')return new Date(t.date+'T'+(t.time||'00:00')+':00')<=now; // 時間一到立即取消
-    return t.date<cutoffStr; // 進場：維持隔天過期
+  const autoDeleted=[];  // 手動待辦到期 → 移到最近刪除
+  const hardExpired=[];  // 系統自動待辦到期 → 直接清除
+  const purged=[];       // 最近刪除放太久 → 永久刪除
+  let needSave=false;
+  db.todos.forEach(t=>{
+    const st=todoStatusOf(t);
+    if(st==='deleted'){
+      if(!t.deletedAt){t.deletedAt=now.toISOString();persistTodo(t);needSave=true;return;} // 理論上不會發生，補上時間讓保留期限開始計算，不要直接刪
+      if((now-new Date(t.deletedAt))/(1000*60*60*24)>TODO_TRASH_DAYS)purged.push(t);
+      return;
+    }
+    if(st==='done')return; // 已完成的保留，不會自動清除
+    if(!isTodoExpired(t,now))return;
+    (t.type==='manual'?autoDeleted:hardExpired).push(t);
   });
-  if(!expired.length)return;
-  const expiredIds=new Set(expired.map(t=>t.id));
-  db.todos=db.todos.filter(t=>!expiredIds.has(t.id));
+  if(!autoDeleted.length&&!hardExpired.length&&!purged.length){
+    if(needSave)save();
+    return;
+  }
+  autoDeleted.forEach(t=>markTodoDeleted(t,'expired'));
+  const removeIds=new Set([...hardExpired,...purged].map(t=>t.id));
+  if(removeIds.size)db.todos=db.todos.filter(t=>!removeIds.has(t.id));
   save();
-  expired.forEach(t=>{
+  autoDeleted.forEach(t=>{persistTodo(t);deleteTodoGcalEvent(t.id);});
+  hardExpired.forEach(t=>{
     if(window.fbDeleteTodo)window.fbDeleteTodo(t.id).catch(()=>{});
     deleteTodoGcalEvent(t.id);
   });
+  purged.forEach(t=>{ // 日曆事件在移到最近刪除的時候就已經刪掉了，這裡只要清雲端資料
+    if(window.fbDeleteTodo)window.fbDeleteTodo(t.id).catch(()=>{});
+  });
 }
-function openTodoEdit(id){
+// 預設的日期時間：今天09:00還沒到就用09:00，否則用下一個整點（跨過午夜就是明天）——
+// 手動待辦時間一到就會自動刪除，所以預設值不能是已經過去的時間
+function defaultTodoDateTime(){
+  const now=new Date();
+  let d=new Date(now);d.setHours(9,0,0,0);
+  if(d<=now){d=new Date(now);d.setMinutes(0,0,0);d.setHours(d.getHours()+1);}
+  const pad=n=>String(n).padStart(2,'0');
+  return{date:`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,time:`${pad(d.getHours())}:${pad(d.getMinutes())}`};
+}
+window._todoRestoreMode=false; // true：正在「還原」一筆時間已過期的手動待辦，儲存時要順便放回待處理
+function openTodoEdit(id,opts){
+  const restore=!!(opts&&opts.restore);
+  window._todoRestoreMode=restore;
   const dateEl=document.getElementById('todo-date'),timeEl=document.getElementById('todo-time'),textEl=document.getElementById('todo-text');
   const timeTextEl=document.getElementById('todo-time-text'),timeDisplayEl=document.getElementById('todo-time-display');
   const autoNote=document.getElementById('todo-auto-note');
@@ -4739,11 +4888,12 @@ function openTodoEdit(id){
     const t=db.todos.find(x=>x.id===id);if(!t)return;
     const isAuto=t.type!=='manual';
     document.getElementById('todo-is-auto').value=isAuto?'1':'';
-    document.getElementById('todo-edit-title').textContent='編輯待辦事項';
+    document.getElementById('todo-edit-title').textContent=restore?'還原待辦事項（請設定新時間）':'編輯待辦事項';
     document.getElementById('todo-id').value=t.id;
-    dateEl.value=t.date;
-    timeEl.value=t.time||'';
-    timeTextEl.textContent=t.time||'09:00';
+    const def=restore?defaultTodoDateTime():null; // 還原時舊的時間已經過了，先帶入一個有效的預設時間
+    dateEl.value=restore?def.date:t.date;
+    timeEl.value=restore?def.time:(t.time||'');
+    timeTextEl.textContent=restore?def.time:(t.time||'09:00');
     textEl.value=isAuto?(t.type+'．'+(t.projectName||'')):(t.text||'');
     document.getElementById('todo-note').value=t.note||'';
     dateEl.disabled=isAuto;textEl.disabled=isAuto;
@@ -4751,12 +4901,13 @@ function openTodoEdit(id){
     timeDisplayEl.style.opacity=isAuto?'0.6':'1';
     autoNote.style.display=isAuto?'block':'none';
   } else {
+    const def=defaultTodoDateTime();
     document.getElementById('todo-is-auto').value='';
     document.getElementById('todo-edit-title').textContent='新增待辦事項';
     document.getElementById('todo-id').value='';
-    dateEl.value=today();
-    timeEl.value='09:00';
-    timeTextEl.textContent='09:00';
+    dateEl.value=def.date;
+    timeEl.value=def.time;
+    timeTextEl.textContent=def.time;
     textEl.value='';
     document.getElementById('todo-note').value='';
     dateEl.disabled=false;textEl.disabled=false;
@@ -4785,27 +4936,77 @@ function saveTodoEdit(){
   const text=document.getElementById('todo-text').value.trim();
   if(!dateVal||!timeVal)return alert('請選擇日期與時間');
   if(!text)return alert('請輸入待辦事項標題');
+  // 手動待辦時間一到就會自動刪除，所以時間必須晚於現在，不然一存檔就馬上被刪掉
+  if(new Date(dateVal+'T'+timeVal+':00')<=new Date())return alert('待辦事項的時間必須晚於現在（時間一到會自動刪除）');
   closeSheet('sheet-todo-edit');
   let rec;
   if(id){
     rec=db.todos.find(x=>x.id===id);if(!rec)return;
     rec.date=dateVal;rec.time=timeVal;rec.text=text;rec.note=note;
+    if(window._todoRestoreMode)clearTodoStatus(rec); // 還原：設好新時間之後，放回待處理
   } else {
     rec={id:uid(),type:'manual',date:dateVal,time:timeVal,text,note,createdAt:new Date().toISOString()};
     db.todos.push(rec);
   }
+  window._todoRestoreMode=false;
   save();
   if(window.fbSaveTodo)window.fbSaveTodo(rec);
   syncTodoToCalendar(rec);
   renderTodos();
 }
+// 打勾完成（只有手動新增的待辦有這個動作）：移到「已完成」，並從共用日曆移除
+function completeTodo(id){
+  const t=db.todos.find(x=>x.id===id);if(!t||todoStatusOf(t)!=='pending'||t.type!=='manual')return;
+  t.status='done';
+  t.doneAt=new Date().toISOString();
+  save();persistTodo(t);
+  deleteTodoGcalEvent(id);
+  renderTodos();
+}
+// 從「已完成」或「最近刪除」放回「待處理」
+function reactivateTodo(id){
+  const t=db.todos.find(x=>x.id===id);if(!t||todoStatusOf(t)==='pending')return;
+  if(isTodoExpired(t)){
+    if(t.type==='manual'){
+      // 時間已經過了，直接放回去會馬上又被自動刪除——請先設定新的時間
+      alert('這筆待辦事項的時間已經過了，直接還原會馬上又被自動刪除。\n請先設定新的日期與時間。');
+      openTodoEdit(id,{restore:true});
+    } else {
+      alert('這筆待辦事項是系統自動產生的，而且已經過期，無法還原。');
+    }
+    return;
+  }
+  clearTodoStatus(t);
+  save();persistTodo(t);
+  if(t.time)syncTodoToCalendar(t); // 放回待處理後，重新同步到共用日曆
+  renderTodos();
+}
+// 從「最近刪除」還原：原本在「已完成」的放回「已完成」，其他放回「待處理」
+function restoreTodo(id){
+  const t=db.todos.find(x=>x.id===id);if(!t||todoStatusOf(t)!=='deleted')return;
+  if(t.deletedFrom==='done'){
+    t.status='done';delete t.deletedAt;delete t.deleteReason;delete t.deletedFrom;
+    save();persistTodo(t);renderTodos();
+    return;
+  }
+  reactivateTodo(id);
+}
+// 刪除：先移到「最近刪除」，保留 TODO_TRASH_DAYS 天，期間都可以還原
 function deleteTodo(id){
-  const t=db.todos.find(x=>x.id===id);if(!t)return;
-  if(!confirm('確定刪除這筆待辦事項？'))return;
+  const t=db.todos.find(x=>x.id===id);if(!t||todoStatusOf(t)==='deleted')return;
+  if(!confirm(`確定刪除這筆待辦事項？\n（會先放在「最近刪除」，${TODO_TRASH_DAYS}天內都可以還原）`))return;
+  markTodoDeleted(t);
+  save();persistTodo(t);
+  deleteTodoGcalEvent(id);
+  renderTodos();
+}
+// 從「最近刪除」永久刪除（無法還原）
+function purgeTodo(id){
+  const t=db.todos.find(x=>x.id===id);if(!t||todoStatusOf(t)!=='deleted')return;
+  if(!confirm('永久刪除後就無法還原了，確定嗎？'))return;
   db.todos=db.todos.filter(x=>x.id!==id);
   save();
   if(window.fbDeleteTodo)window.fbDeleteTodo(id).catch(()=>{});
-  deleteTodoGcalEvent(id);
   renderTodos();
 }
 
@@ -6135,11 +6336,7 @@ async function discoverDriveSubfolders(pid,force=false,silent=false){
           const folderId=p.driveFolders[cat];
           if(!folderId)continue;
           try{
-            const fq=`'${folderId}' in parents and trashed=false`;
-            const fUrl=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(fq)}&fields=files(id,name)`;
-            const fRes=await driveApiFetch(fUrl);
-            const fData=await fRes.json();
-            const newFiles=(fData.files||[]).map(f=>({name:f.name,driveId:f.id}));
+            const newFiles=(await listDriveFolderFiles(folderId)).map(f=>({name:f.name,driveId:f.id,createdTime:f.createdTime}));
             if(!p.files)p.files={};
             p.files[cat]=newFiles;
             reconciledFileCatsAt[`${pid}|${cat}`]=Date.now();
@@ -6166,6 +6363,23 @@ async function discoverDriveSubfolders(pid,force=false,silent=false){
 }
 const reconciledFileCatsAt={}; // 記錄「專案id-分類」組合上次對帳的時間戳記，節流用（避免短時間內對同一個分類反覆查詢）
 const reconcilingInProgress=new Set(); // 記錄目前正在對帳查詢中的「專案id-分類」組合，畫面上用來顯示「查詢中」提示
+// 列出雲端資料夾裡的所有檔案（含上傳時間）。Google一頁最多回傳一部分，超過的要接著翻頁拿——
+// 不然檔案超過一頁時，數量跟「最後上傳時間」都會算錯。雲端回報錯誤時直接丟出例外，不會當成「空資料夾」
+async function listDriveFolderFiles(folderId){
+  const files=[];
+  let pageToken='';
+  for(let page=0;page<50;page++){ // 上限50頁，避免萬一出狀況變成無限迴圈
+    const q=`'${folderId}' in parents and trashed=false`;
+    const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,createdTime)&pageSize=1000`+(pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:'');
+    const res=await driveApiFetch(url);
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message||'Google Drive 查詢失敗');
+    (data.files||[]).forEach(f=>files.push({id:f.id,name:f.name,createdTime:f.createdTime||''}));
+    pageToken=data.nextPageToken||'';
+    if(!pageToken)break;
+  }
+  return files;
+}
 async function reconcileFileCatCount(pid,cat){
   const key=`${pid}|${cat}`;
   const lastAt=reconciledFileCatsAt[key]||0;
@@ -6177,13 +6391,7 @@ async function reconcileFileCatCount(pid,cat){
     reconcilingInProgress.add(key);
     if(currentPage==='detail'&&currentProjectId===pid)renderDetail(pid); // 立即顯示「查詢中」提示
     try{
-      const q=`'${folderId}' in parents and trashed=false`;
-      const url=`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`;
-      const queryOnce=async()=>{
-        const res=await driveApiFetch(url);
-        const data=await res.json();
-        return data.files||[];
-      };
+      const queryOnce=()=>listDriveFolderFiles(folderId); // 雲端回報錯誤時會丟出例外（被下面的catch接住、不更新），不會被誤當成「資料夾是空的」
       let driveFiles=await queryOnce();
       if(!driveFiles.length){
         // 第一次查到空的，可能只是雲端剛索引還沒跟上（暫時性狀況）——不要馬上相信，
@@ -6193,10 +6401,11 @@ async function reconcileFileCatCount(pid,cat){
         driveFiles=await queryOnce();
       }
       if(!p.files)p.files={};
-      const newFiles=driveFiles.map(f=>({name:f.name,driveId:f.id}));
+      const newFiles=driveFiles.map(f=>({name:f.name,driveId:f.id,createdTime:f.createdTime}));
       const oldFiles=p.files[cat]||[];
-      // 內容相同就不用重複存檔、重複渲染，避免每次都無謂地觸發畫面更新
-      const same=oldFiles.length===newFiles.length&&oldFiles.every(f=>newFiles.some(nf=>nf.driveId===f.driveId));
+      // 內容相同就不用重複存檔、重複渲染，避免每次都無謂地觸發畫面更新。
+      // 舊記錄還沒有上傳時間（createdTime欄位不存在）的，也視為不同，讓它補寫一次——這樣「最後上傳時間」才查得到
+      const same=oldFiles.length===newFiles.length&&oldFiles.every(f=>f.createdTime!==undefined&&newFiles.some(nf=>nf.driveId===f.driveId));
       if(same)return;
       p.files[cat]=newFiles;
       save();if(window.fbSaveProject)window.fbSaveProject(p);
@@ -6354,7 +6563,7 @@ async function uploadOneFile(p,cat,file,folderId,retryCount=0){
     const timeoutId=setTimeout(()=>controller.abort(),30000);
     let res;
     try{
-      res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',{
+      res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,createdTime',{
         method:'POST',
         headers:{'Authorization':'Bearer '+driveAccessToken},
         body:form,
@@ -6367,7 +6576,7 @@ async function uploadOneFile(p,cat,file,folderId,retryCount=0){
     if(result.id){
       if(!p.files)p.files={};
       if(!p.files[cat])p.files[cat]=[];
-      p.files[cat].push({name:result.name,driveId:result.id});
+      p.files[cat].push({name:result.name,driveId:result.id,createdTime:result.createdTime||new Date().toISOString()});
       return true;
     } else {
       // 分清楚是「通行證失效」還是「資料夾本身有問題」：授權失敗時通行證要清掉，
