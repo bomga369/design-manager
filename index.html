@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="2610152250">
+<meta name="app-version" content="2610152308">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -363,12 +363,16 @@ textarea.form-input{resize:none;min-height:72px;}
 .prep-row input[type=checkbox]{width:20px;height:20px;flex-shrink:0;accent-color:var(--gold);}
 .prep-row-name{flex:1;min-width:0;font-size:0.9688rem;}
 .prep-del{background:none;border:none;color:var(--text3);font-size:1.1rem;cursor:pointer;padding:2px 4px;}
-.prep-subs{display:flex;flex-wrap:wrap;gap:6px;padding:0 0.9rem 0.75rem 2.6rem;}
-.prep-sub-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 6px 5px 9px;border-radius:99px;background:var(--bg3);border:1px solid var(--border);font-size:0.8438rem;}
-.prep-sub-chip{cursor:pointer;user-select:none;-webkit-user-select:none;}
-.prep-sub-chip i.ti-square-check{color:var(--gold);}
-.prep-sub-chip.off{opacity:0.45;text-decoration:line-through;}
-.prep-sub-chip button{background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.9rem;padding:0 2px;display:flex;}
+.prep-subs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 0.9rem 0.8rem 2.6rem;}
+.prep-sub{display:flex;align-items:center;gap:9px;padding:9px 10px;min-height:46px;border:1px solid var(--border);border-radius:10px;background:var(--bg);cursor:pointer;}
+.prep-sub-box{width:26px;height:26px;border-radius:7px;border:2px solid var(--border2);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.prep-sub.on .prep-sub-box::after{content:'';width:12px;height:7px;border-left:3px solid #fff;border-bottom:3px solid #fff;transform:rotate(-45deg) translate(1px,-2px);display:block;}
+.prep-sub.on .prep-sub-box{background:var(--gold);border-color:var(--gold);}
+.prep-sub-name{flex:1;min-width:0;font-size:0.9062rem;line-height:1.3;word-break:break-all;}
+.prep-sub.off{background:transparent;}
+.prep-sub.off .prep-sub-name{color:var(--text3);text-decoration:line-through;}
+.prep-lp{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
+.prep-empty{grid-column:1/-1;color:var(--text3);font-size:0.8125rem;}
 .prep-add-row{display:flex;gap:6px;padding:0.6rem 0.9rem;}
 .prep-add-row input{flex:1;min-width:0;padding:8px 11px;font-size:0.9375rem;}
 .prep-sub-add{padding:0 0.9rem 0.8rem 2.6rem;display:flex;gap:6px;}
@@ -596,6 +600,16 @@ textarea.form-input{resize:none;min-height:72px;}
   <button onclick="downloadSelectedQuotes()"><i class="ti ti-download"></i> 下載</button>
   <button onclick="openMoveSelectedSheet()"><i class="ti ti-folder-symlink"></i> 移動</button>
   <button class="danger" onclick="deleteSelectedQuotes()"><i class="ti ti-trash"></i> 刪除</button>
+</div>
+
+<div class="sheet-overlay" id="sheet-prep-item">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title"><span id="prep-item-title"></span><button class="sheet-close" onclick="closeSheet('sheet-prep-item')"><i class="ti ti-x"></i></button></div>
+    <button class="btn" style="width:100%;margin-bottom:0.6rem;" onclick="prepItemRename()"><i class="ti ti-pencil"></i> 編輯名稱</button>
+    <button class="btn btn-danger" style="width:100%;margin-bottom:0.6rem;" onclick="prepItemDelete()"><i class="ti ti-trash"></i> 刪除</button>
+    <button class="btn btn-ghost" style="width:100%;" onclick="closeSheet('sheet-prep-item')">取消</button>
+  </div>
 </div>
 
 <div class="quote-preview-overlay" id="prep-preview-overlay" onclick="closePrepPreview()">
@@ -1955,9 +1969,9 @@ function onPrepProjectInput(){
 function renderPrepBody(){
   const el=document.getElementById('prep-body');if(!el)return;
   prepCheckedSheets=new Set([...prepCheckedSheets].filter(id=>prepFindSheet(id)));
-  let h=`<div class="section-hd">選擇準備表</div><div class="card">`+
+  let h=`<div class="section-hd">選擇準備表</div><div style="color:var(--text3);font-size:0.75rem;margin:-4px 0 8px;">長按名稱可編輯或刪除</div><div class="card">`+
     db.prepSheets.map(sh=>`<div class="prep-row">
-      <label style="flex:1;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;">
+      <label class="prep-lp" data-lp="sheet|${sh.id}" style="flex:1;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;">
         <input type="checkbox" ${prepCheckedSheets.has(sh.id)?'checked':''} onchange="togglePrepSheet('${sh.id}',this.checked)">
         <span class="prep-row-name">${prepEsc(sh.name)}</span>
       </label>
@@ -1965,17 +1979,17 @@ function renderPrepBody(){
     </div>`).join('')+
     `<div class="prep-add-row"><input class="form-input" id="prep-add-sheet" placeholder="新增準備表名稱" autocomplete="off" onkeydown="if(event.key==='Enter')addPrepSheet()"><button class="btn btn-sm btn-primary" onclick="addPrepSheet()">新增</button></div></div>`;
   db.prepSheets.filter(sh=>prepCheckedSheets.has(sh.id)).forEach(sh=>{
-    h+=`<div class="section-hd">${prepEsc(sh.name)}・主項目</div><div style="color:var(--text3);font-size:0.75rem;margin:-4px 0 8px;">點副項目＝這次不印（下次恢復）；按 × ＝永久刪除</div><div class="card">`+
+    h+=`<div class="section-hd">${prepEsc(sh.name)}・主項目</div><div style="color:var(--text3);font-size:0.75rem;margin:-4px 0 8px;">點副項目＝這次不印（下次恢復）；長按名稱＝編輯或刪除</div><div class="card">`+
       sh.mains.map(m=>{
         const on=!prepUncheckedMains.has(m.id);
         const subsHtml=m.subs.length
           ?m.subs.map((sub,i)=>{
             const subOn=!prepUncheckedSubs.has(m.id+'|'+sub);
-            return`<span class="prep-sub-chip${subOn?'':' off'}" onclick="togglePrepSub('${m.id}',${i})"><i class="ti ${subOn?'ti-square-check':'ti-square'}"></i>${prepEsc(sub)}<button onclick="event.stopPropagation();deletePrepSub('${sh.id}','${m.id}',${i})"><i class="ti ti-x"></i></button></span>`;
+            return`<div class="prep-sub prep-lp ${subOn?'on':'off'}" data-lp="sub|${sh.id}|${m.id}|${i}" onclick="togglePrepSub('${m.id}',${i})"><span class="prep-sub-box"></span><span class="prep-sub-name">${prepEsc(sub)}</span></div>`;
           }).join('')
-          :'<span class="text-xs text-muted">尚無副項目</span>';
+          :'<span class="prep-empty">尚無副項目</span>';
         return`<div class="prep-row"${on?' style="border-bottom:none;"':''}>
-          <label style="flex:1;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;">
+          <label class="prep-lp" data-lp="main|${sh.id}|${m.id}" style="flex:1;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;">
             <input type="checkbox" ${on?'checked':''} onchange="togglePrepMain('${m.id}',this.checked)">
             <span class="prep-row-name fw500">${prepEsc(m.name)}</span>
           </label>
@@ -1986,6 +2000,73 @@ function renderPrepBody(){
       `<div class="prep-add-row"><input class="form-input" id="prep-add-main-${sh.id}" placeholder="新增主項目" autocomplete="off" onkeydown="if(event.key==='Enter')addPrepMain('${sh.id}')"><button class="btn btn-sm btn-primary" onclick="addPrepMain('${sh.id}')">新增</button></div></div>`;
   });
   el.innerHTML=h;
+  attachPrepLongPress(el);
+}
+// 長按（手機）或右鍵（電腦）跳出「編輯名稱／刪除」選單；長按觸發後不會再算成一次點擊
+function attachPrepLongPress(root){
+  root.querySelectorAll('[data-lp]').forEach(node=>{
+    let timer=null,fired=false,sx=0,sy=0;
+    node.addEventListener('touchstart',e=>{
+      fired=false;sx=e.touches[0].clientX;sy=e.touches[0].clientY;
+      timer=setTimeout(()=>{
+        fired=true;
+        if(navigator.vibrate)navigator.vibrate(30);
+        openPrepItemMenu(node.getAttribute('data-lp'));
+      },550);
+    },{passive:true});
+    node.addEventListener('touchmove',e=>{
+      if(Math.abs(e.touches[0].clientX-sx)>10||Math.abs(e.touches[0].clientY-sy)>10)clearTimeout(timer);
+    },{passive:true});
+    node.addEventListener('touchend',e=>{clearTimeout(timer);if(fired){e.preventDefault();fired=false;}});
+    node.addEventListener('touchcancel',()=>clearTimeout(timer));
+    node.addEventListener('contextmenu',e=>{e.preventDefault();clearTimeout(timer);if(!fired)openPrepItemMenu(node.getAttribute('data-lp'));});
+  });
+}
+let prepMenuCtx=null;
+function prepCtxItem(ctx){
+  const sh=prepFindSheet(ctx.sid);if(!sh)return null;
+  if(ctx.kind==='sheet')return{sh,name:sh.name};
+  const m=sh.mains.find(x=>x.id===ctx.mid);if(!m)return null;
+  if(ctx.kind==='main')return{sh,m,name:m.name};
+  if(m.subs[ctx.idx]===undefined)return null;
+  return{sh,m,name:m.subs[ctx.idx]};
+}
+function openPrepItemMenu(key){
+  const [kind,sid,mid,idx]=key.split('|');
+  prepMenuCtx={kind,sid,mid,idx:idx===undefined?null:Number(idx)};
+  const it=prepCtxItem(prepMenuCtx);if(!it)return;
+  const label={sheet:'準備表',main:'主項目',sub:'副項目'}[kind];
+  document.getElementById('prep-item-title').textContent=`${label}：${it.name}`;
+  openSheet('sheet-prep-item');
+}
+function prepItemRename(){
+  const ctx=prepMenuCtx;if(!ctx)return;
+  const it=prepCtxItem(ctx);if(!it)return closeSheet('sheet-prep-item');
+  const input=prompt('修改名稱',it.name);
+  if(input===null)return;
+  const name=input.trim();
+  if(!name||name===it.name)return closeSheet('sheet-prep-item');
+  if(ctx.kind==='sheet'){
+    if(db.prepSheets.some(x=>x.name===name))return alert('已經有相同名稱的準備表了');
+    it.sh.name=name;
+  } else if(ctx.kind==='main'){
+    if(it.sh.mains.some(x=>x.name===name))return alert('這張表已經有相同名稱的主項目了');
+    it.m.name=name;
+  } else {
+    if(it.m.subs.includes(name))return alert('已經有相同名稱的副項目了');
+    const oldKey=it.m.id+'|'+it.name;
+    if(prepUncheckedSubs.has(oldKey)){prepUncheckedSubs.delete(oldKey);prepUncheckedSubs.add(it.m.id+'|'+name);}
+    it.m.subs[ctx.idx]=name;
+  }
+  closeSheet('sheet-prep-item');
+  savePrepSheets();renderPrepBody();
+}
+function prepItemDelete(){
+  const ctx=prepMenuCtx;if(!ctx)return;
+  closeSheet('sheet-prep-item');
+  if(ctx.kind==='sheet')deletePrepSheet(ctx.sid);
+  else if(ctx.kind==='main')deletePrepMain(ctx.sid,ctx.mid);
+  else deletePrepSub(ctx.sid,ctx.mid,ctx.idx);
 }
 function togglePrepSheet(id,on){if(on)prepCheckedSheets.add(id);else prepCheckedSheets.delete(id);renderPrepBody();}
 function togglePrepMain(id,on){
