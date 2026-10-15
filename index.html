@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="2610152234">
+<meta name="app-version" content="2610152250">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -364,7 +364,10 @@ textarea.form-input{resize:none;min-height:72px;}
 .prep-row-name{flex:1;min-width:0;font-size:0.9688rem;}
 .prep-del{background:none;border:none;color:var(--text3);font-size:1.1rem;cursor:pointer;padding:2px 4px;}
 .prep-subs{display:flex;flex-wrap:wrap;gap:6px;padding:0 0.9rem 0.75rem 2.6rem;}
-.prep-sub-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 6px 5px 11px;border-radius:99px;background:var(--bg3);border:1px solid var(--border);font-size:0.8438rem;}
+.prep-sub-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 6px 5px 9px;border-radius:99px;background:var(--bg3);border:1px solid var(--border);font-size:0.8438rem;}
+.prep-sub-chip{cursor:pointer;user-select:none;-webkit-user-select:none;}
+.prep-sub-chip i.ti-square-check{color:var(--gold);}
+.prep-sub-chip.off{opacity:0.45;text-decoration:line-through;}
 .prep-sub-chip button{background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.9rem;padding:0 2px;display:flex;}
 .prep-add-row{display:flex;gap:6px;padding:0.6rem 0.9rem;}
 .prep-add-row input{flex:1;min-width:0;padding:8px 11px;font-size:0.9375rem;}
@@ -1922,6 +1925,7 @@ function defaultPrepSheets(){
 }
 let prepCheckedSheets=new Set();
 let prepUncheckedMains=new Set();
+let prepUncheckedSubs=new Set(); // 鍵值：主項目id|副項目名稱；只記這次，不存雲端
 let prepImageBlob=null,prepImageUrl=null,prepImageName='';
 function prepEsc(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function prepFindSheet(id){return db.prepSheets.find(x=>x.id===id);}
@@ -1961,11 +1965,14 @@ function renderPrepBody(){
     </div>`).join('')+
     `<div class="prep-add-row"><input class="form-input" id="prep-add-sheet" placeholder="新增準備表名稱" autocomplete="off" onkeydown="if(event.key==='Enter')addPrepSheet()"><button class="btn btn-sm btn-primary" onclick="addPrepSheet()">新增</button></div></div>`;
   db.prepSheets.filter(sh=>prepCheckedSheets.has(sh.id)).forEach(sh=>{
-    h+=`<div class="section-hd">${prepEsc(sh.name)}・主項目</div><div class="card">`+
+    h+=`<div class="section-hd">${prepEsc(sh.name)}・主項目</div><div style="color:var(--text3);font-size:0.75rem;margin:-4px 0 8px;">點副項目＝這次不印（下次恢復）；按 × ＝永久刪除</div><div class="card">`+
       sh.mains.map(m=>{
         const on=!prepUncheckedMains.has(m.id);
         const subsHtml=m.subs.length
-          ?m.subs.map((sub,i)=>`<span class="prep-sub-chip">${prepEsc(sub)}<button onclick="deletePrepSub('${sh.id}','${m.id}',${i})"><i class="ti ti-x"></i></button></span>`).join('')
+          ?m.subs.map((sub,i)=>{
+            const subOn=!prepUncheckedSubs.has(m.id+'|'+sub);
+            return`<span class="prep-sub-chip${subOn?'':' off'}" onclick="togglePrepSub('${m.id}',${i})"><i class="ti ${subOn?'ti-square-check':'ti-square'}"></i>${prepEsc(sub)}<button onclick="event.stopPropagation();deletePrepSub('${sh.id}','${m.id}',${i})"><i class="ti ti-x"></i></button></span>`;
+          }).join('')
           :'<span class="text-xs text-muted">尚無副項目</span>';
         return`<div class="prep-row"${on?' style="border-bottom:none;"':''}>
           <label style="flex:1;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;">
@@ -1981,7 +1988,21 @@ function renderPrepBody(){
   el.innerHTML=h;
 }
 function togglePrepSheet(id,on){if(on)prepCheckedSheets.add(id);else prepCheckedSheets.delete(id);renderPrepBody();}
-function togglePrepMain(id,on){if(on)prepUncheckedMains.delete(id);else prepUncheckedMains.add(id);renderPrepBody();}
+function togglePrepMain(id,on){
+  if(on){
+    prepUncheckedMains.delete(id);
+    // 重新勾選主項目：底下副項目全部恢復全選
+    [...prepUncheckedSubs].forEach(k=>{if(k.startsWith(id+'|'))prepUncheckedSubs.delete(k);});
+  } else prepUncheckedMains.add(id);
+  renderPrepBody();
+}
+function togglePrepSub(mid,idx){
+  let m=null;db.prepSheets.some(sh=>(m=sh.mains.find(x=>x.id===mid)));
+  if(!m||m.subs[idx]===undefined)return;
+  const k=mid+'|'+m.subs[idx];
+  if(prepUncheckedSubs.has(k))prepUncheckedSubs.delete(k);else prepUncheckedSubs.add(k);
+  renderPrepBody();
+}
 function addPrepSheet(){
   const inp=document.getElementById('prep-add-sheet');
   const name=inp.value.trim();if(!name)return;
@@ -2029,12 +2050,13 @@ function addPrepSub(sid,mid){
 function deletePrepSub(sid,mid,idx){
   const sh=prepFindSheet(sid);if(!sh)return;
   const m=sh.mains.find(x=>x.id===mid);if(!m||m.subs[idx]===undefined)return;
-  if(!confirm(`確定刪除副項目「${m.subs[idx]}」？`))return;
+  if(!confirm(`確定刪除副項目「${m.subs[idx]}」？（範本會永久刪除，團隊共用）`))return;
+  prepUncheckedSubs.delete(mid+'|'+m.subs[idx]);
   m.subs.splice(idx,1);
   savePrepSheets();renderPrepBody();
 }
 
-// ── 輸出 A4 圖片（200dpi：1654×2339，白底）──
+// ── 輸出 A4 圖片（200dpi：1654×2339，白底，黑白線條設計）──
 const PREP_FONT='"Noto Sans TC","PingFang TC","Heiti TC",sans-serif';
 function prepFont(px,w){return`${w||400} ${px}px ${PREP_FONT}`;}
 function prepWrapText(ctx,text,maxW){
@@ -2050,55 +2072,146 @@ function prepWrapText(ctx,text,maxW){
   });
   return lines;
 }
+// 主項目依名稱自動配一個線條圖示；對不到的用清單圖示
+function prepIconKind(name){
+  if(/電/.test(name))return'power';
+  if(/保護|防護/.test(name))return'shield';
+  if(/作業|機|鋸|鉅|台/.test(name))return'blade';
+  if(/手/.test(name))return'hammer';
+  if(/其他|耗材|雜|清潔/.test(name))return'box';
+  return'list';
+}
+function drawPrepIcon(c,kind,cx,cy,r){
+  const lw=Math.max(2,r*0.09);
+  c.save();
+  c.lineWidth=lw;c.strokeStyle='#000';c.fillStyle='#000';c.lineJoin='round';c.lineCap='round';
+  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.stroke();
+  const u=r*0.5;
+  c.beginPath();
+  if(kind==='power'){
+    c.moveTo(cx+u*0.25,cy-u*1.15);c.lineTo(cx-u*0.65,cy+u*0.15);c.lineTo(cx-u*0.05,cy+u*0.15);
+    c.lineTo(cx-u*0.3,cy+u*1.15);c.lineTo(cx+u*0.65,cy-u*0.2);c.lineTo(cx+u*0.05,cy-u*0.2);c.closePath();c.fill();
+  } else if(kind==='hammer'){
+    c.translate(cx,cy);c.rotate(-Math.PI/4);
+    c.fillRect(-u*0.12,-u*0.55,u*0.24,u*1.75);
+    c.fillRect(-u*0.75,-u*0.95,u*1.5,u*0.5);
+  } else if(kind==='blade'){
+    const teeth=12,ro=u*1.05,ri=u*0.78;
+    for(let i=0;i<teeth*2;i++){
+      const a=i*Math.PI/teeth,rr=i%2?ri:ro;
+      const x=cx+Math.cos(a)*rr,y=cy+Math.sin(a)*rr;
+      if(i)c.lineTo(x,y);else c.moveTo(x,y);
+    }
+    c.closePath();c.stroke();
+    c.beginPath();c.arc(cx,cy,u*0.22,0,Math.PI*2);c.fill();
+  } else if(kind==='box'){
+    const w=u*0.95,h=u*0.5;
+    c.moveTo(cx,cy-u*0.95);c.lineTo(cx+w,cy-u*0.95+h);c.lineTo(cx+w,cy+u*0.45);
+    c.lineTo(cx,cy+u*0.95);c.lineTo(cx-w,cy+u*0.45);c.lineTo(cx-w,cy-u*0.95+h);c.closePath();
+    c.moveTo(cx-w,cy-u*0.95+h);c.lineTo(cx,cy-u*0.95+h*2);c.lineTo(cx+w,cy-u*0.95+h);
+    c.moveTo(cx,cy-u*0.95+h*2);c.lineTo(cx,cy+u*0.95);c.stroke();
+  } else if(kind==='shield'){
+    c.moveTo(cx,cy-u*1.05);c.lineTo(cx+u*0.85,cy-u*0.7);c.lineTo(cx+u*0.85,cy);
+    c.quadraticCurveTo(cx+u*0.8,cy+u*0.75,cx,cy+u*1.1);
+    c.quadraticCurveTo(cx-u*0.8,cy+u*0.75,cx-u*0.85,cy);c.lineTo(cx-u*0.85,cy-u*0.7);c.closePath();c.stroke();
+    c.beginPath();c.moveTo(cx-u*0.35,cy);c.lineTo(cx-u*0.05,cy+u*0.3);c.lineTo(cx+u*0.4,cy-u*0.25);c.stroke();
+  } else if(kind==='note'){
+    c.translate(cx,cy);c.rotate(-Math.PI/4);
+    c.strokeRect(-u*0.2,-u*0.95,u*0.4,u*1.45);
+    c.moveTo(-u*0.2,u*0.5);c.lineTo(0,u*0.95);c.lineTo(u*0.2,u*0.5);c.stroke();
+    c.beginPath();c.moveTo(-u*0.2,-u*0.6);c.lineTo(u*0.2,-u*0.6);c.stroke();
+  } else {
+    for(let i=-1;i<=1;i++){
+      const y=cy+i*u*0.55;
+      c.fillRect(cx-u*0.8,y-u*0.1,u*0.2,u*0.2);
+      c.moveTo(cx-u*0.35,y);c.lineTo(cx+u*0.8,y);
+    }
+    c.stroke();
+  }
+  c.restore();
+}
+function drawPrepHatch(c,x,y,w,h,step,lw){
+  c.save();
+  c.beginPath();c.rect(x,y,w,h);c.clip();
+  c.lineWidth=lw;c.strokeStyle='#000';c.beginPath();
+  for(let i=-h;i<w+h;i+=step){c.moveTo(x+i,y+h);c.lineTo(x+i+h,y);}
+  c.stroke();c.restore();
+}
 // 先排版算出總高度（ops 是之後真正畫圖的步驟），太高就縮小 s 重排
 function layoutPrepPage(ctx,data,s,W){
-  const M=110,cw=W-M*2,ops=[];
+  const M=100,cw=W-M*2,ops=[];
+  const lw=Math.max(2,3*s);
   let y=M;
-  // 標題
-  const tSz=Math.round(60*s);
-  ctx.font=prepFont(tSz,500);
+  // ── 頁首：品牌列 ──
+  const bSz=Math.round(22*s);
+  {const yy=y;ops.push(c=>{
+    c.font=prepFont(bSz,500);c.textAlign='left';c.fillText('安盾室內裝修　ANDUN INTERIOR',M,yy);
+    c.textAlign='right';c.fillText('PREPARATION CHECKLIST',W-M,yy);
+  });}
+  y+=bSz*1.7;
+  {const yy=y;ops.push(c=>{c.fillRect(M,yy,cw,Math.max(4,8*s));});}
+  y+=Math.max(4,8*s)+30*s;
+  // ── 標題 ──
+  const tSz=Math.round(66*s);
+  ctx.font=prepFont(tSz,700);
   prepWrapText(ctx,data.title,cw).forEach(line=>{
     const yy=y;
-    ops.push(c=>{c.font=prepFont(tSz,500);c.textAlign='center';c.fillText(line,W/2,yy);});
-    y+=tSz*1.3;
+    ops.push(c=>{c.font=prepFont(tSz,700);c.textAlign='left';c.fillText(line,M,yy);});
+    y+=tSz*1.25;
   });
-  y+=16*s;
-  // 專案名稱＋日期
-  const mSz=Math.round(32*s);
-  ctx.font=prepFont(mSz);
-  const dateText='日期：'+data.date;
-  const dateW=ctx.measureText(dateText).width;
-  prepWrapText(ctx,'專案名稱：'+data.project,cw-dateW-30*s).forEach((line,i)=>{
-    const yy=y;
-    ops.push(c=>{
-      c.font=prepFont(mSz);c.textAlign='left';c.fillText(line,M,yy);
-      if(i===0){c.textAlign='right';c.fillText(dateText,W-M,yy);}
-    });
-    y+=mSz*1.45;
-  });
-  y+=8*s;
-  {const yy=y,lw=Math.max(2,4*s);ops.push(c=>{c.fillRect(M,yy,cw,lw);});}
-  y+=34*s;
-  // 各張表
-  const hSz=Math.round(40*s),mainSz=Math.round(34*s),itSz=Math.round(30*s);
-  const ind=Math.round(30*s),cols=4,cellW=(cw-ind)/cols;
-  const box=Math.round(itSz*0.82),gap=Math.round(12*s),lineH=itSz*1.35;
+  y+=22*s;
+  // ── 專案名稱／日期 欄位框 ──
+  const lSz=Math.round(20*s),vSz=Math.round(36*s),padX=22*s,padT=16*s;
+  const dateW=cw*0.28,projW=cw-dateW;
+  ctx.font=prepFont(vSz,500);
+  const projLines=prepWrapText(ctx,data.project,projW-padX*2);
+  const boxH=padT+lSz*1.5+projLines.length*vSz*1.3+padT;
+  {const yy=y;ops.push(c=>{
+    c.lineWidth=lw;c.strokeRect(M,yy,cw,boxH);
+    c.beginPath();c.moveTo(M+projW,yy);c.lineTo(M+projW,yy+boxH);c.stroke();
+    c.font=prepFont(lSz,500);c.textAlign='left';
+    c.fillText('專案名稱 PROJECT',M+padX,yy+padT);
+    c.fillText('日期 DATE',M+projW+padX,yy+padT);
+    c.font=prepFont(vSz,500);
+    projLines.forEach((t,i)=>c.fillText(t,M+padX,yy+padT+lSz*1.5+i*vSz*1.3));
+    c.fillText(data.date,M+projW+padX,yy+padT+lSz*1.5);
+  });}
+  y+=boxH;
+  {const yy=y,hh=16*s;ops.push(c=>{drawPrepHatch(c,M,yy,cw,hh,12*s,Math.max(1.5,2*s));});y+=hh;}
+  y+=44*s;
+  // ── 各張表 ──
+  const hSz=Math.round(36*s),mainSz=Math.round(32*s),itSz=Math.round(28*s);
+  const iconR=Math.round(26*s),ind=iconR*2+22*s,cols=4,cellW=(cw-ind)/cols;
+  const box=Math.round(itSz*0.85),gap=Math.round(12*s),lineH=itSz*1.35;
   data.sections.forEach(sec=>{
-    if(data.sections.length>1){
-      const yy=y,bh=hSz*1.6;
-      ops.push(c=>{
-        c.fillStyle='#e6e6e6';c.fillRect(M,yy,cw,bh);
-        c.fillStyle='#000';c.font=prepFont(hSz,500);c.textAlign='left';c.fillText(sec.name,M+20*s,yy+(bh-hSz)/2);
-      });
-      y+=bh+24*s;
-    }
+    const total=sec.mains.reduce((n,m)=>n+m.subs.length,0);
+    {const yy=y,bh=hSz*1.75;ops.push(c=>{
+      c.fillRect(M,yy,cw,bh);
+      c.fillStyle='#fff';c.font=prepFont(hSz,700);c.textAlign='left';
+      c.fillText(sec.name,M+24*s,yy+(bh-hSz)/2);
+      c.font=prepFont(Math.round(24*s),500);c.textAlign='right';
+      c.fillText(`共 ${total} 項`,W-M-24*s,yy+(bh-24*s)/2);
+    });y+=bh+30*s;}
     sec.mains.forEach((m,mi)=>{
-      ctx.font=prepFont(mainSz,500);
-      prepWrapText(ctx,`${mi+1}. ${m.name}`,cw).forEach(line=>{
-        const yy=y;
-        ops.push(c=>{c.font=prepFont(mainSz,500);c.textAlign='left';c.fillText(line,M,yy);});
-        y+=mainSz*1.45;
-      });
+      const kind=prepIconKind(m.name);
+      ctx.font=prepFont(mainSz,700);
+      const label=`${String(mi+1).padStart(2,'0')}　${m.name}`;
+      const nameLines=prepWrapText(ctx,label,cw-ind-160*s);
+      const headH=Math.max(iconR*2,nameLines.length*mainSz*1.3);
+      {const yy=y;ops.push(c=>{
+        drawPrepIcon(c,kind,M+iconR,yy+headH/2,iconR);
+        c.font=prepFont(mainSz,700);c.textAlign='left';
+        const ty=yy+(headH-nameLines.length*mainSz*1.3)/2+mainSz*0.12;
+        nameLines.forEach((t,i)=>c.fillText(t,M+ind,ty+i*mainSz*1.3));
+        c.font=prepFont(Math.round(22*s),500);c.textAlign='right';
+        c.fillText(`${m.subs.length} 項`,W-M,yy+(headH-22*s)/2);
+      });}
+      y+=headH+10*s;
+      {const yy=y;ops.push(c=>{
+        c.save();c.lineWidth=Math.max(1,1.5*s);c.setLineDash([6*s,6*s]);
+        c.beginPath();c.moveTo(M+ind,yy);c.lineTo(W-M,yy);c.stroke();c.restore();
+      });}
+      y+=18*s;
       ctx.font=prepFont(itSz);
       for(let r=0;r<m.subs.length;r+=cols){
         const row=m.subs.slice(r,r+cols);
@@ -2108,7 +2221,7 @@ function layoutPrepPage(ctx,data,s,W){
         cells.forEach((ls,ci)=>{
           const x=M+ind+ci*cellW;
           ops.push(c=>{
-            c.lineWidth=Math.max(2,3*s);
+            c.lineWidth=lw;
             c.strokeRect(x,yy+(lineH-box)/2,box,box);
             c.font=prepFont(itSz);c.textAlign='left';
             ls.forEach((t,li)=>c.fillText(t,x+box+gap,yy+li*lineH+(lineH-itSz)/2));
@@ -2116,29 +2229,43 @@ function layoutPrepPage(ctx,data,s,W){
         });
         y+=rowH+12*s;
       }
-      y+=20*s;
+      y+=28*s;
     });
-    y+=14*s;
+    y+=10*s;
   });
-  // 備註事項
-  {
-    const yy=y;
-    ops.push(c=>{c.font=prepFont(hSz,500);c.textAlign='left';c.fillText('備註事項',M,yy);});
-    y+=hSz*1.5;
-  }
+  // ── 備註事項 ──
+  {const yy=y,hh=iconR*2;ops.push(c=>{
+    drawPrepIcon(c,'note',M+iconR,yy+hh/2,iconR);
+    c.font=prepFont(mainSz,700);c.textAlign='left';
+    c.fillText('備註事項',M+ind,yy+(hh-mainSz)/2+mainSz*0.12);
+    c.font=prepFont(Math.round(22*s),500);c.textAlign='right';c.fillText('NOTES',W-M,yy+(hh-22*s)/2);
+  });y+=hh+14*s;}
   ctx.font=prepFont(itSz);
-  const noteLines=data.notes?prepWrapText(ctx,data.notes,cw):[];
-  const ruleH=itSz*1.9;
+  const pad=24*s,ruleH=itSz*1.9;
+  const noteLines=data.notes?prepWrapText(ctx,data.notes,cw-pad*2):[];
   const totalLines=noteLines.length+(noteLines.length?2:4); // 有寫內容就多留兩行，沒寫就留四行手寫
-  for(let i=0;i<totalLines;i++){
-    const yy=y,t=noteLines[i];
-    ops.push(c=>{
-      if(t){c.font=prepFont(itSz);c.textAlign='left';c.fillText(t,M,yy+ruleH-itSz-14*s);}
-      c.fillStyle='#999';c.fillRect(M,yy+ruleH-6*s,cw,Math.max(1,2*s));
-    });
-    y+=ruleH;
-  }
-  return{ops,height:y+M};
+  const nbH=pad+totalLines*ruleH+pad*0.6;
+  {const yy=y;ops.push(c=>{
+    c.lineWidth=lw;c.strokeRect(M,yy,cw,nbH);
+    for(let i=0;i<totalLines;i++){
+      const ly=yy+pad+i*ruleH,t=noteLines[i];
+      if(t){c.font=prepFont(itSz);c.textAlign='left';c.fillText(t,M+pad,ly+ruleH-itSz-14*s);}
+      c.fillStyle='#9a9a9a';c.fillRect(M+pad,ly+ruleH-6*s,cw-pad*2,Math.max(1,2*s));c.fillStyle='#000';
+    }
+  });}
+  y+=nbH;
+  // 頁尾高度（實際畫的位置交給 drawPrepFooter，固定貼在頁面底部）
+  const footH=70*s;
+  return{ops,height:y+40*s+footH+M,s};
+}
+function drawPrepFooter(c,data,s,W,pageH){
+  const M=100,cw=W-M*2,fSz=Math.round(20*s);
+  const y=pageH-M-fSz*1.2;
+  drawPrepHatch(c,M,y-34*s,cw,10*s,10*s,Math.max(1.2,1.6*s));
+  c.font=prepFont(fSz,500);c.textBaseline='top';
+  c.textAlign='left';c.fillText('安盾室內裝修',M,y);
+  c.textAlign='center';c.fillText('檢查人：________________',W/2,y);
+  c.textAlign='right';c.fillText('產出 '+data.generatedAt,W-M,y);
 }
 function drawPrepOps(c,ops){
   c.fillStyle='#000';c.strokeStyle='#000';c.textBaseline='top';
@@ -2150,14 +2277,23 @@ async function generatePrepImage(){
   const sheets=db.prepSheets.filter(sh=>prepCheckedSheets.has(sh.id));
   if(!sheets.length)return alert('請至少勾選一張準備表');
   const d=new Date(),p2=n=>String(n).padStart(2,'0');
+  const sections=sheets.map(sh=>({
+    name:sh.name,
+    // 主項目有勾選才印；副項目只印這次有勾選的；主項目底下副項目全部取消時，整個主項目不印
+    mains:sh.mains.filter(m=>!prepUncheckedMains.has(m.id))
+      .map(m=>({name:m.name,subs:m.subs.filter(sub=>!prepUncheckedSubs.has(m.id+'|'+sub)),hadSubs:m.subs.length>0}))
+      .filter(m=>m.subs.length||!m.hadSubs)
+  }));
+  if(!sections.some(sec=>sec.mains.length))return alert('目前沒有任何要印的項目');
   const data={
     title:sheets.map(x=>x.name).join('／'),
     project,
     date:`${d.getFullYear()}/${p2(d.getMonth()+1)}/${p2(d.getDate())}`,
-    sections:sheets.map(sh=>({name:sh.name,mains:sh.mains.filter(m=>!prepUncheckedMains.has(m.id))})),
+    generatedAt:`${d.getFullYear()}/${p2(d.getMonth()+1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`,
+    sections,
     notes:document.getElementById('prep-notes').value.trim()
   };
-  try{await document.fonts.load(prepFont(40,500));await document.fonts.load(prepFont(40));}catch(e){}
+  try{await document.fonts.load(prepFont(40,700));await document.fonts.load(prepFont(40,500));await document.fonts.load(prepFont(40));}catch(e){}
   const W=1654,H=2339;
   const measure=document.createElement('canvas').getContext('2d');
   let s=1,lay=layoutPrepPage(measure,data,s,W);
@@ -2168,12 +2304,15 @@ async function generatePrepImage(){
   let shrunk=false;
   if(lay.height<=H){
     drawPrepOps(ctx,lay.ops);
+    drawPrepFooter(ctx,data,s,W,H);
   } else {
     // 縮到最小字級還是超過一頁：先畫在較長的畫布，再整張等比例縮進 A4
-    const tall=document.createElement('canvas');tall.width=W;tall.height=Math.ceil(lay.height);
-    const tctx=tall.getContext('2d');tctx.fillStyle='#fff';tctx.fillRect(0,0,W,tall.height);
+    const tallH=Math.ceil(lay.height);
+    const tall=document.createElement('canvas');tall.width=W;tall.height=tallH;
+    const tctx=tall.getContext('2d');tctx.fillStyle='#fff';tctx.fillRect(0,0,W,tallH);
     drawPrepOps(tctx,lay.ops);
-    const dw=W*H/tall.height;
+    drawPrepFooter(tctx,data,s,W,tallH);
+    const dw=W*H/tallH;
     ctx.drawImage(tall,(W-dw)/2,0,dw,H);
     shrunk=true;
   }
