@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="robots" content="noindex, nofollow, noarchive">
-<meta name="app-version" content="202607284">
+<meta name="app-version" content="2610152234">
 <script>(function(){var t=localStorage.getItem('dmgr_theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -358,6 +358,18 @@ textarea.form-input{resize:none;min-height:72px;}
 .tool-grid.reorder-mode .tool-tile:not(.tool-dragging){transition:transform .18s ease;}
 @keyframes tool-jiggle{0%{transform:rotate(-1.2deg);}50%{transform:rotate(1.2deg);}100%{transform:rotate(-1.2deg);}}
 .tool-icon-edit{position:absolute;bottom:-4px;right:-4px;width:24px;height:24px;border-radius:50%;background:var(--gold);color:var(--bg);display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--bg2);cursor:pointer;z-index:2;}
+.prep-row{display:flex;align-items:center;gap:10px;padding:0.7rem 0.9rem;border-bottom:1px solid var(--border);}
+.prep-row:last-child{border-bottom:none;}
+.prep-row input[type=checkbox]{width:20px;height:20px;flex-shrink:0;accent-color:var(--gold);}
+.prep-row-name{flex:1;min-width:0;font-size:0.9688rem;}
+.prep-del{background:none;border:none;color:var(--text3);font-size:1.1rem;cursor:pointer;padding:2px 4px;}
+.prep-subs{display:flex;flex-wrap:wrap;gap:6px;padding:0 0.9rem 0.75rem 2.6rem;}
+.prep-sub-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 6px 5px 11px;border-radius:99px;background:var(--bg3);border:1px solid var(--border);font-size:0.8438rem;}
+.prep-sub-chip button{background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.9rem;padding:0 2px;display:flex;}
+.prep-add-row{display:flex;gap:6px;padding:0.6rem 0.9rem;}
+.prep-add-row input{flex:1;min-width:0;padding:8px 11px;font-size:0.9375rem;}
+.prep-sub-add{padding:0 0.9rem 0.8rem 2.6rem;display:flex;gap:6px;}
+.prep-sub-add input{flex:1;min-width:0;padding:7px 10px;font-size:0.875rem;}
 .tool-label{font-size:0.8125rem;color:var(--text2);text-align:center;line-height:1.2;}
 </style>
 </head>
@@ -507,6 +519,21 @@ textarea.form-input{resize:none;min-height:72px;}
     </div>
   </div>
 
+  <div id="page-prep" class="page">
+    <div class="content">
+      <div class="form-group"><label class="form-label">專案名稱 *</label>
+        <input class="form-input" id="prep-project" list="prep-project-list" placeholder="例：台北市林-張公館" autocomplete="off" oninput="onPrepProjectInput()">
+        <datalist id="prep-project-list"></datalist>
+      </div>
+      <div id="prep-after-project" style="display:none;">
+        <div id="prep-body"></div>
+        <div class="section-hd">備註事項</div>
+        <textarea class="form-input" id="prep-notes" placeholder="例：社區驗收" rows="3"></textarea>
+        <button class="btn btn-primary" style="width:100%;margin-top:1rem;margin-bottom:1.5rem;" onclick="generatePrepImage()"><i class="ti ti-photo"></i> 產生 A4 圖片</button>
+      </div>
+    </div>
+  </div>
+
   <div id="page-quotes" class="page">
     <div class="content">
       <div class="quote-folder-tabs" id="quote-folder-tabs"></div>
@@ -566,6 +593,18 @@ textarea.form-input{resize:none;min-height:72px;}
   <button onclick="downloadSelectedQuotes()"><i class="ti ti-download"></i> 下載</button>
   <button onclick="openMoveSelectedSheet()"><i class="ti ti-folder-symlink"></i> 移動</button>
   <button class="danger" onclick="deleteSelectedQuotes()"><i class="ti ti-trash"></i> 刪除</button>
+</div>
+
+<div class="quote-preview-overlay" id="prep-preview-overlay" onclick="closePrepPreview()">
+  <div class="quote-preview-bar">
+    <span>長按圖片可儲存或列印</span>
+    <div style="display:flex;gap:10px;">
+      <button onclick="event.stopPropagation();sharePrepImage()"><i class="ti ti-share"></i></button>
+      <button onclick="event.stopPropagation();downloadPrepImage()"><i class="ti ti-download"></i></button>
+      <button onclick="event.stopPropagation();closePrepPreview()"><i class="ti ti-x"></i></button>
+    </div>
+  </div>
+  <img id="prep-preview-img" onclick="event.stopPropagation()" style="background:#fff;">
 </div>
 
 <div class="quote-preview-overlay" id="quote-preview-overlay" onclick="closeQuotePreview()">
@@ -1490,6 +1529,9 @@ window.onFirebaseReady=function(){
   if(window.fbStartQuotesListener){
     window.fbStartQuotesListener(onQuotesSynced,onQuotesSyncError);
   }
+  if(window.fbStartPrepSheetsListener){
+    window.fbStartPrepSheetsListener(onPrepSheetsSynced,onPrepSheetsSyncError);
+  }
   if(window.fbStartTodosListeners){
     window.fbStartTodosListeners(onTodosSynced,onTodosSyncError);
   }
@@ -1858,6 +1900,311 @@ function onMaterialConfigSynced(cfg){
   db.materialConfig=cfg;save();
   if(currentPage==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
 }
+// ── 備貨文件表（工具）──
+// 範本（準備表／主項目／副項目）存在雲端 settings/prepSheets，團隊共用；
+// 這次勾選了哪幾張表、哪些主項目、備註，只存在這次操作，不存雲端
+function defaultPrepMains(prefix){
+  const base=[
+    ['電動工具',['電動','磨切機','砂輪機']],
+    ['手工具',['鐵鎚','美工刀','老虎鉗','捲尺']],
+    ['作業工具',['鉅台','切溝機','五尺馬椅']],
+    ['其他',['中米袋','大米袋','掃把','畚斗']]
+  ];
+  return base.map((m,i)=>({id:prefix+'-m'+(i+1),name:m[0],subs:m[1].slice()}));
+}
+function defaultPrepSheets(){
+  // 固定編號：多台裝置第一次各自產生預設值時，編號也會一致
+  return[
+    {id:'protect',name:'保護工程準備表',mains:defaultPrepMains('protect')},
+    {id:'finish',name:'收尾準備表',mains:defaultPrepMains('finish')},
+    {id:'repair',name:'維修準備表',mains:defaultPrepMains('repair')}
+  ];
+}
+let prepCheckedSheets=new Set();
+let prepUncheckedMains=new Set();
+let prepImageBlob=null,prepImageUrl=null,prepImageName='';
+function prepEsc(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function prepFindSheet(id){return db.prepSheets.find(x=>x.id===id);}
+function savePrepSheets(){
+  save();
+  if(window.fbSavePrepSheets)window.fbSavePrepSheets({sheets:db.prepSheets}).catch(err=>{
+    console.error('備貨文件表儲存失敗',err);
+    alert('備貨文件表儲存到雲端失敗，請檢查網路連線後再操作一次');
+  });
+}
+function onPrepSheetsSyncError(){console.error('備貨文件表雲端同步權限不足');}
+function onPrepSheetsSynced(cfg){
+  if(!cfg||!Array.isArray(cfg.sheets))return;
+  db.prepSheets=cfg.sheets;save();
+  if(currentPage==='prep')renderPrepBody();
+}
+function renderPrep(){
+  const dl=document.getElementById('prep-project-list');
+  if(dl)dl.innerHTML=db.projects.filter(p=>p.type==='施作中'||p.type==='洽談中').map(p=>`<option value="${prepEsc(p.name)}">`).join('');
+  renderPrepBody();
+  onPrepProjectInput();
+}
+function onPrepProjectInput(){
+  const name=document.getElementById('prep-project').value.trim();
+  document.getElementById('prep-after-project').style.display=name?'block':'none';
+}
+function renderPrepBody(){
+  const el=document.getElementById('prep-body');if(!el)return;
+  prepCheckedSheets=new Set([...prepCheckedSheets].filter(id=>prepFindSheet(id)));
+  let h=`<div class="section-hd">選擇準備表</div><div class="card">`+
+    db.prepSheets.map(sh=>`<div class="prep-row">
+      <label style="flex:1;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;">
+        <input type="checkbox" ${prepCheckedSheets.has(sh.id)?'checked':''} onchange="togglePrepSheet('${sh.id}',this.checked)">
+        <span class="prep-row-name">${prepEsc(sh.name)}</span>
+      </label>
+      <button class="prep-del" onclick="deletePrepSheet('${sh.id}')"><i class="ti ti-trash"></i></button>
+    </div>`).join('')+
+    `<div class="prep-add-row"><input class="form-input" id="prep-add-sheet" placeholder="新增準備表名稱" autocomplete="off" onkeydown="if(event.key==='Enter')addPrepSheet()"><button class="btn btn-sm btn-primary" onclick="addPrepSheet()">新增</button></div></div>`;
+  db.prepSheets.filter(sh=>prepCheckedSheets.has(sh.id)).forEach(sh=>{
+    h+=`<div class="section-hd">${prepEsc(sh.name)}・主項目</div><div class="card">`+
+      sh.mains.map(m=>{
+        const on=!prepUncheckedMains.has(m.id);
+        const subsHtml=m.subs.length
+          ?m.subs.map((sub,i)=>`<span class="prep-sub-chip">${prepEsc(sub)}<button onclick="deletePrepSub('${sh.id}','${m.id}',${i})"><i class="ti ti-x"></i></button></span>`).join('')
+          :'<span class="text-xs text-muted">尚無副項目</span>';
+        return`<div class="prep-row"${on?' style="border-bottom:none;"':''}>
+          <label style="flex:1;display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;">
+            <input type="checkbox" ${on?'checked':''} onchange="togglePrepMain('${m.id}',this.checked)">
+            <span class="prep-row-name fw500">${prepEsc(m.name)}</span>
+          </label>
+          <button class="prep-del" onclick="deletePrepMain('${sh.id}','${m.id}')"><i class="ti ti-trash"></i></button>
+        </div>`+(on?`<div class="prep-subs">${subsHtml}</div>
+        <div class="prep-sub-add" style="border-bottom:1px solid var(--border);"><input class="form-input" id="prep-add-sub-${m.id}" placeholder="新增副項目" autocomplete="off" onkeydown="if(event.key==='Enter')addPrepSub('${sh.id}','${m.id}')"><button class="btn btn-sm" onclick="addPrepSub('${sh.id}','${m.id}')">新增</button></div>`:'');
+      }).join('')+
+      `<div class="prep-add-row"><input class="form-input" id="prep-add-main-${sh.id}" placeholder="新增主項目" autocomplete="off" onkeydown="if(event.key==='Enter')addPrepMain('${sh.id}')"><button class="btn btn-sm btn-primary" onclick="addPrepMain('${sh.id}')">新增</button></div></div>`;
+  });
+  el.innerHTML=h;
+}
+function togglePrepSheet(id,on){if(on)prepCheckedSheets.add(id);else prepCheckedSheets.delete(id);renderPrepBody();}
+function togglePrepMain(id,on){if(on)prepUncheckedMains.delete(id);else prepUncheckedMains.add(id);renderPrepBody();}
+function addPrepSheet(){
+  const inp=document.getElementById('prep-add-sheet');
+  const name=inp.value.trim();if(!name)return;
+  if(db.prepSheets.some(x=>x.name===name))return alert('已經有相同名稱的準備表了');
+  const sh={id:'ps'+uid(),name,mains:[]};
+  db.prepSheets.push(sh);
+  prepCheckedSheets.add(sh.id);
+  savePrepSheets();renderPrepBody();
+}
+function deletePrepSheet(sid){
+  const sh=prepFindSheet(sid);if(!sh)return;
+  if(!confirm(`確定刪除「${sh.name}」？（範本是團隊共用的，刪除後所有人都看不到）`))return;
+  db.prepSheets=db.prepSheets.filter(x=>x.id!==sid);
+  prepCheckedSheets.delete(sid);
+  savePrepSheets();renderPrepBody();
+}
+function addPrepMain(sid){
+  const sh=prepFindSheet(sid);if(!sh)return;
+  const inp=document.getElementById('prep-add-main-'+sid);
+  const name=inp.value.trim();if(!name)return;
+  if(sh.mains.some(m=>m.name===name))return alert('這張表已經有相同名稱的主項目了');
+  const m={id:'pm'+uid(),name,subs:[]};
+  sh.mains.push(m);
+  savePrepSheets();renderPrepBody();
+  const subInp=document.getElementById('prep-add-sub-'+m.id);if(subInp)subInp.focus();
+}
+function deletePrepMain(sid,mid){
+  const sh=prepFindSheet(sid);if(!sh)return;
+  const m=sh.mains.find(x=>x.id===mid);if(!m)return;
+  if(!confirm(`確定刪除主項目「${m.name}」和底下所有副項目？`))return;
+  sh.mains=sh.mains.filter(x=>x.id!==mid);
+  prepUncheckedMains.delete(mid);
+  savePrepSheets();renderPrepBody();
+}
+function addPrepSub(sid,mid){
+  const sh=prepFindSheet(sid);if(!sh)return;
+  const m=sh.mains.find(x=>x.id===mid);if(!m)return;
+  const inp=document.getElementById('prep-add-sub-'+mid);
+  const name=inp.value.trim();if(!name)return;
+  if(m.subs.includes(name))return alert('已經有相同名稱的副項目了');
+  m.subs.push(name);
+  savePrepSheets();renderPrepBody();
+  const again=document.getElementById('prep-add-sub-'+mid);if(again)again.focus();
+}
+function deletePrepSub(sid,mid,idx){
+  const sh=prepFindSheet(sid);if(!sh)return;
+  const m=sh.mains.find(x=>x.id===mid);if(!m||m.subs[idx]===undefined)return;
+  if(!confirm(`確定刪除副項目「${m.subs[idx]}」？`))return;
+  m.subs.splice(idx,1);
+  savePrepSheets();renderPrepBody();
+}
+
+// ── 輸出 A4 圖片（200dpi：1654×2339，白底）──
+const PREP_FONT='"Noto Sans TC","PingFang TC","Heiti TC",sans-serif';
+function prepFont(px,w){return`${w||400} ${px}px ${PREP_FONT}`;}
+function prepWrapText(ctx,text,maxW){
+  const lines=[];
+  String(text).split('\n').forEach(para=>{
+    if(!para){lines.push('');return;}
+    let cur='';
+    for(const ch of para){
+      const t=cur+ch;
+      if(ctx.measureText(t).width>maxW&&cur){lines.push(cur);cur=ch;}else cur=t;
+    }
+    lines.push(cur);
+  });
+  return lines;
+}
+// 先排版算出總高度（ops 是之後真正畫圖的步驟），太高就縮小 s 重排
+function layoutPrepPage(ctx,data,s,W){
+  const M=110,cw=W-M*2,ops=[];
+  let y=M;
+  // 標題
+  const tSz=Math.round(60*s);
+  ctx.font=prepFont(tSz,500);
+  prepWrapText(ctx,data.title,cw).forEach(line=>{
+    const yy=y;
+    ops.push(c=>{c.font=prepFont(tSz,500);c.textAlign='center';c.fillText(line,W/2,yy);});
+    y+=tSz*1.3;
+  });
+  y+=16*s;
+  // 專案名稱＋日期
+  const mSz=Math.round(32*s);
+  ctx.font=prepFont(mSz);
+  const dateText='日期：'+data.date;
+  const dateW=ctx.measureText(dateText).width;
+  prepWrapText(ctx,'專案名稱：'+data.project,cw-dateW-30*s).forEach((line,i)=>{
+    const yy=y;
+    ops.push(c=>{
+      c.font=prepFont(mSz);c.textAlign='left';c.fillText(line,M,yy);
+      if(i===0){c.textAlign='right';c.fillText(dateText,W-M,yy);}
+    });
+    y+=mSz*1.45;
+  });
+  y+=8*s;
+  {const yy=y,lw=Math.max(2,4*s);ops.push(c=>{c.fillRect(M,yy,cw,lw);});}
+  y+=34*s;
+  // 各張表
+  const hSz=Math.round(40*s),mainSz=Math.round(34*s),itSz=Math.round(30*s);
+  const ind=Math.round(30*s),cols=4,cellW=(cw-ind)/cols;
+  const box=Math.round(itSz*0.82),gap=Math.round(12*s),lineH=itSz*1.35;
+  data.sections.forEach(sec=>{
+    if(data.sections.length>1){
+      const yy=y,bh=hSz*1.6;
+      ops.push(c=>{
+        c.fillStyle='#e6e6e6';c.fillRect(M,yy,cw,bh);
+        c.fillStyle='#000';c.font=prepFont(hSz,500);c.textAlign='left';c.fillText(sec.name,M+20*s,yy+(bh-hSz)/2);
+      });
+      y+=bh+24*s;
+    }
+    sec.mains.forEach((m,mi)=>{
+      ctx.font=prepFont(mainSz,500);
+      prepWrapText(ctx,`${mi+1}. ${m.name}`,cw).forEach(line=>{
+        const yy=y;
+        ops.push(c=>{c.font=prepFont(mainSz,500);c.textAlign='left';c.fillText(line,M,yy);});
+        y+=mainSz*1.45;
+      });
+      ctx.font=prepFont(itSz);
+      for(let r=0;r<m.subs.length;r+=cols){
+        const row=m.subs.slice(r,r+cols);
+        const cells=row.map(sub=>prepWrapText(ctx,sub,cellW-box-gap-14*s));
+        const rowH=Math.max(...cells.map(ls=>ls.length))*lineH;
+        const yy=y;
+        cells.forEach((ls,ci)=>{
+          const x=M+ind+ci*cellW;
+          ops.push(c=>{
+            c.lineWidth=Math.max(2,3*s);
+            c.strokeRect(x,yy+(lineH-box)/2,box,box);
+            c.font=prepFont(itSz);c.textAlign='left';
+            ls.forEach((t,li)=>c.fillText(t,x+box+gap,yy+li*lineH+(lineH-itSz)/2));
+          });
+        });
+        y+=rowH+12*s;
+      }
+      y+=20*s;
+    });
+    y+=14*s;
+  });
+  // 備註事項
+  {
+    const yy=y;
+    ops.push(c=>{c.font=prepFont(hSz,500);c.textAlign='left';c.fillText('備註事項',M,yy);});
+    y+=hSz*1.5;
+  }
+  ctx.font=prepFont(itSz);
+  const noteLines=data.notes?prepWrapText(ctx,data.notes,cw):[];
+  const ruleH=itSz*1.9;
+  const totalLines=noteLines.length+(noteLines.length?2:4); // 有寫內容就多留兩行，沒寫就留四行手寫
+  for(let i=0;i<totalLines;i++){
+    const yy=y,t=noteLines[i];
+    ops.push(c=>{
+      if(t){c.font=prepFont(itSz);c.textAlign='left';c.fillText(t,M,yy+ruleH-itSz-14*s);}
+      c.fillStyle='#999';c.fillRect(M,yy+ruleH-6*s,cw,Math.max(1,2*s));
+    });
+    y+=ruleH;
+  }
+  return{ops,height:y+M};
+}
+function drawPrepOps(c,ops){
+  c.fillStyle='#000';c.strokeStyle='#000';c.textBaseline='top';
+  ops.forEach(op=>{c.save();op(c);c.restore();});
+}
+async function generatePrepImage(){
+  const project=document.getElementById('prep-project').value.trim();
+  if(!project)return alert('請先填寫專案名稱');
+  const sheets=db.prepSheets.filter(sh=>prepCheckedSheets.has(sh.id));
+  if(!sheets.length)return alert('請至少勾選一張準備表');
+  const d=new Date(),p2=n=>String(n).padStart(2,'0');
+  const data={
+    title:sheets.map(x=>x.name).join('／'),
+    project,
+    date:`${d.getFullYear()}/${p2(d.getMonth()+1)}/${p2(d.getDate())}`,
+    sections:sheets.map(sh=>({name:sh.name,mains:sh.mains.filter(m=>!prepUncheckedMains.has(m.id))})),
+    notes:document.getElementById('prep-notes').value.trim()
+  };
+  try{await document.fonts.load(prepFont(40,500));await document.fonts.load(prepFont(40));}catch(e){}
+  const W=1654,H=2339;
+  const measure=document.createElement('canvas').getContext('2d');
+  let s=1,lay=layoutPrepPage(measure,data,s,W);
+  while(lay.height>H&&s>0.6){s=Math.round((s-0.05)*100)/100;lay=layoutPrepPage(measure,data,s,W);}
+  const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  let shrunk=false;
+  if(lay.height<=H){
+    drawPrepOps(ctx,lay.ops);
+  } else {
+    // 縮到最小字級還是超過一頁：先畫在較長的畫布，再整張等比例縮進 A4
+    const tall=document.createElement('canvas');tall.width=W;tall.height=Math.ceil(lay.height);
+    const tctx=tall.getContext('2d');tctx.fillStyle='#fff';tctx.fillRect(0,0,W,tall.height);
+    drawPrepOps(tctx,lay.ops);
+    const dw=W*H/tall.height;
+    ctx.drawImage(tall,(W-dw)/2,0,dw,H);
+    shrunk=true;
+  }
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+  if(!blob)return alert('圖片產生失敗，請再試一次');
+  if(prepImageUrl)URL.revokeObjectURL(prepImageUrl);
+  prepImageBlob=blob;
+  prepImageUrl=URL.createObjectURL(blob);
+  prepImageName=`${data.title}_${project}_${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}.png`.replace(/[\\/:*?"<>|]/g,'_');
+  document.getElementById('prep-preview-img').src=prepImageUrl;
+  document.getElementById('prep-preview-overlay').classList.add('open');
+  if(shrunk)setTimeout(()=>alert('內容較多，已自動縮小成一頁 A4，字會比較小'),300);
+}
+function closePrepPreview(){document.getElementById('prep-preview-overlay').classList.remove('open');}
+async function sharePrepImage(){
+  if(!prepImageBlob)return;
+  const file=new File([prepImageBlob],prepImageName,{type:'image/png'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file]});}
+    catch(e){if(e.name!=='AbortError')downloadPrepImage();}
+  } else {
+    downloadPrepImage();
+  }
+}
+function downloadPrepImage(){
+  if(!prepImageUrl)return;
+  const a=document.createElement('a');
+  a.href=prepImageUrl;a.download=prepImageName;
+  document.body.appendChild(a);a.click();a.remove();
+}
+
 function onQuotesSyncError(){console.error('報價單雲端同步權限不足');}
 function onQuotesSynced(cfg){
   if(!cfg||!cfg.files)return;
@@ -2061,6 +2408,7 @@ function load(){
   if(!db.quotes)db.quotes=[];
   if(!db.quoteFolders||!db.quoteFolders.length)db.quoteFolders=['未分類'];
   if(!db.toolIcons)db.toolIcons={};
+  if(!db.prepSheets||!db.prepSheets.length)db.prepSheets=defaultPrepSheets();
   if(!db.materials||!db.materials.length){
     db.materials=MATERIAL_SEED_DATA.map(m=>({id:uid(),...m}));
     db.materialConfig.vendors=[...new Set(db.materials.map(m=>m.vendor))].sort();
@@ -2934,7 +3282,7 @@ function showPage(id,opts={}){
   if(scrollAreaEl)scrollAreaEl.scrollTop=0;
   currentPage=id;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  const tabMap={dashboard:0,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,quotes:3,staff:4,workdays:4};
+  const tabMap={dashboard:0,'finance-accounts':1,'finance-detail':1,'deleted-items':1,'audit-log':1,'balance-snapshots':1,projects:2,calendar:3,quotes:3,prep:3,staff:4,workdays:4};
   if(tabMap[id]!==undefined)document.querySelectorAll('.nav-tab')[tabMap[id]].classList.add('active');
   const titles={dashboard:'主頁',projects:'專案',finance:'收支管理',calendar:'工具',staff:'人事'};
   const tr=document.getElementById('topbar-right');
@@ -2974,6 +3322,9 @@ function showPage(id,opts={}){
   } else if(id==='quotes'){
     titleEl.innerHTML=`<button onclick="showPage('calendar')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>報價單`;
     tr.innerHTML='';
+  } else if(id==='prep'){
+    titleEl.innerHTML=`<button onclick="showPage('calendar')" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>備貨文件表`;
+    tr.innerHTML='';
   } else if(id==='materials'){
     titleEl.innerHTML=`<button onclick="goBack()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);display:flex;align-items:center"><i class="ti ti-arrow-left"></i></button>材料成本表`;
     tr.innerHTML=`<button class="topbar-btn-add" onclick="openAddMaterial()"><i class="ti ti-plus"></i></button>`;
@@ -2992,6 +3343,7 @@ function showPage(id,opts={}){
   if(id==='balance-snapshots')renderBalanceSnapshots();
   if(id==='workdays')renderWorkdays();
   if(id==='quotes')renderQuotes();
+  if(id==='prep')renderPrep();
   if(id==='calendar'){fillSel('e-project',true);renderCalendar();renderToolGrid();}
   if(id==='materials'){document.getElementById('mat-tax-rate').value=db.materialConfig.taxRate;renderMaterials();}
   if(id==='staff')renderStaff();
@@ -3008,7 +3360,8 @@ const TOOLS=[
   {id:'accap',name:'冷氣帽',url:'https://resilient-longma-7142ca.netlify.app',emoji:'❄️'},
   {id:'material',name:'材料成本查詢',url:'https://candid-belekoy-8230c8.netlify.app',emoji:'🪵'},
   {id:'ceiling',name:'天花板角材計算',url:'https://boisterous-snickerdoodle-113d94.netlify.app',emoji:'📐'},
-  {id:'quotes',name:'報價單',url:'__internal_quotes__',emoji:'📋'}
+  {id:'quotes',name:'報價單',url:'__internal_quotes__',emoji:'📋'},
+  {id:'prep',name:'備貨文件表',url:'__internal_prep__',emoji:'📦'}
 ];
 let currentToolIconId=null;
 function getToolOrder(){
@@ -3152,6 +3505,7 @@ function attachToolReorder(){
 function openTool(id){
   const t=TOOLS.find(x=>x.id===id);if(!t)return;
   if(t.url==='__internal_quotes__'){showPage('quotes');return;}
+  if(t.url==='__internal_prep__'){showPage('prep');return;}
   window.open(t.url,'_blank');
 }
 function openToolSettings(){
@@ -3807,7 +4161,7 @@ function clearTodoStatus(t){ // Firestore不接受undefined值，所以一定要
 }
 function todoLabelOf(t){
   const typeLabel=(NEG_STEPS.includes(t.type)||t.type==='丈量')?t.type:'';
-  if(t.type==='設定提醒')return`⚠️ ${t.text}．${t.projectName||''}`;
+  if(t.type==='設定提醒')return`⚠️ ${t.projectName||''}．${t.text}`;
   return typeLabel?`${typeLabel}．${t.projectName||''}`:(t.text||'');
 }
 // 日期下方顯示時間（沒有時間的，例如「設定提醒」，就只顯示日期）
@@ -3830,6 +4184,7 @@ function renderTodoTabs(){
 function renderTodos(){
   const el=document.getElementById('dash-todos');if(!el)return;
   cleanupExpiredTodos();
+  dedupeSetupReminders();
   renderTodoTabs();
   if(todoTab==='done')return renderDoneTodos(el);
   if(todoTab==='trash')return renderTrashTodos(el);
@@ -4707,9 +5062,14 @@ function checkAutoEntryConversions(){
     }
     // 加一筆提醒待辦事項，提醒去設定施工項目／工程款期數；兩個都填好之後會自動消失（見 checkSetupReminderCleared）
     if(!(p.selectedSteps&&p.selectedSteps.length)&&!(p.paymentSchedule&&p.paymentSchedule.length)){
-      const rec={id:uid(),type:'設定提醒',projectId:p.id,projectName:todoBuildingName(p),date:todayStr,time:'',text:'設定施工項目／工程款期數',createdAt:new Date().toISOString()};
-      db.todos.push(rec);save();
-      if(window.fbSaveTodo)window.fbSaveTodo(rec);
+      // 固定編號 setup-{專案id}：多台裝置同時轉換也只會寫到同一筆，不會重複
+      const exists=(db.todos||[]).some(t=>t.type==='設定提醒'&&t.projectId===p.id&&todoStatusOf(t)!=='deleted');
+      if(!exists){
+        const rec={id:'setup-'+p.id,type:'設定提醒',projectId:p.id,projectName:todoBuildingName(p),date:todayStr,time:'',text:'設定施工項目／工程款期數',createdAt:new Date().toISOString()};
+        db.todos=(db.todos||[]).filter(t=>t.id!==rec.id);
+        db.todos.push(rec);save();
+        if(window.fbSaveTodo)window.fbSaveTodo(rec);
+      }
     }
   });
 }
@@ -4719,12 +5079,41 @@ function checkSetupReminderCleared(pid){
   const hasSteps=p.selectedSteps&&p.selectedSteps.length;
   const hasSchedule=p.paymentSchedule&&p.paymentSchedule.length;
   if(!hasSteps||!hasSchedule)return; // 兩個都要有，才算填完
-  const todo=(db.todos||[]).find(t=>t.type==='設定提醒'&&t.projectId===pid);
-  if(!todo)return;
-  db.todos=db.todos.filter(t=>t.id!==todo.id);
+  const todos=(db.todos||[]).filter(t=>t.type==='設定提醒'&&t.projectId===pid);
+  if(!todos.length)return;
+  const ids=new Set(todos.map(t=>t.id));
+  db.todos=db.todos.filter(t=>!ids.has(t.id));
   save();
-  if(window.fbDeleteTodo)window.fbDeleteTodo(todo.id).catch(()=>{});
+  ids.forEach(id=>{if(window.fbDeleteTodo)window.fbDeleteTodo(id).catch(()=>{});});
   if(currentPage==='dashboard')renderTodos();
+}
+// 清理既有的重複「設定提醒」：每個專案只留一筆；專案已設定完成的全部清掉
+function dedupeSetupReminders(){
+  const groups={};
+  (db.todos||[]).forEach(t=>{
+    if(t.type!=='設定提醒'||todoStatusOf(t)==='deleted')return;
+    (groups[t.projectId]=groups[t.projectId]||[]).push(t);
+  });
+  const removeIds=new Set();
+  Object.keys(groups).forEach(pid=>{
+    const list=groups[pid];
+    const p=db.projects.find(x=>x.id===pid);
+    if(p&&p.selectedSteps&&p.selectedSteps.length&&p.paymentSchedule&&p.paymentSchedule.length){
+      list.forEach(t=>removeIds.add(t.id));
+      return;
+    }
+    if(list.length<2)return;
+    // 保留規則固定（優先 setup-{pid}，其次最早建立），多台裝置各自清理結果也會一致
+    list.sort((a,b)=>{
+      const fa=a.id==='setup-'+pid?0:1,fb=b.id==='setup-'+pid?0:1;
+      return fa-fb||(a.createdAt||'').localeCompare(b.createdAt||'')||a.id.localeCompare(b.id);
+    });
+    list.slice(1).forEach(t=>removeIds.add(t.id));
+  });
+  if(!removeIds.size)return;
+  db.todos=db.todos.filter(t=>!removeIds.has(t.id));
+  save();
+  removeIds.forEach(id=>{if(window.fbDeleteTodo)window.fbDeleteTodo(id).catch(()=>{});});
 }
 
 // ── 待辦事項：{id, type:'進場'|'丈量'|'manual', date, time, text, projectId, projectName, createdAt} ──
@@ -8204,7 +8593,7 @@ try{
   window.fbDebugLog('❌ Firebase 初始化失敗：'+err.message);
 }
 
-let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null, auditLogUnsub = null, balanceSnapshotsUnsub = null, fileCatsUnsub = null, todosUnsub = null, quotesUnsub = null;
+let punchesUnsub = null, gcalUnsub = null, projectsUnsub = null, staffUnsub = null, financeUnsub = null, eventsUnsub = null, reserveFundingUnsub = null, financeCatsUnsub = null, materialsUnsub = null, materialConfigUnsub = null, toolIconsUnsub = null, accountTransfersUnsub = null, auditLogUnsub = null, balanceSnapshotsUnsub = null, fileCatsUnsub = null, todosUnsub = null, quotesUnsub = null, prepSheetsUnsub = null;
 
 if (fbAuth) {
   onAuthStateChanged(fbAuth, (user) => {
@@ -8227,6 +8616,7 @@ if (fbAuth) {
       if (materialConfigUnsub) { materialConfigUnsub(); materialConfigUnsub = null; }
       if (fileCatsUnsub) { fileCatsUnsub(); fileCatsUnsub = null; }
       if (quotesUnsub) { quotesUnsub(); quotesUnsub = null; }
+      if (prepSheetsUnsub) { prepSheetsUnsub(); prepSheetsUnsub = null; }
       if (todosUnsub) { todosUnsub(); todosUnsub = null; }
       if (toolIconsUnsub) { toolIconsUnsub(); toolIconsUnsub = null; }
       if (window.onFirebaseSignedOut) window.onFirebaseSignedOut();
@@ -8456,6 +8846,14 @@ window.fbStartQuotesListener = function (onData, onError) {
   }, (err) => { console.error('報價單同步失敗', err); if (onError) onError(err); });
 };
 window.fbSaveQuotes = function (cfg) { return setDoc(doc(fbDb, 'settings', 'quotes'), cfg); };
+
+// ── 備貨文件表範本（單一文件，團隊共用）──
+window.fbStartPrepSheetsListener = function (onData, onError) {
+  prepSheetsUnsub = onSnapshot(doc(fbDb, 'settings', 'prepSheets'), (snap) => {
+    if (snap.exists()) onData(snap.data());
+  }, (err) => { console.error('備貨文件表同步失敗', err); if (onError) onError(err); });
+};
+window.fbSavePrepSheets = function (cfg) { return setDoc(doc(fbDb, 'settings', 'prepSheets'), cfg); };
 
 // ── Tool Icons（小工具自訂圖示，單一文件）──
 window.fbStartToolIconsListener = function (onData, onError) {
